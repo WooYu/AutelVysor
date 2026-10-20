@@ -136,7 +136,7 @@ This is intentionally a reliability-first fallback. It is much slower than the H
 
 ## Current validation status
 
-Source-level/XAML consistency validation has been performed in the development environment. This environment is Linux and does not contain a Windows .NET Desktop/WPF toolchain, so **v0.5.0 has not yet been claimed as Windows-compiled or Android-hardware-tested here**. The included Windows build workflow and scripts are intended to perform that final verification on Windows.
+The v0.5.0 Windows x64 GitHub Actions release build succeeded, including self-contained publish, executable self-test, metadata checks, portable ZIP and Inno Setup installer packaging. This validates the build runner, not physical Windows 10/11 computers or Android devices. Later commits require their own green workflow runs; Android 4.4 minicap requires matching native assets and device testing. Do not claim physical device compatibility from CI alone.
 
 ## Third-party components
 
