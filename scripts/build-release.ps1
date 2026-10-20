@@ -40,8 +40,10 @@ $setup = Join-Path $dist 'AutelVysor-Setup.exe'
 if (-not (Test-Path $setup)) { throw 'Inno Setup completed without AutelVysor-Setup.exe.' }
 
 $setupInfo = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($setup)
-$setupDescription = ($setupInfo.FileDescription ?? '').Trim()
-$setupProduct = ($setupInfo.ProductName ?? '').Trim()
+$setupDescription = [string]$setupInfo.FileDescription
+$setupProduct = [string]$setupInfo.ProductName
+$setupDescription = $setupDescription.Trim()
+$setupProduct = $setupProduct.Trim()
 if ($setupDescription -ne 'Autel') {
     throw "Installer FileDescription is '$setupDescription', expected 'Autel'."
 }
