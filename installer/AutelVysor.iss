@@ -22,7 +22,6 @@ MinVersion=10.0
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=lowest
-MinVersion=10.0
 VersionInfoVersion={#MyAppVersion}.0
 VersionInfoCompany=Autel
 VersionInfoDescription=Autel
@@ -42,3 +41,4 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription:
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch Autel Vysor"; Flags: nowait postinstall skipifsilent
+

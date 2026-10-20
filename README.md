@@ -2,20 +2,30 @@
 
 Windows Android mirror/control client for **Android 4.4 (API 19) and newer**.
 
-Current source version: **0.5.0**.
+Current source version: **0.6.0**.
 
 ## Compatibility
 
 | Android | Backend | Status |
 |---|---|---|
-| Android 4.4 / API 19 | Built-in ADB compatibility mirror | Implemented (low frame-rate fallback) |
+| Android 4.4 / API 19 | DeviceFarmer minicap acceleration, automatic ADB screenshot fallback | Implemented in v0.6.0; hardware validation still required |
 | Android 4.4W / API 20 | Built-in ADB compatibility mirror | Implemented; Android Wear may have input limitations |
 | Android 5.0+ / API 21+ | Official scrcpy Windows toolchain | Implemented |
 | Android 11+ | ADB wireless pairing + scrcpy | Implemented |
 
 scrcpy itself requires API 21+, therefore API 19/20 never attempts to start scrcpy.
 
-## v0.5.0 features
+## v0.6.0 additions
+
+- Added optional Android 4.4/API 19 minicap JPEG-stream acceleration for armeabi-v7a and x86, with automatic ADB screenshot fallback.
+- Added Smooth / Standard / High scrcpy quality presets.
+- Added audio forwarding toggle; scrcpy handles unsupported pre-Android-11 devices by continuing video-only.
+- Added clipboard autosync toggle.
+- Added a persisted legacy acceleration preference.
+- Installer now requires Windows 10 or newer.
+- Version advanced to 0.6.0 while keeping `FileDescription=Autel` and `ProductName=Autel Vysor`.
+
+## Existing features
 
 - Embedded Android mirror tabs inside the Autel Vysor WPF window.
 - Multiple devices can be mirrored at the same time.
@@ -97,7 +107,7 @@ The build fails if the executable metadata does not contain:
 ```text
 FileDescription : Autel
 ProductName     : Autel Vysor
-FileVersion     : 0.5.0.0
+FileVersion     : 0.6.0.0
 ```
 
 ## Build portable ZIP and installer
@@ -109,7 +119,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build-release.ps1
 Expected artifacts:
 
 ```text
-dist\AutelVysor-v0.5.0-windows-x64.zip
+dist\AutelVysor-v0.6.0-windows-x64.zip
 dist\AutelVysor-Setup.exe           # when Inno Setup 6 is installed
 ```
 
@@ -117,14 +127,20 @@ The installer is also configured with `VersionInfoDescription=Autel`.
 
 ## Android 4.4 behavior
 
-API 19/20 uses the built-in compatibility backend:
+API 19 first tries the optional DeviceFarmer minicap backend when enabled and when matching packaged assets are available:
 
 ```text
-ADB screencap -> PNG -> WPF Image
+minicap -> JPEG socket stream -> WPF Image
 mouse/keyboard -> adb shell input -> Android
 ```
 
-This is intentionally a reliability-first fallback. It is much slower than the H.264/MediaCodec path used by scrcpy. A minicap-based acceleration backend can be added later, but it must be treated as device-dependent because minicap relies on private Android APIs.
+If the minicap compatibility probe or stream fails, Autel Vysor automatically falls back to:
+
+```text
+ADB screencap -> PNG -> WPF Image
+```
+
+API 20 remains on the conservative ADB fallback because the pinned upstream minicap tree does not provide an Android-20 shared library. Minicap relies on private Android APIs, so physical-device validation remains mandatory.
 
 ## Multi-device / reconnect behavior
 
@@ -136,7 +152,7 @@ This is intentionally a reliability-first fallback. It is much slower than the H
 
 ## Current validation status
 
-The v0.5.0 Windows x64 GitHub Actions release build succeeded, including self-contained publish, executable self-test, metadata checks, portable ZIP and Inno Setup installer packaging. This validates the build runner, not physical Windows 10/11 computers or Android devices. Later commits require their own green workflow runs; Android 4.4 minicap requires matching native assets and device testing. Do not claim physical device compatibility from CI alone.
+The Windows x64 GitHub Actions release gate performs self-contained publish, executable self-test, metadata checks, portable ZIP and Inno Setup installer packaging. A green v0.6.0 run validates the packaged Windows build only; Windows 10/11 desktop hardware and Android 4.4+ physical devices still require the hardware matrix below before a Beta compatibility claim.
 
 ## Third-party components
 

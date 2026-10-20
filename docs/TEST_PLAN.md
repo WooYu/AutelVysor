@@ -7,7 +7,7 @@
 3. Verify Properties -> Details:
    - File description: `Autel`
    - Product name: `Autel Vysor`
-   - File version: `0.5.0.0`
+   - File version: `0.6.0.0`
 4. Verify the installer Properties -> Details also reports file description `Autel`.
 
 ## Device matrix
@@ -34,12 +34,15 @@ For each device verify discovery, mirror, click, drag, keyboard, Home/Back/Recen
 
 ## Android 4.4
 
-1. Confirm backend label reports `ADB compatibility`.
-2. Confirm scrcpy is not launched.
-3. Confirm screen updates through `screencap`.
-4. Confirm tap and swipe coordinate mapping in portrait and landscape.
-5. Confirm Back/Home/Power and basic ASCII keyboard input.
-6. Measure average frame time; record device-specific limitations.
+1. Test API 19 armeabi-v7a with **Prefer Android 4.4 accelerated capture** enabled.
+2. Confirm compatible devices report `minicap accelerated`; confirm scrcpy is never launched.
+3. Rotate portrait/landscape and verify video orientation plus tap/swipe coordinate mapping.
+4. Disable acceleration and confirm the same device falls back to `ADB compatibility`.
+5. Force minicap startup failure and confirm automatic fallback without closing the tab.
+6. Test an API 19 x86 device/emulator only if minicap supports that physical target; upstream explicitly does not promise emulator support.
+7. Test API 20 separately and confirm it remains on ADB fallback.
+8. Confirm Back/Home/Power and basic ASCII keyboard input.
+9. Measure minicap FPS/latency and ADB fallback frame time; record device-specific limitations.
 
 ## Wi-Fi persistence
 
@@ -49,7 +52,7 @@ For each device verify discovery, mirror, click, drag, keyboard, Home/Back/Recen
 4. Click Disconnect and restart the app; verify the explicitly removed endpoint is no longer retried.
 
 
-## v0.5 diagnostics / legacy usability
+## v0.6 diagnostics / legacy usability
 
 1. On an Android 4.4 USB device choose **USB → TCP/IP**; verify the app fills a detected Wi-Fi address when the firmware exposes one.
 2. Drop an APK onto the Android 4.4 mirror area and verify `adb install -r` succeeds.

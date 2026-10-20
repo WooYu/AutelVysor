@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.6.0
+
+- Added optional DeviceFarmer minicap acceleration for Android 4.4/API 19 armeabi-v7a and x86.
+- Added automatic fallback to the existing ADB PNG capture path when minicap is unavailable or incompatible.
+- Kept Android 4.4 input on the conservative ADB input path.
+- Added Smooth / Standard / High mirror quality presets for scrcpy.
+- Added audio forwarding and clipboard autosync settings.
+- Added persisted legacy acceleration preference and diagnostics reporting.
+- Added Windows 10 minimum installer requirement while continuing Windows 11 support.
+- Updated release version metadata to 0.6.0 while keeping FileDescription=Autel.
+
+
 ## 0.5.0
 
 - Added best-effort Wi-Fi IPv4 detection after switching a USB device to ADB TCP/IP mode.

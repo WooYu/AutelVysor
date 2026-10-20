@@ -23,7 +23,6 @@ public partial class MainWindow : Window
     private readonly AndroidBridge _bridge;
     private readonly ScrcpyService _scrcpy;
     private readonly LegacyMinicapService _minicap;
-    private readonly LegacyMinicapService _minicap;
     private readonly DispatcherTimer _monitorTimer;
     private readonly AppSettingsService _settingsService = new();
     private readonly AppSettings _settings;
