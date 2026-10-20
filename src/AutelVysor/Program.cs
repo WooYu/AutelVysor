@@ -11,7 +11,6 @@ internal static class Program
             return SelfTestService.Run();
 
         var app = new App();
-        app.InitializeComponent();
         return app.Run();
     }
 }

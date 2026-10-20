@@ -19,8 +19,10 @@ Write-Host 'Building Autel Vysor for Windows x64...'
 Write-Host "dotnet: $(dotnet --version)"
 Write-Host 'Restoring project...'
 dotnet restore $project
+if ($LASTEXITCODE -ne 0) { throw "dotnet restore failed with exit code $LASTEXITCODE." }
 Write-Host 'Publishing self-contained win-x64 application...'
 dotnet publish $project -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableWindowsTargeting=true -o $out
+if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed with exit code $LASTEXITCODE." }
 Write-Host 'dotnet publish completed.'
 
 $exe = Join-Path $out 'AutelVysor.exe'
