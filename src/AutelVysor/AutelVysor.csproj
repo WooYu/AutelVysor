@@ -6,6 +6,7 @@
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <StartupObject>AutelVysor.Program</StartupObject>
     <AssemblyName>AutelVysor</AssemblyName>
     <AssemblyTitle>Autel</AssemblyTitle>
     <Product>Autel Vysor</Product>
