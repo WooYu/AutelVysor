@@ -1,0 +1,104 @@
+name: Bootstrap Autel Vysor Source
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - '.github/workflows/bootstrap-source.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  import-and-build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout bootstrap repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Reconstruct and verify v0.5.0 source
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $parts = Get-ChildItem 'bootstrap/source.b64.*' | Sort-Object Name
+          if ($parts.Count -ne 10) {
+            throw "Expected 10 bootstrap source chunks, found $($parts.Count)."
+          }
+
+          $encoded = ($parts | ForEach-Object { Get-Content -Raw $_.FullName }) -join ''
+          $zip = Join-Path $env:RUNNER_TEMP 'AutelVysor-v0.5.0-source.zip'
+          [IO.File]::WriteAllBytes($zip, [Convert]::FromBase64String($encoded))
+
+          $expected = 'b8a99154d91155b31c1eea802659fee2f2d218f9823adece6535e3fdfa838e98'
+          $actual = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          Write-Host "Source ZIP SHA-256: $actual"
+          if ($actual -ne $expected) {
+            throw "Source ZIP checksum mismatch. Expected $expected, got $actual."
+          }
+
+          $extract = Join-Path $env:RUNNER_TEMP 'AutelVysor-import'
+          if (Test-Path $extract) { Remove-Item $extract -Recurse -Force }
+          Expand-Archive -Path $zip -DestinationPath $extract -Force
+
+          $sourceRoot = Join-Path $extract 'AutelVysor'
+          if (-not (Test-Path (Join-Path $sourceRoot 'AutelVysor.sln'))) {
+            throw "Expected source root was not found: $sourceRoot"
+          }
+
+          Get-ChildItem $sourceRoot -Force | ForEach-Object {
+            Copy-Item $_.FullName -Destination $env:GITHUB_WORKSPACE -Recurse -Force
+          }
+
+          if (Test-Path 'bootstrap') {
+            Remove-Item 'bootstrap' -Recurse -Force
+          }
+          if (Test-Path '.github/workflows/bootstrap-source.yml') {
+            Remove-Item '.github/workflows/bootstrap-source.yml' -Force
+          }
+
+      - name: Commit expanded v0.5.0 source
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git status --short
+          if (-not (git diff --cached --quiet)) {
+            git commit -m "chore: import Autel Vysor v0.5.0 source"
+            git push origin HEAD:main
+          }
+
+      - name: Prepare official scrcpy toolchain
+        shell: powershell
+        run: .\scripts\prepare-tools.ps1
+
+      - name: Build and validate Windows executable
+        shell: powershell
+        run: .\scripts\build-windows.ps1 -SkipToolDownload
+
+      - name: Install Inno Setup
+        shell: powershell
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
+            choco install innosetup -y --no-progress
+          }
+
+      - name: Build portable ZIP and installer
+        shell: powershell
+        run: .\scripts\build-release.ps1 -SkipToolDownload
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: AutelVysor-v0.5.0-windows-x64
+          if-no-files-found: error
+          path: |
+            dist/AutelVysor-v*-windows-x64.zip
+            dist/AutelVysor-Setup.exe
