@@ -18,6 +18,7 @@ OutputBaseFilename=AutelVysor-Setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
+MinVersion=10.0
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=lowest
