@@ -3,10 +3,10 @@ using AutelVysor.Models;
 
 namespace AutelVysor.Services;
 
-public sealed class ScrcpyService(string scrcpyPath)
+public sealed class ScrcpyService(string scrcpyPath, AppSettings settings)
 {
     public string ExecutablePath { get; } = scrcpyPath;
-
+    private readonly AppSettings _settings = settings;
 
     public async Task<string> GetVersionAsync(CancellationToken ct = default)
     {
@@ -19,6 +19,7 @@ public sealed class ScrcpyService(string scrcpyPath)
     public Process StartExternal(AndroidDevice device, params string[] extraArguments)
     {
         var args = BaseArguments(device);
+        ApplyRuntimeOptions(args, device);
         args.AddRange(extraArguments);
         return ToolRunner.Launch(ExecutablePath, args, Path.GetDirectoryName(ExecutablePath));
     }
@@ -26,10 +27,8 @@ public sealed class ScrcpyService(string scrcpyPath)
     public async Task<ScrcpySession> StartEmbeddedAsync(AndroidDevice device, CancellationToken ct = default)
     {
         var args = BaseArguments(device);
+        ApplyRuntimeOptions(args, device);
         args.Add("--window-borderless");
-        args.Add("--no-audio");
-        args.Add("--max-size=1920");
-        args.Add("--video-bit-rate=8M");
         args.Add("--window-width=640");
         args.Add("--window-height=960");
 
@@ -55,6 +54,34 @@ public sealed class ScrcpyService(string scrcpyPath)
         args.Add("--record");
         args.Add(path);
         return ToolRunner.Launch(ExecutablePath, args, Path.GetDirectoryName(ExecutablePath));
+    }
+
+    private void ApplyRuntimeOptions(List<string> args, AndroidDevice device)
+    {
+        switch ((_settings.MirrorQuality ?? "Standard").Trim().ToLowerInvariant())
+        {
+            case "smooth":
+                args.Add("--max-size=1280");
+                args.Add("--video-bit-rate=4M");
+                args.Add("--max-fps=30");
+                break;
+            case "high":
+                args.Add("--max-size=2560");
+                args.Add("--video-bit-rate=12M");
+                args.Add("--max-fps=60");
+                break;
+            default:
+                args.Add("--max-size=1920");
+                args.Add("--video-bit-rate=8M");
+                args.Add("--max-fps=60");
+                break;
+        }
+
+        if (!_settings.EnableAudio)
+            args.Add("--no-audio");
+
+        if (!_settings.ClipboardSync)
+            args.Add("--no-clipboard-autosync");
     }
 
     private static List<string> BaseArguments(AndroidDevice device)
