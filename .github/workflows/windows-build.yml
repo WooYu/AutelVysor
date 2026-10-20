@@ -6,6 +6,10 @@ on:
     branches: [ main, master, feature/** ]
   pull_request:
 
+concurrency:
+  group: windows-build-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: windows-latest
