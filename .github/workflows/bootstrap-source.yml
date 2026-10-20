@@ -1,4 +1,4 @@
-name: Bootstrap Autel Vysor Source # retry after chunk repair
+name: Bootstrap Autel Vysor Source # retry with safe fragments
 
 on:
   push:
@@ -26,10 +26,21 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $parts = Get-ChildItem 'bootstrap/source.b64.*' | Sort-Object Name
-          if ($parts.Count -ne 10) {
-            throw "Expected 10 bootstrap source chunks, found $($parts.Count)."
-          }
+          $partPaths = @(
+            'bootstrap/source.b64.00',
+            'bootstrap/source.fix.01a',
+            'bootstrap/source.fix.01b',
+            'bootstrap/source.fix.01c',
+            'bootstrap/source.b64.02',
+            'bootstrap/source.b64.03',
+            'bootstrap/source.b64.04',
+            'bootstrap/source.b64.05',
+            'bootstrap/source.b64.06',
+            'bootstrap/source.b64.07',
+            'bootstrap/source.b64.08',
+            'bootstrap/source.b64.09'
+          )
+          $parts = $partPaths | ForEach-Object { Get-Item $_ }
 
           foreach ($part in $parts) {
             $hash = (Get-FileHash $part.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
