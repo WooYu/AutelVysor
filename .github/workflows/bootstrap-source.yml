@@ -31,6 +31,12 @@ jobs:
             throw "Expected 10 bootstrap source chunks, found $($parts.Count)."
           }
 
+          foreach ($part in $parts) {
+            $hash = (Get-FileHash $part.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            $len = (Get-Content -Raw $part.FullName).Length
+            Write-Host "$($part.Name) length=$len sha256=$hash"
+          }
+
           $encoded = ($parts | ForEach-Object { Get-Content -Raw $_.FullName }) -join ''
           $zip = Join-Path $env:RUNNER_TEMP 'AutelVysor-v0.5.0-source.zip'
           [IO.File]::WriteAllBytes($zip, [Convert]::FromBase64String($encoded))
