@@ -1,6 +1,6 @@
 #define MyAppName "Autel Vysor"
 #ifndef MyAppVersion
-#define MyAppVersion "0.5.0"
+#define MyAppVersion "0.6.0"
 #endif
 #define MyAppPublisher "Autel"
 #define MyAppExeName "AutelVysor.exe"
@@ -21,6 +21,7 @@ WizardStyle=modern
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=lowest
+MinVersion=10.0
 VersionInfoVersion={#MyAppVersion}.0
 VersionInfoCompany=Autel
 VersionInfoDescription=Autel
