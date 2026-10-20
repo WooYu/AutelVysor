@@ -38,13 +38,29 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         _bridge = new AndroidBridge(Adb);
-        _scrcpy = new ScrcpyService(Scrcpy);
         _settings = _settingsService.Load();
+        _scrcpy = new ScrcpyService(Scrcpy, _settings);
         foreach (var endpoint in _settings.WirelessEndpoints.Where(x => !string.IsNullOrWhiteSpace(x)))
             _knownWireless.Add(endpoint);
         AutoReconnectBox.IsChecked = _settings.AutoReconnectWireless;
+        AudioBox.IsChecked = _settings.EnableAudio;
+        ClipboardBox.IsChecked = _settings.ClipboardSync;
+        LegacyAccelerationBox.IsChecked = _settings.PreferLegacyAcceleration;
+        MirrorQualityBox.SelectedIndex = (_settings.MirrorQuality ?? "Standard").ToLowerInvariant() switch
+        {
+            "smooth" => 0,
+            "high" => 2,
+            _ => 1
+        };
         AutoReconnectBox.Checked += (_, _) => PersistSettings();
         AutoReconnectBox.Unchecked += (_, _) => PersistSettings();
+        AudioBox.Checked += (_, _) => PersistSettings();
+        AudioBox.Unchecked += (_, _) => PersistSettings();
+        ClipboardBox.Checked += (_, _) => PersistSettings();
+        ClipboardBox.Unchecked += (_, _) => PersistSettings();
+        LegacyAccelerationBox.Checked += (_, _) => PersistSettings();
+        LegacyAccelerationBox.Unchecked += (_, _) => PersistSettings();
+        MirrorQualityBox.SelectionChanged += (_, _) => PersistSettings();
         _monitorTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2.5) };
         _monitorTimer.Tick += async (_, _) => await RefreshAsync(quiet: true);
 
@@ -375,9 +391,26 @@ public partial class MainWindow : Window
     private void PersistSettings()
     {
         _settings.AutoReconnectWireless = AutoReconnectBox.IsChecked == true;
+        _settings.EnableAudio = AudioBox.IsChecked == true;
+        _settings.ClipboardSync = ClipboardBox.IsChecked == true;
+        _settings.PreferLegacyAcceleration = LegacyAccelerationBox.IsChecked == true;
+        _settings.MirrorQuality = MirrorQualityBox.SelectedIndex switch
+        {
+            0 => "Smooth",
+            2 => "High",
+            _ => "Standard"
+        };
         _settings.WirelessEndpoints = _knownWireless.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
         try { _settingsService.Save(_settings); } catch { }
     }
+
+    private async void ApplyMirrorSettings_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
+    {
+        PersistSettings();
+        foreach (var (_, view) in _sessions.Values)
+            await view.RestartAsync();
+        StatusText.Text = $"Mirror settings applied · {_settings.MirrorQuality} · audio {(_settings.EnableAudio ? "on" : "off")} · clipboard {(_settings.ClipboardSync ? "on" : "off")}.";
+    });
 
     private async void Screenshot_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
     {
@@ -396,6 +429,10 @@ public partial class MainWindow : Window
         report.AppendLine($"64-bit OS: {Environment.Is64BitOperatingSystem}");
         report.AppendLine($"Process: {(Environment.Is64BitProcess ? "x64" : "x86")}");
         report.AppendLine($"Base directory: {AppContext.BaseDirectory}");
+        report.AppendLine($"Mirror quality: {_settings.MirrorQuality}");
+        report.AppendLine($"Audio: {_settings.EnableAudio}");
+        report.AppendLine($"Clipboard sync: {_settings.ClipboardSync}");
+        report.AppendLine($"Legacy acceleration preferred: {_settings.PreferLegacyAcceleration}");
 
         if (File.Exists(Adb))
         {
