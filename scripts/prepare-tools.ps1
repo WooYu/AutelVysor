@@ -50,6 +50,40 @@ try {
         }
     }
 
+    # Android 4.4 / API 19 optional accelerated capture backend.
+    # Pin DeviceFarmer/minicap to a specific commit so release builds are reproducible.
+    $minicapCommit = 'f3d40d65da0cc7168846c4ae7466ada970441d4e'
+    $minicapRoot = Join-Path $Destination 'legacy\minicap\api19'
+    $legacySpecs = @(
+        @{
+            Abi = 'armeabi-v7a'
+            Binary = 'libs/armeabi-v7a/minicap'
+            Shared = 'jni/minicap-shared/aosp/libs/android-19/armeabi-v7a/minicap.so'
+        },
+        @{
+            Abi = 'x86'
+            Binary = 'libs/x86/minicap'
+            Shared = 'jni/minicap-shared/aosp/libs/android-19/x86/minicap.so'
+        }
+    )
+
+    foreach ($spec in $legacySpecs) {
+        $abiDir = Join-Path $minicapRoot $spec.Abi
+        New-Item -ItemType Directory -Force -Path $abiDir | Out-Null
+        $base = "https://raw.githubusercontent.com/DeviceFarmer/minicap/$minicapCommit"
+        Write-Host "Downloading minicap API 19 assets for $($spec.Abi)..."
+        Invoke-WebRequest -Headers $headers -Uri "$base/$($spec.Binary)" -OutFile (Join-Path $abiDir 'minicap')
+        Invoke-WebRequest -Headers $headers -Uri "$base/$($spec.Shared)" -OutFile (Join-Path $abiDir 'minicap.so')
+    }
+
+    Set-Content -Path (Join-Path $Destination 'LEGACY_TOOLCHAIN_VERSION.txt') -Encoding UTF8 -Value @(
+        "minicap_commit=$minicapCommit",
+        "source=https://github.com/DeviceFarmer/minicap",
+        "api=19",
+        "abis=armeabi-v7a,x86",
+        "license=Apache-2.0"
+    )
+
     Set-Content -Path (Join-Path $Destination 'AUTEL_TOOLCHAIN_VERSION.txt') -Encoding UTF8 -Value @(
         "scrcpy=$($release.tag_name)",
         "source=https://github.com/Genymobile/scrcpy/releases/latest",
