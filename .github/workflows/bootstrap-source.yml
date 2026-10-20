@@ -1,4 +1,4 @@
-name: Bootstrap Autel Vysor Source
+name: Bootstrap Autel Vysor Source # retry after chunk repair
 
 on:
   push:
