@@ -21,12 +21,14 @@ internal static class SelfTestService
             if (!File.Exists(scrcpy))
                 return 22;
 
-            var adbVersion = ToolRunner.RunAsync(adb, ["version"], workingDirectory: tools)
+            using var adbTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            var adbVersion = ToolRunner.RunAsync(adb, ["version"], workingDirectory: tools, ct: adbTimeout.Token)
                 .GetAwaiter().GetResult();
             if (adbVersion.ExitCode != 0)
                 return 31;
 
-            var scrcpyVersion = ToolRunner.RunAsync(scrcpy, ["--version"], workingDirectory: tools)
+            using var scrcpyTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            var scrcpyVersion = ToolRunner.RunAsync(scrcpy, ["--version"], workingDirectory: tools, ct: scrcpyTimeout.Token)
                 .GetAwaiter().GetResult();
             if (scrcpyVersion.ExitCode != 0)
                 return 32;
