@@ -129,17 +129,15 @@ This is intentionally a reliability-first fallback. It is much slower than the H
 ## Multi-device / reconnect behavior
 
 - Select several entries and choose **Open selected**, or choose **Open all**.
-- Each Android device gets its own tab.
-- Device state is refreshed every 2.5 seconds.
-- A disconnected session stays open and shows a reconnect state.
-- When the same serial becomes online again, its mirror is restarted.
-- TCP/IP endpoints are remembered in `%LOCALAPPDATA%\Autel\AutelVysor\settings.json`.
-- Remembered endpoints are retried periodically after the client restarts.
+- Each Android device gets its own tab and its own mirror process/backend.
+- USB sessions are kept in the workspace when a device disconnects and resume when the same serial returns.
+- Wi-Fi endpoints connected by the user are saved to `%LOCALAPPDATA%\Autel\AutelVysor\settings.json`.
+- When **Auto reconnect Wi-Fi** is enabled, remembered endpoints are retried with throttling.
 
-## Verification status
+## Current validation status
 
-The source project and packaging files have been structurally checked in a non-Windows environment. A real WPF publish requires Windows because the project targets `net8.0-windows` and hosts Win32 native windows.
+Source-level/XAML consistency validation has been performed in the development environment. This environment is Linux and does not contain a Windows .NET Desktop/WPF toolchain, so **v0.5.0 has not yet been claimed as Windows-compiled or Android-hardware-tested here**. The included Windows build workflow and scripts are intended to perform that final verification on Windows.
 
-The authoritative release gate is `scripts/build-windows.ps1`: it performs a self-contained x64 publish, checks the EXE's Windows version resource and executes the packaged `--self-test`.
+## Third-party components
 
-See `docs/TEST_PLAN.md` for the Windows/Android validation matrix.
+See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
