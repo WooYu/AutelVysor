@@ -13,25 +13,38 @@ public partial class MirrorSessionControl : UserControl, IDisposable
 {
     private readonly AndroidBridge _bridge;
     private readonly ScrcpyService? _scrcpy;
+    private readonly LegacyMinicapService? _minicap;
+    private readonly AppSettings _settings;
     private readonly CancellationTokenSource _lifetime = new();
     private readonly SemaphoreSlim _startGate = new(1, 1);
     private AndroidDevice _device;
     private ScrcpySession? _scrcpySession;
+    private LegacyMinicapSession? _minicapSession;
+    private CancellationTokenSource? _legacyCts;
     private Task? _legacyLoop;
     private Point? _pointerDown;
     private Stopwatch? _pointerWatch;
     private int _pixelWidth;
     private int _pixelHeight;
+    private int _inputWidth;
+    private int _inputHeight;
     private volatile bool _refreshRequested;
     private bool _disposed;
     private bool _forceLegacyFallback;
     private DateTime _nextModernRetryUtc;
 
-    public MirrorSessionControl(AndroidBridge bridge, ScrcpyService? scrcpy, AndroidDevice device)
+    public MirrorSessionControl(
+        AndroidBridge bridge,
+        ScrcpyService? scrcpy,
+        LegacyMinicapService? minicap,
+        AppSettings settings,
+        AndroidDevice device)
     {
         InitializeComponent();
         _bridge = bridge;
         _scrcpy = scrcpy;
+        _minicap = minicap;
+        _settings = settings;
         _device = device;
         UpdateHeader();
         Loaded += async (_, _) =>
@@ -52,8 +65,8 @@ public partial class MirrorSessionControl : UserControl, IDisposable
 
         if (current is null || !current.IsOnline)
         {
-            if (!UsesLegacyBackend)
-                StopModernSession();
+            StopModernSession();
+            StopLegacySession();
             ShowOverlay("Device disconnected", "Autel Vysor will keep this tab and try to resume when the same device is available again.");
             StatusText.Text = "Waiting for device…";
             return;
@@ -73,8 +86,11 @@ public partial class MirrorSessionControl : UserControl, IDisposable
         try
         {
             StopModernSession();
+            StopLegacySession();
             _refreshRequested = true;
-            if (!UsesLegacyBackend)
+            if (UsesLegacyBackend)
+                await StartLegacyIfNeededAsync();
+            else
                 await StartModernAsync();
         }
         finally
@@ -93,7 +109,7 @@ public partial class MirrorSessionControl : UserControl, IDisposable
         {
             if (UsesLegacyBackend)
             {
-                StartLegacyIfNeeded();
+                await StartLegacyIfNeededAsync();
                 return;
             }
 
@@ -110,7 +126,7 @@ public partial class MirrorSessionControl : UserControl, IDisposable
             {
                 _forceLegacyFallback = true;
                 UpdateHeader();
-                StartLegacyIfNeeded();
+                await StartLegacyIfNeededAsync();
                 StatusText.Text = $"scrcpy unavailable; compatibility fallback enabled: {ex.Message}";
             }
             else
@@ -182,16 +198,92 @@ public partial class MirrorSessionControl : UserControl, IDisposable
         _scrcpySession = null;
     }
 
-    private void StartLegacyIfNeeded()
+    private async Task StartLegacyIfNeededAsync()
     {
         ScrcpyHost.Visibility = Visibility.Collapsed;
         LegacyHost.Visibility = Visibility.Visible;
-        BackendText.Text = "ADB compatibility · Android 4.4";
         if (_legacyLoop is { IsCompleted: false })
             return;
 
+        StopLegacySession();
+        _legacyCts = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        var ct = _legacyCts.Token;
+
+        if (_settings.PreferLegacyAcceleration
+            && _device.ApiLevel == 19
+            && _minicap is not null
+            && _minicap.CanAccelerate(_device))
+        {
+            ShowOverlay("Starting Android 4.4 accelerated mirror…", "Trying DeviceFarmer minicap; Autel Vysor will fall back to ADB screenshots automatically if it is not compatible with this device.");
+            try
+            {
+                _minicapSession = await _minicap.StartAsync(_device, ct);
+                BackendText.Text = "minicap accelerated · Android 4.4 / API 19";
+                _legacyLoop = LegacyMinicapLoopAsync(_minicapSession, ct);
+                return;
+            }
+            catch (Exception ex) when (!ct.IsCancellationRequested)
+            {
+                try { _minicapSession?.Dispose(); } catch { }
+                _minicapSession = null;
+                StatusText.Text = $"minicap unavailable; using ADB compatibility fallback: {ex.Message}";
+            }
+        }
+
+        BackendText.Text = "ADB compatibility · Android 4.4";
         ShowOverlay("Starting Android 4.4 mirror…", "Compatibility mode uses ADB screenshots and input injection.");
-        _legacyLoop = LegacyRefreshLoopAsync(_lifetime.Token);
+        _legacyLoop = LegacyRefreshLoopAsync(ct);
+    }
+
+    private async Task LegacyMinicapLoopAsync(LegacyMinicapSession session, CancellationToken ct)
+    {
+        try
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                var started = Stopwatch.GetTimestamp();
+                var data = await session.ReadFrameAsync(ct);
+                var bitmap = DecodePng(data);
+                _pixelWidth = bitmap.PixelWidth;
+                _pixelHeight = bitmap.PixelHeight;
+                _inputWidth = session.RealWidth;
+                _inputHeight = session.RealHeight;
+
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    LegacyImage.Source = bitmap;
+                    Overlay.Visibility = Visibility.Collapsed;
+                    var elapsed = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+                    StatusText.Text = $"Connected · minicap · {_pixelWidth}×{_pixelHeight} stream · input {_inputWidth}×{_inputHeight} · {elapsed:0} ms";
+                });
+            }
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            await Dispatcher.InvokeAsync(() =>
+            {
+                BackendText.Text = "ADB compatibility · minicap fallback";
+                StatusText.Text = $"minicap stream stopped; falling back to ADB screenshots: {ex.Message}";
+            });
+
+            try { session.Dispose(); } catch { }
+            _minicapSession = null;
+            if (!ct.IsCancellationRequested)
+                await LegacyRefreshLoopAsync(ct);
+        }
+    }
+
+    private void StopLegacySession()
+    {
+        try { _legacyCts?.Cancel(); } catch { }
+        try { _minicapSession?.Dispose(); } catch { }
+        _minicapSession = null;
+        _legacyLoop = null;
+        try { _legacyCts?.Dispose(); } catch { }
+        _legacyCts = null;
     }
 
     private async Task LegacyRefreshLoopAsync(CancellationToken ct)
@@ -206,6 +298,8 @@ public partial class MirrorSessionControl : UserControl, IDisposable
                 var bitmap = DecodePng(data);
                 _pixelWidth = bitmap.PixelWidth;
                 _pixelHeight = bitmap.PixelHeight;
+                _inputWidth = _pixelWidth;
+                _inputHeight = _pixelHeight;
 
                 await Dispatcher.InvokeAsync(() =>
                 {
@@ -415,9 +509,13 @@ public partial class MirrorSessionControl : UserControl, IDisposable
         if (viewPoint.X < offsetX || viewPoint.Y < offsetY || viewPoint.X > offsetX + renderedWidth || viewPoint.Y > offsetY + renderedHeight)
             return false;
 
+        var normalizedX = (viewPoint.X - offsetX) / renderedWidth;
+        var normalizedY = (viewPoint.Y - offsetY) / renderedHeight;
+        var targetWidth = _inputWidth > 0 ? _inputWidth : _pixelWidth;
+        var targetHeight = _inputHeight > 0 ? _inputHeight : _pixelHeight;
         devicePoint = (
-            (int)Math.Clamp((viewPoint.X - offsetX) / scale, 0, _pixelWidth - 1),
-            (int)Math.Clamp((viewPoint.Y - offsetY) / scale, 0, _pixelHeight - 1));
+            (int)Math.Clamp(normalizedX * targetWidth, 0, targetWidth - 1),
+            (int)Math.Clamp(normalizedY * targetHeight, 0, targetHeight - 1));
         return true;
     }
 
@@ -470,6 +568,7 @@ public partial class MirrorSessionControl : UserControl, IDisposable
         _disposed = true;
         _lifetime.Cancel();
         StopModernSession();
+        StopLegacySession();
         GC.SuppressFinalize(this);
     }
 }
