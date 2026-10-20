@@ -16,8 +16,12 @@ if (Test-Path $out) { Remove-Item -Recurse -Force $out }
 New-Item -ItemType Directory -Force -Path $out | Out-Null
 
 Write-Host 'Building Autel Vysor for Windows x64...'
+Write-Host "dotnet: $(dotnet --version)"
+Write-Host 'Restoring project...'
 dotnet restore $project
+Write-Host 'Publishing self-contained win-x64 application...'
 dotnet publish $project -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableWindowsTargeting=true -o $out
+Write-Host 'dotnet publish completed.'
 
 $exe = Join-Path $out 'AutelVysor.exe'
 if (-not (Test-Path $exe)) {
@@ -39,8 +43,12 @@ foreach ($required in @('tools/adb.exe', 'tools/scrcpy.exe')) {
     }
 }
 
-Write-Host 'Running packaged executable self-test...'
-$selfTest = Start-Process -FilePath $exe -ArgumentList '--self-test' -Wait -PassThru
+Write-Host 'Running packaged executable self-test (30 second hard timeout)...'
+$selfTest = Start-Process -FilePath $exe -ArgumentList '--self-test' -PassThru
+if (-not $selfTest.WaitForExit(30000)) {
+    try { taskkill /PID $selfTest.Id /T /F | Out-Null } catch { }
+    throw 'AutelVysor.exe self-test timed out after 30 seconds.'
+}
 if ($selfTest.ExitCode -ne 0) {
     throw "AutelVysor.exe self-test failed with exit code $($selfTest.ExitCode)."
 }
