@@ -22,6 +22,7 @@ public partial class MainWindow : Window
     private readonly string _tools = Path.Combine(AppContext.BaseDirectory, "tools");
     private readonly AndroidBridge _bridge;
     private readonly ScrcpyService _scrcpy;
+    private readonly LegacyMinicapService _minicap;
     private readonly DispatcherTimer _monitorTimer;
     private readonly AppSettingsService _settingsService = new();
     private readonly AppSettings _settings;
@@ -40,6 +41,7 @@ public partial class MainWindow : Window
         _bridge = new AndroidBridge(Adb);
         _settings = _settingsService.Load();
         _scrcpy = new ScrcpyService(Scrcpy, _settings);
+        _minicap = new LegacyMinicapService(Adb, _tools);
         foreach (var endpoint in _settings.WirelessEndpoints.Where(x => !string.IsNullOrWhiteSpace(x)))
             _knownWireless.Add(endpoint);
         AutoReconnectBox.IsChecked = _settings.AutoReconnectWireless;
@@ -217,7 +219,7 @@ public partial class MainWindow : Window
         }
 
         var scrcpy = File.Exists(Scrcpy) ? _scrcpy : null;
-        var view = new MirrorSessionControl(_bridge, scrcpy, device);
+        var view = new MirrorSessionControl(_bridge, scrcpy, _minicap, _settings, device);
         var tab = new TabItem
         {
             Header = device.DisplayName,
@@ -456,7 +458,10 @@ public partial class MainWindow : Window
 
         report.AppendLine($"Devices: {_devices.Count}");
         foreach (var device in _devices)
-            report.AppendLine($"- {device.Serial} | {device.State} | Android {device.AndroidVersion} | API {device.ApiLevel} | {device.Abi} | {device.Backend}");
+        {
+            var minicap = _minicap.CanAccelerate(device) ? "minicap-ready" : "minicap-no";
+            report.AppendLine($"- {device.Serial} | {device.State} | Android {device.AndroidVersion} | API {device.ApiLevel} | {device.Abi} | {device.Backend} | {minicap}");
+        }
 
         Clipboard.SetText(report.ToString());
         StatusText.Text = "Diagnostics copied to the clipboard.";
