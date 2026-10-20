@@ -35,12 +35,19 @@ if (-not $iscc) {
 }
 
 & $iscc "/DMyAppVersion=$version" (Join-Path $root 'installer/AutelVysor.iss')
+if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed with exit code $LASTEXITCODE." }
 $setup = Join-Path $dist 'AutelVysor-Setup.exe'
 if (-not (Test-Path $setup)) { throw 'Inno Setup completed without AutelVysor-Setup.exe.' }
 
 $setupInfo = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($setup)
-if ($setupInfo.FileDescription -ne 'Autel') {
-    throw "Installer FileDescription is '$($setupInfo.FileDescription)', expected 'Autel'."
+$setupDescription = ($setupInfo.FileDescription ?? '').Trim()
+$setupProduct = ($setupInfo.ProductName ?? '').Trim()
+if ($setupDescription -ne 'Autel') {
+    throw "Installer FileDescription is '$setupDescription', expected 'Autel'."
+}
+if ($setupProduct -ne 'Autel Vysor') {
+    throw "Installer ProductName is '$setupProduct', expected 'Autel Vysor'."
 }
 Write-Host "Installer: $setup"
-Write-Host "Installer FileDescription: $($setupInfo.FileDescription)"
+Write-Host "Installer FileDescription: $setupDescription"
+Write-Host "Installer ProductName: $setupProduct"
