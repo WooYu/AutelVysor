@@ -15,7 +15,12 @@ public partial class App : Application
 
         if (e.Args.Any(x => string.Equals(x, "--self-test", StringComparison.OrdinalIgnoreCase)))
         {
-            Shutdown(SelfTestService.Run());
+            // Self-test is a CI/release probe, not an interactive WPF session.  Exit the
+            // process explicitly after the probe so native tool processes/dispatcher
+            // lifetime cannot keep a headless Windows runner alive.
+            var exitCode = SelfTestService.Run();
+            Environment.ExitCode = exitCode;
+            Environment.Exit(exitCode);
             return;
         }
 
