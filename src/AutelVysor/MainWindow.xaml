@@ -79,6 +79,21 @@
               </StackPanel>
             </Expander>
 
+            <Expander Header="Mirror settings">
+              <StackPanel Margin="0,8,0,0">
+                <TextBlock Foreground="#94A3B8" Margin="0,0,0,5" Text="Quality preset"/>
+                <ComboBox x:Name="MirrorQualityBox" Margin="0,0,7,7" Padding="6" Background="#111827" Foreground="White">
+                  <ComboBoxItem Content="Smooth · 1280 / 4 Mbps / 30 FPS"/>
+                  <ComboBoxItem Content="Standard · 1920 / 8 Mbps / 60 FPS"/>
+                  <ComboBoxItem Content="High · 2560 / 12 Mbps / 60 FPS"/>
+                </ComboBox>
+                <CheckBox x:Name="AudioBox" Margin="0,3,0,7" Content="Forward Android audio when supported (Android 11+)"/>
+                <CheckBox x:Name="ClipboardBox" Margin="0,3,0,7" Content="Synchronize clipboard"/>
+                <CheckBox x:Name="LegacyAccelerationBox" Margin="0,3,0,7" Content="Prefer Android 4.4 accelerated capture when available"/>
+                <Button Click="ApplyMirrorSettings_Click" Content="Apply & restart mirrors" Background="#475569"/>
+              </StackPanel>
+            </Expander>
+
             <Expander Header="Files / utilities">
               <StackPanel Margin="0,8,0,0">
                 <WrapPanel>
