@@ -279,6 +279,25 @@ public partial class MainWindow : Window
 
     private void CloseSession_Click(object sender, RoutedEventArgs e) => CloseCurrentSession();
 
+    private void DeviceDebug_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var device = SelectedOne();
+            var window = new DeviceDebugWindow(_bridge, device)
+            {
+                Owner = this,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner
+            };
+            window.Show();
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = ex.Message;
+            MessageBox.Show(ex.Message, "Autel Vysor", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
     private async void DeviceList_MouseDoubleClick(object sender, MouseButtonEventArgs e) => await Guard(async () =>
     {
         await OpenSessionsAsync(SelectedMany());
