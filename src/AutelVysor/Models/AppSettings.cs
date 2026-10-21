@@ -7,5 +7,6 @@ public sealed class AppSettings
     public string MirrorQuality { get; set; } = "Standard";
     public bool EnableAudio { get; set; } = true;
     public bool ClipboardSync { get; set; } = true;
+    public bool TurnScreenOffOnMirror { get; set; } = true;
     public bool PreferLegacyAcceleration { get; set; } = true;
 }
