@@ -3,7 +3,7 @@
     <application android:label="Autel Vysor E2E Fixture"
                  android:usesCleartextTraffic="false"
                  android:allowBackup="false"
-                 android:theme="@android:style/Theme.Material.Light.NoActionBar">
+                 android:theme="@android:style/Theme.Holo.Light.NoActionBar">
         <activity android:name=".MainActivity" android:exported="true"
                   android:screenOrientation="unspecified">
             <intent-filter>
