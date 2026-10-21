@@ -115,3 +115,5 @@ test-results/company-adb-YYYYMMDD-HHMMSS/
 ## CI 烟雾测试与真机测试的区别
 
 CI 使用 **PowerShell 编写的模拟 ADB** 测试脚本的执行逻辑、临时文件清理和 HTML/CSV/JSON 报告生成；所有结果仅证明脚本本身能运行，绝不是 Android 真机测试结果。只有公司电脑上使用公司现有 adb.exe 连接实体设备执行，才能产生真正的真机报告。
+
+**实现说明**：PowerShell 的自动变量 `$args` 与显式参数不能重名；当前脚本统一使用 `$Arguments` 传递 ADB 命令数组，CI 模拟执行将验证参数确实传递给现有 ADB。
