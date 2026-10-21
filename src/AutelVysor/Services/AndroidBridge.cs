@@ -233,6 +233,52 @@ public sealed class AndroidBridge(string adbPath)
     public Task KeyEventAsync(string serial, int keyCode, CancellationToken ct = default)
         => ShellCheckedAsync(serial, ["input", "keyevent", keyCode.ToString(CultureInfo.InvariantCulture)], ct);
 
+    public async Task<int> RotateDeviceClockwiseAsync(string serial, CancellationToken ct = default)
+    {
+        var currentResult = await RunAsync(["-s", serial, "shell", "settings", "get", "system", "user_rotation"], ct: ct);
+        var currentText = currentResult.Output.Trim();
+        var current = int.TryParse(currentText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
+            ? Math.Clamp(parsed, 0, 3)
+            : 0;
+        var next = (current + 1) % 4;
+
+        // Prefer WindowManager's user-rotation command on newer Android.
+        // Command spelling differs across Android generations, so fall back to the
+        // system settings used by Android CTS and older releases.
+        var wm = await RunAsync(["-s", serial, "shell", "wm", "user-rotation", "lock", next.ToString(CultureInfo.InvariantCulture)], ct: ct);
+        var wmText = (wm.Output + "\n" + wm.Error).Trim();
+        var wmFailed = wm.ExitCode != 0
+                       || wmText.Contains("Unknown", StringComparison.OrdinalIgnoreCase)
+                       || wmText.Contains("Error", StringComparison.OrdinalIgnoreCase);
+
+        if (wmFailed)
+        {
+            wm = await RunAsync(["-s", serial, "shell", "wm", "set-user-rotation", "lock", next.ToString(CultureInfo.InvariantCulture)], ct: ct);
+            wmText = (wm.Output + "\n" + wm.Error).Trim();
+            wmFailed = wm.ExitCode != 0
+                       || wmText.Contains("Unknown", StringComparison.OrdinalIgnoreCase)
+                       || wmText.Contains("Error", StringComparison.OrdinalIgnoreCase);
+        }
+
+        // Keep Settings.System in sync and provide the compatibility path for
+        // Android 4.4 / vendor builds without wm user-rotation.
+        var accel = await RunAsync(["-s", serial, "shell", "settings", "put", "system", "accelerometer_rotation", "0"], ct: ct);
+        EnsureSuccess(accel, "Unable to disable auto-rotation.", "error", "failed");
+        var rotation = await RunAsync(["-s", serial, "shell", "settings", "put", "system", "user_rotation", next.ToString(CultureInfo.InvariantCulture)], ct: ct);
+        EnsureSuccess(rotation, "Unable to rotate Android device.", "error", "failed");
+
+        return next * 90;
+    }
+
+    public async Task EnableAutoRotationAsync(string serial, CancellationToken ct = default)
+    {
+        var result = await RunAsync(["-s", serial, "shell", "settings", "put", "system", "accelerometer_rotation", "1"], ct: ct);
+        EnsureSuccess(result, "Unable to enable Android auto-rotation.", "error", "failed");
+
+        // Best effort on newer Android. Older versions do not expose this wm command.
+        _ = RunAsync(["-s", serial, "shell", "wm", "user-rotation", "free"], ct: CancellationToken.None);
+    }
+
     public Task InputTextAsync(string serial, string text, CancellationToken ct = default)
     {
         // `input text` on Android 4.4 has limited Unicode support. Keep this path intentionally conservative.
