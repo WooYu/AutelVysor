@@ -50,11 +50,11 @@ if($IncludeFixtureMutations -and -not $TestFixtureInput) {
 }
 
 function A {
-  param([string[]]$Args,[switch]$AllowFailure)
+  param([string[]]$Arguments,[switch]$AllowFailure)
   $before=$ErrorActionPreference
   $ErrorActionPreference='Continue'
   try {
-    $stdout=(& $script:AdbPath @Args 2>&1 | Out-String).Trim()
+    $stdout=(& $script:AdbPath @Arguments 2>&1 | Out-String).Trim()
     $code=$LASTEXITCODE
   } finally {$ErrorActionPreference=$before}
   if($code -ne 0 -and -not $AllowFailure) {throw ("adb failed (exit {0}): {1}" -f $code,$stdout)}
@@ -62,7 +62,7 @@ function A {
 }
 function D {
   param([string]$Serial,[string[]]$Args,[switch]$AllowFailure)
-  A -Args (@('-s',$Serial)+$Args) -AllowFailure:$AllowFailure
+  A -Arguments (@('-s',$Serial)+$Arguments) -AllowFailure:$AllowFailure
 }
 function Assert {
   param([bool]$Condition,[string]$Message)
