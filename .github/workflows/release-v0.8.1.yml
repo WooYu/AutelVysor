@@ -1,0 +1,79 @@
+name: Publish v0.8.1 Release
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'release-trigger-v0.8.1.txt'
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download verified Windows build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: AutelVysor-windows-x64
+          path: release-assets
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 39541986466
+
+      - name: Prepare release assets
+        shell: bash
+        run: |
+          set -euxo pipefail
+          test -f release-assets/AutelVysor-v0.8.1-windows-x64.zip
+          test -f release-assets/AutelVysor-Setup.exe
+          mv release-assets/AutelVysor-Setup.exe release-assets/AutelVysor-Setup-v0.8.1.exe
+          sha256sum release-assets/AutelVysor-Setup-v0.8.1.exe release-assets/AutelVysor-v0.8.1-windows-x64.zip | tee release-assets/SHA256SUMS.txt
+
+      - name: Verify expected SHA-256
+        shell: bash
+        run: |
+          set -euxo pipefail
+          echo "f171649b820ac221e61efd16ef7c8f81a2e72a4c6f16e66739eaaeb08ef38e52  release-assets/AutelVysor-Setup-v0.8.1.exe" | sha256sum -c -
+          echo "94b8b27a0c2ecfca4cc333fbdd7485e577cd969efcc4c972303d2ded8c516d92  release-assets/AutelVysor-v0.8.1-windows-x64.zip" | sha256sum -c -
+
+      - name: Write release notes
+        shell: bash
+        run: |
+          cat > RELEASE_NOTES.md <<'EOF'
+          ## Autel Vysor v0.8.1
+
+          Fix release based on real-device feedback.
+
+          ### Fixed
+          - Left sidebar controls now use a readable dark theme.
+          - Wi-Fi / mirror / Files & utilities section is vertically scrollable and no longer clipped.
+          - Rotate now changes the real Android device orientation through ADB instead of only rotating the PC mirror image.
+          - Added Auto rotate to restore sensor-based rotation.
+          - Phone/Bluetooth audio is preserved by default.
+          - Android 13+ uses scrcpy audio duplication so PC and device/Bluetooth playback can both remain active.
+          - Android 11/12 prioritize device/Bluetooth audio when preservation is enabled.
+          - Existing screen-off mirroring behavior remains enabled by default.
+
+          ### Downloads
+          - AutelVysor-Setup-v0.8.1.exe
+          - AutelVysor-v0.8.1-windows-x64.zip
+          - SHA256SUMS.txt
+          EOF
+
+      - name: Publish GitHub pre-release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euxo pipefail
+          gh release create v0.8.1 \
+            release-assets/AutelVysor-Setup-v0.8.1.exe \
+            release-assets/AutelVysor-v0.8.1-windows-x64.zip \
+            release-assets/SHA256SUMS.txt \
+            --repo "${GITHUB_REPOSITORY}" \
+            --target "59298e00c8c0ca0866cd9dd133682730d33477ce" \
+            --title "Autel Vysor v0.8.1" \
+            --notes-file RELEASE_NOTES.md \
+            --prerelease
