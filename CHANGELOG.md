@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.10.0
+
+- Added a Unicode text helper to mirror tabs. scrcpy sessions can copy text to Windows clipboard and paste into Android; optional ADBKeyBoard IME enables Base64 Unicode input for legacy Android.
+- Added periodic Android rotation-state sync (including automatic vs locked orientation) and an audio routing diagnostic view.
+- Improved session resilience with transient ADB disconnect tolerance and bounded exponential scrcpy restart delays.
+- Expanded Device Debug: system/user app package filtering, permission grant/revoke and AppOps management.
+- Added Logcat filtering by tag and explicit PID, alongside existing text/priority filters.
+- Added network diagnostics for interfaces, routes, DNS, sockets, Wi-Fi and ping.
+- Added bugreport export and locally saved shell-command favorites.
+- Added batch ADB shell and APK installation across selected devices with per-device results and cancellation.
+- Added screenshot/recording history browser with local image preview and file actions.
+- Added GitHub Release update checks (manual and optional on startup); no unsigned automatic installer execution.
+- Added optional trusted Authenticode signing for the app EXE and installer. Builds are explicitly unsigned without a configured certificate.
+
+
 ## 0.9.0
 
 - Added hide/show sidebar and F11 full-screen workspace modes.
