@@ -23,6 +23,9 @@ public sealed class NativeWindowHost : HwndHost
     private IntPtr _childHwnd;
     private IntPtr _originalParent;
     private IntPtr _originalStyle;
+    private bool _fitChild = true;
+    private int _actualChildWidth;
+    private int _actualChildHeight;
 
     public IntPtr ChildHandle => _childHwnd;
     public bool HasChild => _childHwnd != IntPtr.Zero;
@@ -98,6 +101,22 @@ public sealed class NativeWindowHost : HwndHost
         ShowWindow(childHwnd, 5); // SW_SHOW
     }
 
+    public void SetFitMode()
+    {
+        _fitChild = true;
+        ResizeChild();
+    }
+
+    public void SetActualSize(int width, int height)
+    {
+        if (width <= 0 || height <= 0)
+            throw new ArgumentOutOfRangeException(nameof(width), "A positive Android display size is required.");
+        _fitChild = false;
+        _actualChildWidth = width;
+        _actualChildHeight = height;
+        ResizeChild();
+    }
+
     public void DetachExternalWindow()
     {
         if (_childHwnd == IntPtr.Zero)
@@ -128,7 +147,19 @@ public sealed class NativeWindowHost : HwndHost
         if (!GetClientRect(_hostHwnd, out var rect))
             return;
 
-        MoveWindow(_childHwnd, 0, 0, Math.Max(1, rect.Right), Math.Max(1, rect.Bottom), true);
+        var hostWidth = Math.Max(1, rect.Right);
+        var hostHeight = Math.Max(1, rect.Bottom);
+        if (_fitChild || _actualChildWidth <= 0 || _actualChildHeight <= 0)
+        {
+            MoveWindow(_childHwnd, 0, 0, hostWidth, hostHeight, true);
+            return;
+        }
+
+        var width = Math.Max(1, _actualChildWidth);
+        var height = Math.Max(1, _actualChildHeight);
+        var x = (hostWidth - width) / 2;
+        var y = (hostHeight - height) / 2;
+        MoveWindow(_childHwnd, x, y, width, height, true);
     }
 
     [StructLayout(LayoutKind.Sequential)]
