@@ -168,6 +168,19 @@ internal static class Program
             png.Frames.Add(BitmapFrame.Create(bitmap));
             using var stream = File.Create(Path.Combine(output, "dark-selection.png"));
             png.Save(stream);
+
+            var editable = new ComboBox { IsEditable = true, ItemsSource = new[] { "com.autel.test" }, SelectedIndex = 0 };
+            var editorWindow = new Window { Content = editable, Width = 300, Height = 100, ShowInTaskbar = false };
+            try
+            {
+                editorWindow.Show();
+                editorWindow.UpdateLayout();
+                var editor = editable.Template.FindName("PART_EditableTextBox", editable) as TextBox;
+                Check(editor is not null && editor.Visibility == Visibility.Visible && editor.Text == "com.autel.test", "Dark editable dropdown lost its text editor");
+                editable.Text = "com.autel.changed";
+                Check(editor!.Text == "com.autel.changed", "Editable dropdown text binding stopped working");
+            }
+            finally { editorWindow.Close(); }
         }
         finally { window.Close(); }
     }
