@@ -243,6 +243,158 @@ public sealed class AndroidBridge(string adbPath)
         return ShellCheckedAsync(serial, ["input", "text", safe], ct);
     }
 
+    public async Task<string> GetPackageDumpAsync(string serial, string packageName, CancellationToken ct = default)
+    {
+        var result = await RunAsync(["-s", serial, "shell", "dumpsys", "package", packageName], ct: ct);
+        EnsureSuccess(result, "Unable to read package information.", "Unable to find package", "not found", "error");
+        return (result.Output + result.Error).Trim();
+    }
+
+    public async Task<AndroidAppInfo> GetAppInfoAsync(string serial, string packageName, CancellationToken ct = default)
+    {
+        var dump = await GetPackageDumpAsync(serial, packageName, ct);
+        var pid = await GetPidAsync(serial, packageName, ct);
+
+        static string Capture(string text, string pattern)
+        {
+            var match = Regex.Match(text, pattern, RegexOptions.IgnoreCase | RegexOptions.Multiline);
+            return match.Success ? match.Groups["v"].Value.Trim() : string.Empty;
+        }
+
+        return new AndroidAppInfo(
+            packageName,
+            Capture(dump, @"^\s*versionName=(?<v>[^\r\n]+)"),
+            Capture(dump, @"^\s*versionCode=(?<v>\d+)"),
+            Capture(dump, @"\bminSdk=(?<v>\d+)"),
+            Capture(dump, @"\btargetSdk=(?<v>\d+)"),
+            Capture(dump, @"^\s*firstInstallTime=(?<v>[^\r\n]+)"),
+            Capture(dump, @"^\s*lastUpdateTime=(?<v>[^\r\n]+)"),
+            Capture(dump, @"^\s*dataDir=(?<v>[^\r\n]+)"),
+            pid);
+    }
+
+    public async Task<string> GetPidAsync(string serial, string packageName, CancellationToken ct = default)
+    {
+        try
+        {
+            var pidof = await RunAsync(["-s", serial, "shell", "pidof", packageName], ct: ct);
+            if (pidof.ExitCode == 0 && !string.IsNullOrWhiteSpace(pidof.Output))
+                return pidof.Output.Trim().Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? string.Empty;
+        }
+        catch { }
+
+        var ps = await GetProcessListAsync(serial, ct);
+        foreach (var line in ps.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (!line.EndsWith(packageName, StringComparison.OrdinalIgnoreCase)
+                && !line.Contains(packageName + ":", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var parts = line.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length >= 2 && int.TryParse(parts[1], out _))
+                return parts[1];
+        }
+        return string.Empty;
+    }
+
+    public async Task<string> GetProcessListAsync(string serial, CancellationToken ct = default)
+    {
+        var result = await RunAsync(["-s", serial, "shell", "ps", "-A"], ct: ct);
+        if (result.ExitCode != 0 || string.IsNullOrWhiteSpace(result.Output))
+            result = await RunAsync(["-s", serial, "shell", "ps"], ct: ct);
+        EnsureSuccess(result, "Unable to read Android process list.", "error", "failed");
+        return result.Output.Trim();
+    }
+
+    public async Task<string> GetAppPermissionsAsync(string serial, string packageName, CancellationToken ct = default)
+    {
+        var dump = await GetPackageDumpAsync(serial, packageName, ct);
+        var lines = dump.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => line.Trim())
+            .Where(line =>
+                line.Contains(".permission.", StringComparison.OrdinalIgnoreCase)
+                || line.StartsWith("permission.", StringComparison.OrdinalIgnoreCase)
+                || line.Contains("granted=", StringComparison.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return lines.Length == 0
+            ? "No permission lines were reported by dumpsys package."
+            : string.Join(Environment.NewLine, lines);
+    }
+
+    public async Task<string> GetLogcatSnapshotAsync(string serial, int maxLines = 2500, CancellationToken ct = default)
+    {
+        var result = await RunAsync(["-s", serial, "logcat", "-d", "-v", "threadtime"], ct: ct);
+        EnsureSuccess(result, "Unable to read logcat.", "error", "failed");
+        var lines = result.Output.Split('\n');
+        if (lines.Length > maxLines)
+            lines = lines[^maxLines..];
+        return string.Join(Environment.NewLine, lines).Trim();
+    }
+
+    public async Task ExportLogcatAsync(string serial, string outputPath, CancellationToken ct = default)
+    {
+        var result = await ToolRunner.RunToFileAsync(
+            adbPath,
+            ["-s", serial, "logcat", "-d", "-v", "threadtime"],
+            outputPath,
+            Path.GetDirectoryName(adbPath),
+            ct);
+        if (result.ExitCode != 0)
+            throw new InvalidOperationException(string.IsNullOrWhiteSpace(result.Error) ? "Unable to export logcat." : result.Error.Trim());
+    }
+
+    public Process StartLogcat(string serial)
+    {
+        var info = new System.Diagnostics.ProcessStartInfo(adbPath)
+        {
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true,
+            WorkingDirectory = Path.GetDirectoryName(adbPath) ?? AppContext.BaseDirectory
+        };
+        foreach (var arg in new[] { "-s", serial, "logcat", "-v", "threadtime" })
+            info.ArgumentList.Add(arg);
+
+        var process = new System.Diagnostics.Process
+        {
+            StartInfo = info,
+            EnableRaisingEvents = true
+        };
+        if (!process.Start())
+            throw new InvalidOperationException("Unable to start live logcat.");
+        return process;
+    }
+
+    public async Task UninstallAppAsync(string serial, string packageName, bool keepData = false, CancellationToken ct = default)
+    {
+        var args = new List<string> { "-s", serial, "uninstall" };
+        if (keepData)
+            args.Add("-k");
+        args.Add(packageName);
+        var result = await RunAsync(args, ct: ct);
+        EnsureSuccess(result, "Unable to uninstall application.", "failure", "failed", "error");
+    }
+
+    public async Task RebootDeviceAsync(string serial, CancellationToken ct = default)
+    {
+        var result = await RunAsync(["-s", serial, "reboot"], ct: ct);
+        EnsureSuccess(result, "Unable to reboot Android device.", "failed", "error");
+    }
+
+    public async Task RestartAdbServerAsync(CancellationToken ct = default)
+    {
+        var kill = await RunAsync(["kill-server"], ct: ct);
+        if (kill.ExitCode != 0 && !string.IsNullOrWhiteSpace(kill.Error))
+            throw new InvalidOperationException(kill.Error.Trim());
+
+        await Task.Delay(500, ct);
+        var start = await RunAsync(["start-server"], ct: ct);
+        EnsureSuccess(start, "Unable to restart ADB server.", "failed", "error");
+    }
+
     public async Task<IReadOnlyList<string>> ListPackagesAsync(string serial, CancellationToken ct = default)
     {
         var result = await RunAsync(["-s", serial, "shell", "pm", "list", "packages"], ct: ct);
