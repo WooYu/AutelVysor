@@ -91,3 +91,14 @@ Verify the actual screen orientation changes and touch mapping remains correct.
 Confirm selected tabs, device rows, edit/dropdowns and buttons remain readable when focus moves to the mirror.
 Check multi-device performance and Android 4.4 capture, and confirm Bluetooth headset audio remains available.
 These physical-device checks are distinct from the Windows CI suite.
+
+## v0.10.2 PC keyboard and real-device orientation
+
+- Windows regression: validate native HWND keyboard focus, ASCII ADB input, rotation lock and auto-rotate restoration.
+- After tapping an Android input field, click **Focus keyboard** and type on the PC keyboard in the scrcpy view. Check upper/lowercase, VIN, numbers, punctuation, Enter, Backspace and Ctrl+V.
+- Use **Send text** to send a short ASCII VIN with ADB; verify it arrives in the focused Android field. For Chinese use scrcpy clipboard paste or the optional installed/selected ADBKeyBoard IME; do not claim universal Unicode typing with `adb shell input text`.
+- Click **Switch orientation** and check the actual Android display rotation (not a capture-only transform). A device app may refuse requested rotation; the status line must say so instead of claiming success.
+- Click **Auto rotate**, physically tilt the device and verify the Android sensor mode is restored. Android devices may suspend rotation sensors when their physical display is off.
+- Run `powershell -ExecutionPolicy Bypass -File scripts/diagnose-connected-devices.ps1` locally on Windows with authorized USB devices. The default mode only reads state.
+- Explicit `-TestRotation` exercises lock/unlock on connected devices and restores the previous settings in a finally block. Do not run on devices actively performing diagnostic operations.
+- Physical tests are not performed by cloud Windows CI. Test real Android 4.4, Android 11 and Android 13+/16 hardware separately.
