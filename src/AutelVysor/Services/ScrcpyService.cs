@@ -24,10 +24,13 @@ public sealed class ScrcpyService(string scrcpyPath, AppSettings settings)
         return ToolRunner.Launch(ExecutablePath, args, Path.GetDirectoryName(ExecutablePath));
     }
 
-    public async Task<ScrcpySession> StartEmbeddedAsync(AndroidDevice device, CancellationToken ct = default)
+    public async Task<ScrcpySession> StartEmbeddedAsync(AndroidDevice device, int displayRotation = 0, CancellationToken ct = default)
     {
         var args = BaseArguments(device);
         ApplyRuntimeOptions(args, device);
+        displayRotation = ((displayRotation % 360) + 360) % 360;
+        if (displayRotation is 90 or 180 or 270)
+            args.Add($"--display-orientation={displayRotation}");
         args.Add("--window-borderless");
         args.Add("--window-width=640");
         args.Add("--window-height=960");
@@ -82,6 +85,12 @@ public sealed class ScrcpyService(string scrcpyPath, AppSettings settings)
 
         if (!_settings.ClipboardSync)
             args.Add("--no-clipboard-autosync");
+
+        if (_settings.TurnScreenOffOnMirror)
+        {
+            args.Add("--turn-screen-off");
+            args.Add("--stay-awake");
+        }
     }
 
     private static List<string> BaseArguments(AndroidDevice device)
