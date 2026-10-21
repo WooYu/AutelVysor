@@ -11,6 +11,7 @@ if($p.Count -ge 2 -and $p[0] -eq '-s') {
   $p=@($p | Select-Object -Skip 2)
 }
 $cmd=$p -join ' '
+Add-Content -Path (Join-Path $state 'adb-calls.txt') -Value $cmd
 if($cmd -eq 'devices -l') {
   Write-Output "List of devices attached"
   Write-Output "CI-MOCK-DEVICE    device product:autel_ci model:mock_device"
