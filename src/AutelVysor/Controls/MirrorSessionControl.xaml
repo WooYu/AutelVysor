@@ -25,6 +25,7 @@
     </Grid.RowDefinitions>
 
     <Border Grid.Row="0" Background="#111827" BorderBrush="#1F2937" BorderThickness="0,0,0,1" Padding="10">
+      <StackPanel>
       <DockPanel LastChildFill="True">
         <StackPanel DockPanel.Dock="Left">
           <TextBlock x:Name="DeviceTitleText" FontSize="15" FontWeight="SemiBold"/>
@@ -52,6 +53,7 @@
                  BorderBrush="#334155" CaretBrush="White" MinWidth="200" Height="30"
                  Padding="6,4" ToolTip="Type Chinese / VIN / URLs; Copy text then Ctrl+V in scrcpy, or send with installed ADBKeyBoard"/>
       </DockPanel>
+      </StackPanel>
     </Border>
 
     <Grid Grid.Row="1" Background="Black">
