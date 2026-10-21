@@ -102,3 +102,23 @@ These physical-device checks are distinct from the Windows CI suite.
 - Run `powershell -ExecutionPolicy Bypass -File scripts/diagnose-connected-devices.ps1` locally on Windows with authorized USB devices. The default mode only reads state.
 - Explicit `-TestRotation` exercises lock/unlock on connected devices and restores the previous settings in a finally block. Do not run on devices actively performing diagnostic operations.
 - Physical tests are not performed by cloud Windows CI. Test real Android 4.4, Android 11 and Android 13+/16 hardware separately.
+
+
+## Real physical-device automated test gate
+
+The detailed lab setup, safe execution instructions, Windows GUI automation,
+real Android fixture APK and evidence requirements are documented in
+docs/PHYSICAL_DEVICE_E2E.md.
+
+Run scripts/run-physical-device-tests.ps1 with an authorized USB Android
+device to produce **real** per-device ADB results. Use
+scripts/run-physical-gui-tests.ps1 in a logged-in Windows desktop to
+drive AutelVysor.exe UI, including real mirror keyboard/rotation and
+a disposable fixture EditText. Additional tests requiring external sensing
+(such as Bluetooth audibility or robotically tilting a phone) are reported
+as EXTERNAL_VALIDATION; they are NEVER silently considered PASS.
+
+Hosted GitHub Actions validate the harness code and Android test fixture
+but never imply real-device coverage. The separate manually dispatched
+Physical Android Devices workflow runs only on a trusted self-hosted Windows
+PC labeled autel-physical with attached authorized hardware.
