@@ -448,65 +448,6 @@ public partial class MainWindow : Window
         StatusText.Text = $"Mirror settings applied · {_settings.MirrorQuality} · screen {(_settings.TurnScreenOffOnMirror ? "off" : "on")} · audio {(_settings.EnableAudio ? "on" : "off")} · clipboard {(_settings.ClipboardSync ? "on" : "off")}.";
     });
 
-    private string SelectedPackageName()
-    {
-        var packageName = PackageBox.Text.Trim();
-        if (!Regex.IsMatch(packageName, @"^[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+$"))
-            throw new InvalidOperationException("Enter or select a valid Android package name, for example com.autel.example.");
-        return packageName;
-    }
-
-    private async void RefreshPackages_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
-    {
-        var device = SelectedOne();
-        StatusText.Text = $"Reading packages from {device.DisplayName}…";
-        var packages = await _bridge.ListPackagesAsync(device.Serial);
-        PackageBox.ItemsSource = packages;
-        PackageCountText.Text = $"{packages.Count} package(s)";
-        StatusText.Text = $"Loaded {packages.Count} package(s) from {device.DisplayName}.";
-    });
-
-    private async void ForceStopApp_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
-    {
-        var device = SelectedOne();
-        var packageName = SelectedPackageName();
-        await _bridge.ForceStopAppAsync(device.Serial, packageName);
-        StatusText.Text = $"Stopped {packageName}.";
-    });
-
-    private async void StartApp_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
-    {
-        var device = SelectedOne();
-        var packageName = SelectedPackageName();
-        await _bridge.StartAppAsync(device.Serial, packageName);
-        StatusText.Text = $"Started {packageName}.";
-    });
-
-    private async void RestartApp_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
-    {
-        var device = SelectedOne();
-        var packageName = SelectedPackageName();
-        await _bridge.RestartAppAsync(device.Serial, packageName);
-        StatusText.Text = $"Restarted {packageName}.";
-    });
-
-    private async void ClearAppData_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
-    {
-        var device = SelectedOne();
-        var packageName = SelectedPackageName();
-        var answer = MessageBox.Show(
-            $"Clear ALL app data for:\n\n{packageName}\n\non {device.DisplayName}?\n\nThis removes the app's accounts, settings, databases, files and cache. The APK remains installed.",
-            "Confirm clear app data",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning,
-            MessageBoxResult.No);
-        if (answer != MessageBoxResult.Yes)
-            return;
-
-        await _bridge.ClearAppDataAsync(device.Serial, packageName);
-        StatusText.Text = $"Cleared application data for {packageName}.";
-    });
-
     private async void Screenshot_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
     {
         Require(Adb);
