@@ -1,0 +1,52 @@
+<Window x:Class="AutelVysor.BatchOperationsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Autel Vysor · Batch operations" Width="860" Height="640"
+        MinWidth="720" MinHeight="510" Background="#0B1120" Foreground="#E5E7EB">
+  <Window.Resources>
+    <Style TargetType="Button">
+      <Setter Property="Padding" Value="12,7"/>
+      <Setter Property="Margin" Value="0,0,8,7"/>
+      <Setter Property="Background" Value="#2563EB"/>
+      <Setter Property="Foreground" Value="White"/>
+      <Setter Property="BorderThickness" Value="0"/>
+    </Style>
+    <Style TargetType="TextBox">
+      <Setter Property="Background" Value="#111827"/>
+      <Setter Property="Foreground" Value="White"/>
+      <Setter Property="CaretBrush" Value="White"/>
+      <Setter Property="BorderBrush" Value="#334155"/>
+      <Setter Property="Padding" Value="8"/>
+    </Style>
+  </Window.Resources>
+  <Grid Margin="18">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+    <StackPanel Grid.Row="0">
+      <TextBlock Text="Batch device operations" FontSize="23" FontWeight="Bold"/>
+      <TextBlock x:Name="DevicesText" Margin="0,6,0,12"
+                 TextWrapping="Wrap" Foreground="#94A3B8"/>
+    </StackPanel>
+    <StackPanel Grid.Row="1">
+      <TextBlock Text="Command to run on every selected device" Foreground="#CBD5E1" Margin="0,0,0,5"/>
+      <TextBox x:Name="CommandBox" Text="getprop ro.build.version.release"/>
+      <TextBlock Margin="0,4,0,12" Foreground="#64748B" TextWrapping="Wrap"
+                 Text="Commands run sequentially using adb -s &lt;serial&gt; shell sh -c. Confirm the device list before running."/>
+    </StackPanel>
+    <WrapPanel Grid.Row="2" Margin="0,4,0,5">
+      <Button Click="RunCommand_Click" Content="Run command on selected devices"/>
+      <Button Click="InstallApk_Click" Content="Install APK on all" Background="#475569"/>
+      <Button Click="Cancel_Click" Content="Cancel current batch" Background="#B45309"/>
+    </WrapPanel>
+    <TextBox Grid.Row="3" x:Name="OutputBox" FontFamily="Consolas" FontSize="12"
+             IsReadOnly="True" AcceptsReturn="True"
+             VerticalScrollBarVisibility="Auto"
+             HorizontalScrollBarVisibility="Auto"/>
+    <TextBlock Grid.Row="4" x:Name="StatusText" Margin="0,10,0,0" Foreground="#94A3B8" Text="Ready"/>
+  </Grid>
+</Window>
