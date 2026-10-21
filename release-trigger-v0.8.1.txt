@@ -1,0 +1,1 @@
+publish Autel Vysor v0.8.1
