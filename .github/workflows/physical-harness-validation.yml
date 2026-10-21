@@ -46,9 +46,14 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
-      - name: Install Android compile SDK
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - name: Install Android compile SDK from preinstalled Ubuntu Android command-line tools
+        shell: bash
+        run: |
+          set -euxo pipefail
+          SDK="${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}"
+          TOOL="$(find "$SDK/cmdline-tools" -name sdkmanager -type f | sort -V | tail -n1)"
+          test -x "$TOOL"
+          "$TOOL" "platforms;android-35" "build-tools;35.0.0"
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10.2'
