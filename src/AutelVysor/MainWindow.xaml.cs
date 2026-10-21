@@ -57,6 +57,7 @@ public partial class MainWindow : Window
             _knownWireless.Add(endpoint);
         AutoReconnectBox.IsChecked = _settings.AutoReconnectWireless;
         AudioBox.IsChecked = _settings.EnableAudio;
+        KeepDeviceAudioBox.IsChecked = _settings.KeepDeviceAudio;
         ClipboardBox.IsChecked = _settings.ClipboardSync;
         ScreenOffBox.IsChecked = _settings.TurnScreenOffOnMirror;
         LegacyAccelerationBox.IsChecked = _settings.PreferLegacyAcceleration;
@@ -70,6 +71,8 @@ public partial class MainWindow : Window
         AutoReconnectBox.Unchecked += (_, _) => PersistSettings();
         AudioBox.Checked += (_, _) => PersistSettings();
         AudioBox.Unchecked += (_, _) => PersistSettings();
+        KeepDeviceAudioBox.Checked += (_, _) => PersistSettings();
+        KeepDeviceAudioBox.Unchecked += (_, _) => PersistSettings();
         ClipboardBox.Checked += (_, _) => PersistSettings();
         ClipboardBox.Unchecked += (_, _) => PersistSettings();
         ScreenOffBox.Checked += (_, _) => PersistSettings();
@@ -427,6 +430,7 @@ public partial class MainWindow : Window
     {
         _settings.AutoReconnectWireless = AutoReconnectBox.IsChecked == true;
         _settings.EnableAudio = AudioBox.IsChecked == true;
+        _settings.KeepDeviceAudio = KeepDeviceAudioBox.IsChecked == true;
         _settings.ClipboardSync = ClipboardBox.IsChecked == true;
         _settings.TurnScreenOffOnMirror = ScreenOffBox.IsChecked == true;
         _settings.PreferLegacyAcceleration = LegacyAccelerationBox.IsChecked == true;
@@ -445,7 +449,7 @@ public partial class MainWindow : Window
         PersistSettings();
         foreach (var (_, view) in _sessions.Values)
             await view.RestartAsync();
-        StatusText.Text = $"Mirror settings applied · {_settings.MirrorQuality} · screen {(_settings.TurnScreenOffOnMirror ? "off" : "on")} · audio {(_settings.EnableAudio ? "on" : "off")} · clipboard {(_settings.ClipboardSync ? "on" : "off")}.";
+        StatusText.Text = $"Mirror settings applied · {_settings.MirrorQuality} · screen {(_settings.TurnScreenOffOnMirror ? "off" : "on")} · audio {(_settings.EnableAudio ? "on" : "off")} · device/Bluetooth {(_settings.KeepDeviceAudio ? "kept" : "PC priority")} · clipboard {(_settings.ClipboardSync ? "on" : "off")}.";
     });
 
     private async void Screenshot_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
@@ -467,6 +471,7 @@ public partial class MainWindow : Window
         report.AppendLine($"Base directory: {AppContext.BaseDirectory}");
         report.AppendLine($"Mirror quality: {_settings.MirrorQuality}");
         report.AppendLine($"Audio: {_settings.EnableAudio}");
+        report.AppendLine($"Keep device/Bluetooth audio: {_settings.KeepDeviceAudio}");
         report.AppendLine($"Clipboard sync: {_settings.ClipboardSync}");
         report.AppendLine($"Turn device screen off on mirror: {_settings.TurnScreenOffOnMirror}");
         report.AppendLine($"Legacy acceleration preferred: {_settings.PreferLegacyAcceleration}");
