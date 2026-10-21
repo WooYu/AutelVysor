@@ -43,6 +43,8 @@ public partial class MainWindow : Window
     private readonly Dictionary<string, DateTime> _lastReconnectAttempt = new(StringComparer.OrdinalIgnoreCase);
     private IReadOnlyList<AndroidDevice> _devices = Array.Empty<AndroidDevice>();
     private bool _refreshing;
+    private bool _recordingStopBusy;
+    private bool _closeAfterRecordings;
     private bool _sidebarHidden;
     private bool _isFullscreen;
     private bool _sidebarHiddenBeforeFullscreen;
@@ -98,6 +100,7 @@ public partial class MainWindow : Window
             if (_settings.CheckUpdatesOnStart)
                 _ = CheckUpdatesAsync(interactive: false);
         };
+        Closing += MainWindow_Closing;
         Closed += (_, _) =>
         {
             _monitorTimer.Stop();
@@ -561,14 +564,64 @@ public partial class MainWindow : Window
                 throw new InvalidOperationException("Continuous MP4 recording is not available in the Android 4.4 compatibility backend yet. Screenshot capture is supported.");
 
             Require(Scrcpy);
-            var path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), $"autel-{DateTime.Now:yyyyMMdd-HHmmss}.mp4");
+            var path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), $"autel-{DateTime.Now:yyyyMMdd-HHmmss}-{Guid.NewGuid():N}.mp4");
             _scrcpy.StartRecording(device, path);
-            StatusText.Text = $"Background recording started: {path}";
+            StopRecordingsButton.IsEnabled = true;
+            StatusText.Text = $"Recording started: {path}. Use Stop recordings to finalize the MP4.";
         }
         catch (Exception ex)
         {
             StatusText.Text = ex.Message;
             MessageBox.Show(ex.Message, "Autel Vysor", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    private async Task StopOwnedRecordingsAsync()
+    {
+        _recordingStopBusy = true;
+        RecordButton.IsEnabled = false;
+        StopRecordingsButton.IsEnabled = false;
+        StatusText.Text = "Stopping recordings and finalizing MP4 files…";
+        try
+        {
+            await _scrcpy.StopRecordingsAsync();
+            StatusText.Text = "Recordings stopped and files finalized. Open Captures to view them.";
+        }
+        finally
+        {
+            _recordingStopBusy = false;
+            RecordButton.IsEnabled = true;
+            StopRecordingsButton.IsEnabled = _scrcpy.HasRecordings;
+        }
+    }
+
+    private async void StopRecordings_Click(object sender, RoutedEventArgs e)
+        => await Guard(StopOwnedRecordingsAsync);
+
+    private async void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        if (_closeAfterRecordings) return;
+        if (_recordingStopBusy) { e.Cancel = true; return; }
+        if (!_scrcpy.HasRecordings) return;
+        e.Cancel = true;
+        _monitorTimer.Stop();
+        try { await StopOwnedRecordingsAsync(); }
+        catch (Exception ex)
+        {
+            MessageBox.Show(ex.Message, "Recording finalization", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            if (!_scrcpy.HasRecordings)
+            {
+                _closeAfterRecordings = true;
+                Close();
+            }
+            else
+            {
+                StatusText.Text = "A recorder has not exited. Retry Stop recordings before closing.";
+                _monitorTimer.Start();
+            }
         }
     }
 
@@ -655,3 +708,4 @@ public partial class MainWindow : Window
     });
 
 }
+

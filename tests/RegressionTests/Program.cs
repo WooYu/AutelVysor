@@ -36,6 +36,7 @@ internal static class Program
                 ("Rotation reads default display instead of stale user setting", ActualDisplayRotation),
                 ("Embedded keyboard avoids SDL text-event dependency", EmbeddedKeyboard),
                 ("Recording rejects duplicates and finalizes on stop", RecordingLifecycle),
+                ("Failed recorder cleanup retains ownership for retry", RecordingCleanupFailure),
                 ("ASCII text is injected via the actual ADB process boundary", AsciiText),
                 ("Embedded child returns to fit after repeated self-resizing", NativeResize),
                 ("Keyboard focus reaches an external native-window process", CrossProcessFocus),
@@ -110,6 +111,10 @@ internal static class Program
     {
         // adb joins shell argv with spaces; run that exact string through Git's
         // real POSIX shell, rather than teaching a fake ADB the desired result.
+        var commands = State("commands");
+        Directory.CreateDirectory(commands);
+        File.WriteAllText(Path.Combine(commands, "dumpsys"), "#!/bin/sh\ncase \"$1\" in battery) echo BatteryStatus;; wifi) echo WifiStatus;; *) echo ALL_DUMPSYS;; esac\n");
+        File.WriteAllText(Path.Combine(commands, "wm"), "#!/bin/sh\ncase \"$1\" in size) echo 'Physical size: 1080x2400';; density) echo 'Physical density: 420';; *) echo WM_HELP;; esac\n");
         var bridge = Bridge();
         var output = await bridge.RunShellCommandAsync("test-device", "printf '%s|%s' 'hello world' \"a'b\"");
         Check(output == "hello world|a'b", "Shell lost command arguments: " + output);
@@ -121,7 +126,10 @@ internal static class Program
         Check(failed, "Nonzero shell status was reported as success");
         // Exercises AdvancedAdbService's separate shell caller as well.
         var report = await new AdvancedAdbService(Environment.ProcessPath!).GetNetworkReportAsync("test-device");
-        Check(!report.Contains("Usage: ip"), "Network query dropped its subcommand");
+        Check(report.Contains("WifiStatus") && !report.Contains("ALL_DUMPSYS"), "Network query dropped dumpsys wifi argument");
+        var overview = await bridge.GetDeviceOverviewAsync("test-device");
+        Check(overview.Contains("BatteryStatus") && overview.Contains("Physical size: 1080x2400") && !overview.Contains("ALL_DUMPSYS"),
+            "Device overview dropped display/battery arguments");
     }
 
     private static async Task ActualDisplayRotation()
@@ -163,6 +171,7 @@ internal static class Program
         File.Delete(State("native-hwnd"));
         File.Delete(State("record-finalized"));
         using var first = service.StartRecording(TestDevice(), State("first.mp4"));
+        var recorderId = first.Id;
         Process? duplicate = null;
         var rejected = false;
         try
@@ -173,7 +182,8 @@ internal static class Program
             var stop = typeof(ScrcpyService).GetMethod("StopRecordingsAsync");
             Check(stop is not null, "Recording has no owned stop/shutdown operation");
             await (Task)stop!.Invoke(service, null)!;
-            Check(first.HasExited, "Recorder remained after stop");
+            var stillRunning = Process.GetProcesses().Any(p => { using (p) return p.Id == recorderId; });
+            Check(!stillRunning, "Recorder remained after stop");
             Check(File.Exists(State("record-finalized")), "Recorder was killed before native close/finalization");
         }
         finally
@@ -184,6 +194,36 @@ internal static class Program
                 try { if (!process.HasExited) process.Kill(true); } catch { }
                 process.Dispose();
             }
+        }
+    }
+
+    private static async Task RecordingCleanupFailure()
+    {
+        var service = new ScrcpyService(Environment.ProcessPath!, new AppSettings());
+        File.Delete(State("native-hwnd"));
+        service.StartRecording(TestDevice(), State("cleanup.mp4"));
+        // A real Process with no associated OS process makes HasExited and Kill
+        // fail, exercising the same unknown-liveness boundary as OS access errors.
+        var field = typeof(ScrcpyService).GetField("_recordings", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        var sessions = (System.Collections.IDictionary)field!.GetValue(service)!;
+        var real = sessions["test-device"]!;
+        using var inaccessible = new Process();
+        var unknown = Activator.CreateInstance(real.GetType(), inaccessible, State("unknown.mp4"));
+        sessions["test-device"] = unknown;
+        try
+        {
+            try { await service.StopRecordingsAsync(); }
+            catch (InvalidOperationException) { }
+            Check(service.HasRecordings, "Failed cleanup discarded an owned recorder whose exit could not be confirmed");
+            var rejected = false;
+            try { service.StartRecording(TestDevice(), State("duplicate.mp4")); }
+            catch (InvalidOperationException) { rejected = true; }
+            Check(rejected, "Unknown recorder liveness allowed a duplicate recording");
+        }
+        finally
+        {
+            sessions["test-device"] = real;
+            await service.StopRecordingsAsync();
         }
     }
 
@@ -279,6 +319,9 @@ internal static class Program
             if (message == 0x0010) // WM_CLOSE: simulate scrcpy flushing MP4
             {
                 File.WriteAllText(State("record-finalized"), "closed normally");
+                var arguments = Environment.GetCommandLineArgs();
+                var recordIndex = Array.IndexOf(arguments, "--record");
+                if (recordIndex >= 0) File.WriteAllText(arguments[recordIndex + 1], "simulated finalized recording");
                 DestroyWindow(window);
                 PostQuitMessage(0);
                 return IntPtr.Zero;
@@ -317,7 +360,7 @@ internal static class Program
             (args[shellIndex + 1] == "sh" || args.Length == shellIndex + 2))
         {
             var bash = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Git", "bin", "bash.exe");
-            var result = ToolRunner.RunAsync(bash, ["-c", string.Join(" ", args.Skip(shellIndex + 1))]).GetAwaiter().GetResult();
+            var result = ToolRunner.RunAsync(bash, ["-c", "export PATH=\"$PWD/commands:$PATH\"; " + string.Join(" ", args.Skip(shellIndex + 1))], workingDirectory: StateDirectory).GetAwaiter().GetResult();
             Console.Write(result.Output);
             Console.Error.Write(result.Error);
             return result.ExitCode;

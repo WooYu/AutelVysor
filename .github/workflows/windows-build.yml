@@ -18,7 +18,10 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
-      - name: Run rotation, native resize and device polling regressions
+      - name: Run shell and display telemetry regressions
+        shell: powershell
+        run: dotnet run --project tests/BridgeRegressionTests -c Release
+      - name: Run rotation, native resize, recording and device polling regressions
         shell: powershell
         run: dotnet run --project tests/RegressionTests/RegressionTests.csproj -c Release
       - uses: actions/upload-artifact@v4
@@ -59,3 +62,4 @@ jobs:
           path: |
             dist/AutelVysor-v*-windows-x64.zip
             dist/AutelVysor-Setup.exe
+

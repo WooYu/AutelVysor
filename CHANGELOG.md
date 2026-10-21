@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.10.3
+
+- AV-001: send a complete command to adb shell instead of an unquoted nested sh -c, preserving arguments across shell, batch, device and network diagnostics; exit status coverage applies to modern shell_v2. Legacy adbd exit-status limitations remain.
+- AV-004: replace prefer-text with SDK raw-key-events for scrcpy keyboard input; keep focus handling and explicit clipboard/Unicode helpers. Physical Windows/Android IME acceptance remains pending.
+- AV-005: share actual default-display rotation telemetry across status and orientation actions, with older SurfaceOrientation fallback; report unavailable telemetry instead of stale user_rotation.
+- AV-002/003: own recorder processes, reject duplicate device recordings, expose Stop recordings, and wait for graceful MP4 finalization on stop/exit. Report abnormal exits/timeouts explicitly.
+- Add portable bridge regressions and Windows recorder/native-window regressions. Extend real-device GUI harness with native virtual-key Backspace/6/7 reproduction and actual Auto angle comparison.
+- Preserve FileDescription=Autel. Trusted signing and untested physical feature acceptance remain open.
+
 ## 0.10.2
 
 - Fixed cross-process keyboard focus transfer from the WPF native host to scrcpy's SDL window.
@@ -157,3 +166,4 @@
 ## 0.1.0
 
 - Initial WPF project, ADB discovery and scrcpy integration.
+

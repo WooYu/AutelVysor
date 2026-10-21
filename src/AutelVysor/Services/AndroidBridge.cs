@@ -247,19 +247,8 @@ public sealed class AndroidBridge(string adbPath)
     public Task KeyEventAsync(string serial, int keyCode, CancellationToken ct = default)
         => ShellCheckedAsync(serial, ["input", "keyevent", keyCode.ToString(CultureInfo.InvariantCulture)], ct);
 
-    public async Task<int> GetCurrentRotationDegreesAsync(string serial, CancellationToken ct = default)
-    {
-        // user_rotation may be stale while sensor-based rotation is active.
-        var display = await RunAsync(["-s", serial, "shell", "dumpsys", "input"], ct: ct);
-        var match = Regex.Match(display.Output, @"SurfaceOrientation:\s*([0-3])\b");
-        if (display.ExitCode == 0 && match.Success)
-            return int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture) * 90;
-        var result = await RunAsync(["-s", serial, "shell", "settings", "get", "system", "user_rotation"], ct: ct);
-        var text = result.Output.Trim();
-        return int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value)
-            ? Math.Clamp(value, 0, 3) * 90
-            : 0;
-    }
+    public Task<int> GetCurrentRotationDegreesAsync(string serial, CancellationToken ct = default)
+        => DisplayRotationReader.ReadAsync(adbPath, serial, ct);
 
     private static bool RotationCommandSucceeded((int ExitCode, string Output, string Error) result)
     {
@@ -499,7 +488,9 @@ public sealed class AndroidBridge(string adbPath)
         if (command.Length > 8192)
             throw new InvalidOperationException("The shell command is too long.");
 
-        var result = await RunAsync(["-s", serial, "shell", "sh", "-c", command], ct: ct);
+        // adb joins shell arguments before the device shell parses them. A single
+        // command preserves arguments, quotes and operators without a nested sh -c.
+        var result = await RunAsync(["-s", serial, "shell", command], ct: ct);
         var combined = (result.Output + (string.IsNullOrWhiteSpace(result.Error) ? string.Empty : "\n" + result.Error)).TrimEnd();
         if (result.ExitCode != 0)
             throw new InvalidOperationException(string.IsNullOrWhiteSpace(combined) ? $"Shell command failed with exit code {result.ExitCode}." : combined);
@@ -707,3 +698,4 @@ public sealed class AndroidBridge(string adbPath)
             throw new InvalidOperationException(string.IsNullOrWhiteSpace(combined) ? fallback : combined);
     }
 }
+

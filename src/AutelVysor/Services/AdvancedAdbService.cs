@@ -18,7 +18,9 @@ public sealed class AdvancedAdbService(string adbPath)
 
     private async Task<string> ShellAsync(string serial, string command, CancellationToken ct = default)
     {
-        var result = await RunAsync(["-s", serial, "shell", "sh", "-c", command], ct);
+        // adb joins shell arguments before the device shell parses them. A single
+        // command preserves arguments, quotes and operators without a nested sh -c.
+        var result = await RunAsync(["-s", serial, "shell", command], ct);
         var output = (result.Output + (string.IsNullOrWhiteSpace(result.Error) ? "" : "\n" + result.Error)).Trim();
         if (result.ExitCode != 0)
             throw new InvalidOperationException(string.IsNullOrEmpty(output) ? "ADB shell command failed." : output);
@@ -102,17 +104,9 @@ public sealed class AdvancedAdbService(string adbPath)
     {
         var auto = await RunAsync(["-s", serial, "shell", "settings", "get", "system", "accelerometer_rotation"], ct);
         var automatic = auto.Output.Trim() == "1";
-        var raw = await RunAsync(["-s", serial, "shell", "dumpsys", "input"], ct);
-        var display = raw.Output;
-        var match = Regex.Match(display, @"SurfaceOrientation:\s*(?<rotation>[0-3])", RegexOptions.IgnoreCase);
-        if (!match.Success)
-        {
-            var fallback = await RunAsync(["-s", serial, "shell", "settings", "get", "system", "user_rotation"], ct);
-            match = Regex.Match(fallback.Output.Trim(), @"^(?<rotation>[0-3])$");
-        }
-        var rotation = match.Success
-            ? int.Parse(match.Groups["rotation"].Value, CultureInfo.InvariantCulture) * 90
-            : 0;
+        if (auto.ExitCode != 0 || auto.Output.Trim() is not ("0" or "1"))
+            throw new InvalidOperationException("Android rotation mode is unavailable.");
+        var rotation = await DisplayRotationReader.ReadAsync(adbPath, serial, ct);
         return (rotation, automatic);
     }
 
@@ -224,3 +218,4 @@ public sealed class AdvancedAdbService(string adbPath)
         return "Unicode text broadcast sent to ADBKeyBoard. Confirm insertion on the Android device.";
     }
 }
+

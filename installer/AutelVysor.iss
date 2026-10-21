@@ -1,6 +1,6 @@
 #define MyAppName "Autel Vysor"
 #ifndef MyAppVersion
-#define MyAppVersion "0.10.2"
+#define MyAppVersion "0.10.3"
 #endif
 #define MyAppPublisher "Autel"
 #define MyAppExeName "AutelVysor.exe"
@@ -41,4 +41,5 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription:
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch Autel Vysor"; Flags: nowait postinstall skipifsilent
+
 
