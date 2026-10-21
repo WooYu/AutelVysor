@@ -24,6 +24,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: AutelVysor-visual-check
+          if-no-files-found: warn
           path: test-results/dark-selection.png
   build:
     needs: regression-tests
@@ -47,6 +48,9 @@ jobs:
           }
       - name: Build portable ZIP and installer
         shell: powershell
+        env:
+          AUTEL_SIGN_PFX_BASE64: ${{ secrets.AUTEL_SIGN_PFX_BASE64 }}
+          AUTEL_SIGN_PFX_PASSWORD: ${{ secrets.AUTEL_SIGN_PFX_PASSWORD }}
         run: .\scripts\build-release.ps1 -SkipToolDownload
       - uses: actions/upload-artifact@v4
         with:

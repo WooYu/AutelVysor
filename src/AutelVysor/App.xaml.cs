@@ -12,6 +12,14 @@ public partial class App : Application
         TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
         base.OnStartup(e);
 
+        // The executable uses an explicit Program.Main() entry point. Ensure the
+        // shared WPF theme is loaded before any windows parse StaticResource styles.
+        // Program.Main intentionally bypasses Application.InitializeComponent().
+        Resources.MergedDictionaries.Add(new ResourceDictionary
+        {
+            Source = new Uri("pack://application:,,,/AutelVysor;component/Theme.xaml")
+        });
+
         var window = new MainWindow();
         MainWindow = window;
         window.Show();

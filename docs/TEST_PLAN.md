@@ -7,7 +7,7 @@
 3. Verify Properties -> Details:
    - File description: `Autel`
    - Product name: `Autel Vysor`
-   - File version: `0.6.0.0`
+   - File version: `0.10.1.0`
 4. Verify the installer Properties -> Details also reports file description `Autel`.
 
 ## Device matrix
@@ -61,14 +61,33 @@ For each device verify discovery, mirror, click, drag, keyboard, Home/Back/Recen
 5. Verify Volume +/- toolbar actions on both legacy and scrcpy sessions.
 6. Choose **Copy diagnostics** and verify app version, OS, adb/scrcpy versions and device API/ABI are present.
 7. Force a test exception in a debug build and verify `%LOCALAPPDATA%\Autel\AutelVysor\AutelVysor.log` is created.
-# 0.9.1 rotation and responsiveness regressions
+
+## v0.10.0 functional acceptance
+
+- [ ] Android 4.4: installed/selected ADBKeyBoard IME inserts UTF-8 Chinese; if IME absent, show a clear instruction rather than claiming success.
+- [ ] Android 13+/16: scrcpy clipboard paste handles Chinese/VIN/URLs without changing device IME.
+- [ ] Physically rotate Android; rotation status updates within 8-12 seconds, and Auto/Locked is accurate.
+- [ ] Bluetooth headset audio + PC duplicated audio on Android 13+ using a real playback sample, not only dumpsys indicators.
+- [ ] Repeated USB disconnect/reconnect and ADB server restart recover without stale tabs or runaway scrcpy processes.
+- [ ] Device Debug App filter: all/user/system + package search; test grant/revoke/appops accepted and rejected operations.
+- [ ] Logcat Tag and PID filters match threadtime columns and pause limits in-memory queue size.
+- [ ] Network: compare IP/DNS/route/ping/port output to Android shell tools.
+- [ ] Bugreport export with timeout, user cancellation, and no silent upload.
+- [ ] Batch app install and shell command with multiple physical devices, one failed target, and cancellation.
+- [ ] Screenshot and recording history opens and previews local files.
+- [ ] GitHub update checker links only to official repository releases; does not run unsigned installers.
+- [ ] CI signed build using real certificate: verify Authenticode on EXE + setup; unsigned build clearly labeled.
+
+
+## v0.10.1 integrated rotation and responsiveness regressions
 
 Run `dotnet run --project tests/RegressionTests/RegressionTests.csproj -c Release` on Windows.
-The runner uses real Win32 windows and real subprocess calls to a test ADB endpoint.
-It checks 12 consecutive child-window resize events, six orientation toggles, and metadata refresh on reconnect.
+The automated checks exercise 12 consecutive native-window resize events, six orientation toggles,
+a mocked ADB process endpoint with metadata caching and reconnect invalidation, and dark selected styles.
 
-On physical devices: repeat horizontal/vertical switching at least 20 times, including rapid clicks, Fit/1:1, resized windows, 100%/150%/200% DPI, and sensor auto-rotation.
-Verify the complete display and touch alignment. Check natural-landscape tablets and an app that locks orientation.
-Confirm selected tabs, device rows and dropdowns stay readable when focus moves to the mirror.
-Verify four connected devices with high-quality mirroring and Android 4.4 capture, and check Bluetooth audio remains available.
-These hardware and visual checks are separate from automated Windows regression coverage.
+On physical devices: perform at least 20 natural/landscape orientation changes (including rapid clicks),
+check Fit / 1:1, resized windows, 100% / 150% / 200% DPI, and sensor auto-rotation.
+Verify the actual screen orientation changes and touch mapping remains correct.
+Confirm selected tabs, device rows, edit/dropdowns and buttons remain readable when focus moves to the mirror.
+Check multi-device performance and Android 4.4 capture, and confirm Bluetooth headset audio remains available.
+These physical-device checks are distinct from the Windows CI suite.

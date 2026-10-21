@@ -2,7 +2,7 @@
 
 Windows Android mirror/control client for **Android 4.4 (API 19) and newer**.
 
-Current source version: **0.9.0**.
+Current source version: **0.10.1**
 
 ## Compatibility
 
@@ -14,6 +14,29 @@ Current source version: **0.9.0**.
 | Android 11+ | ADB wireless pairing + scrcpy | Implemented |
 
 scrcpy itself requires API 21+, therefore API 19/20 never attempts to start scrcpy.
+
+## v0.10.1 integration
+
+- Merged the v0.9.1 rotation-cropping and UI-performance branch (PR #1) into the v0.10.x development line.
+- Embedded scrcpy child HWND is kept within its WPF host as the device rotates, using guarded, asynchronous resizing.
+- Device rotation uses a guarded portrait/landscape toggle rather than endlessly rotating the computer image; Fit view is restored.
+- Shared dark hover/focus/selection templates improve the device list, active/inactive tabs, editable dropdowns and debug controls.
+- Device polling reuses stable metadata and skips redundant list rebuilds; legacy capture/decode is moved away from the WPF UI thread.
+- New Windows regression checks cover repeated resize, orientation toggles, metadata cache invalidation and selection rendering.
+- Existing v0.10.0 unicode, batch, network, diagnostics, capture-management, update-check and optional signing features are retained.
+
+## v0.10.0 additions
+
+- Unicode helper in mirror tabs: copy Chinese/VIN/URL text and paste into Android through scrcpy; optional ADBKeyBoard IME can send Base64 Unicode broadcasts to older Android. This IME must be installed and selected by the user; no keyboard is silently installed or activated.
+- Mirror reliability: reconnect status, short ADB interruption tolerance, and bounded retry backoff.
+- Rotation display synchronizes the Android rotation value and auto/lock mode. Audio route view shows configured scrcpy output policy and limited Android diagnostics; a Bluetooth audio playback test remains necessary.
+- Device Debug: permission grant/revoke, AppOps, installed-app filter (user/system/all + package search), logcat tag/PID filters, network tools and ping, bugreport export, saved ADB shell favorites.
+- Multi-device batch APK install and ADB shell commands with confirmation and per-device status.
+- Capture history for screenshots and recordings, with local image preview.
+- Optional startup/interactive GitHub Release checks. The application **never silently downloads or executes installer binaries**.
+- Optional trusted Authenticode signing infrastructure, documented in docs/SIGNING.md.
+
+**Limitations:** Android app *display names* are not reliably available via stock ADB package-list output, so the search currently uses package identifiers. AppOps and permission changes may be denied by Android or vendor restrictions. True Bluetooth audio route verification, Android 4.4 Unicode IME compatibility, and physical USB/Wi-Fi recovery still require hardware validation. Automatic installation of unsigned updates is intentionally not enabled.
 
 ## v0.9.0 additions
 
@@ -140,7 +163,7 @@ The build fails if the executable metadata does not contain:
 ```text
 FileDescription : Autel
 ProductName     : Autel Vysor
-FileVersion     : 0.9.0.0
+FileVersion     : 0.10.1.0
 ```
 
 ## Build portable ZIP and installer
@@ -152,7 +175,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build-release.ps1
 Expected artifacts:
 
 ```text
-dist\AutelVysor-v0.9.0-windows-x64.zip
+dist\AutelVysor-v0.10.1-windows-x64.zip
 dist\AutelVysor-Setup.exe           # when Inno Setup 6 is installed
 ```
 

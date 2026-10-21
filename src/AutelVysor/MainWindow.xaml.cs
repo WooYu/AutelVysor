@@ -36,6 +36,7 @@ public partial class MainWindow : Window
     private readonly LegacyMinicapService _minicap;
     private readonly DispatcherTimer _monitorTimer;
     private readonly AppSettingsService _settingsService = new();
+    private readonly GitHubUpdateService _updateService = new();
     private readonly AppSettings _settings;
     private readonly Dictionary<string, (TabItem Tab, MirrorSessionControl View)> _sessions = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _knownWireless = new(StringComparer.OrdinalIgnoreCase);
@@ -65,6 +66,7 @@ public partial class MainWindow : Window
         ClipboardBox.IsChecked = _settings.ClipboardSync;
         ScreenOffBox.IsChecked = _settings.TurnScreenOffOnMirror;
         LegacyAccelerationBox.IsChecked = _settings.PreferLegacyAcceleration;
+        AutoUpdateCheckBox.IsChecked = _settings.CheckUpdatesOnStart;
         MirrorQualityBox.SelectedIndex = (_settings.MirrorQuality ?? "Standard").ToLowerInvariant() switch
         {
             "smooth" => 0,
@@ -83,6 +85,8 @@ public partial class MainWindow : Window
         ScreenOffBox.Unchecked += (_, _) => PersistSettings();
         LegacyAccelerationBox.Checked += (_, _) => PersistSettings();
         LegacyAccelerationBox.Unchecked += (_, _) => PersistSettings();
+        AutoUpdateCheckBox.Checked += (_, _) => PersistSettings();
+        AutoUpdateCheckBox.Unchecked += (_, _) => PersistSettings();
         MirrorQualityBox.SelectionChanged += (_, _) => PersistSettings();
         _monitorTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2.5) };
         _monitorTimer.Tick += async (_, _) => await RefreshAsync(quiet: true);
@@ -91,6 +95,8 @@ public partial class MainWindow : Window
         {
             await RefreshAsync();
             _monitorTimer.Start();
+            if (_settings.CheckUpdatesOnStart)
+                _ = CheckUpdatesAsync(interactive: false);
         };
         Closed += (_, _) =>
         {
@@ -371,6 +377,76 @@ public partial class MainWindow : Window
         }
     }
 
+    private void BatchOperations_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var devices = SelectedMany();
+            var window = new BatchOperationsWindow(_bridge, devices)
+            {
+                Owner = this,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner
+            };
+            window.Show();
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = ex.Message;
+            MessageBox.Show(this, ex.Message, "Batch operations", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    private void Captures_Click(object sender, RoutedEventArgs e)
+    {
+        var window = new CaptureHistoryWindow
+        {
+            Owner = this,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner
+        };
+        window.Show();
+    }
+
+    private async Task CheckUpdatesAsync(bool interactive)
+    {
+        try
+        {
+            var localVersion = typeof(MainWindow).Assembly.GetName().Version ?? new Version(0, 0);
+            var release = await _updateService.CheckAsync(localVersion);
+            if (release is null)
+            {
+                if (interactive)
+                    MessageBox.Show(this, $"No newer GitHub release found. Current version: {localVersion}.",
+                        "Autel Vysor updates", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            StatusText.Text = $"New version {release.Tag} is available on GitHub Releases.";
+            if (!interactive)
+                return;
+
+            if (MessageBox.Show(this,
+                $"Autel Vysor {release.Tag} is available ({(release.IsPrerelease ? "pre-release" : "release")}).\n\n" +
+                "Open the official GitHub Release page?\n" +
+                "Automatic installer execution is disabled until code signing is configured.",
+                "Autel Vysor updates", MessageBoxButton.YesNo, MessageBoxImage.Information) == MessageBoxResult.Yes)
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(release.Url)
+                {
+                    UseShellExecute = true
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            if (interactive)
+                MessageBox.Show(this, $"Update check failed: {ex.Message}",
+                    "Autel Vysor updates", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    private async void CheckUpdates_Click(object sender, RoutedEventArgs e)
+        => await CheckUpdatesAsync(interactive: true);
+
     private async void DeviceList_MouseDoubleClick(object sender, MouseButtonEventArgs e) => await Guard(async () =>
     {
         await OpenSessionsAsync(SelectedMany());
@@ -504,6 +580,7 @@ public partial class MainWindow : Window
         _settings.ClipboardSync = ClipboardBox.IsChecked == true;
         _settings.TurnScreenOffOnMirror = ScreenOffBox.IsChecked == true;
         _settings.PreferLegacyAcceleration = LegacyAccelerationBox.IsChecked == true;
+        _settings.CheckUpdatesOnStart = AutoUpdateCheckBox.IsChecked == true;
         _settings.MirrorQuality = MirrorQualityBox.SelectedIndex switch
         {
             0 => "Smooth",

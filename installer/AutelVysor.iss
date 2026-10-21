@@ -1,6 +1,6 @@
 #define MyAppName "Autel Vysor"
 #ifndef MyAppVersion
-#define MyAppVersion "0.9.0"
+#define MyAppVersion "0.10.1"
 #endif
 #define MyAppPublisher "Autel"
 #define MyAppExeName "AutelVysor.exe"

@@ -15,6 +15,7 @@ $version = $versionMatch.Groups[1].Value
 
 $dist = Join-Path $root 'dist'
 $app = Join-Path $dist 'AutelVysor'
+& (Join-Path $PSScriptRoot 'sign-release.ps1') -FilePath (Join-Path $app 'AutelVysor.exe')
 $zip = Join-Path $dist "AutelVysor-v$version-windows-x64.zip"
 if (Test-Path $zip) { Remove-Item -Force $zip }
 Compress-Archive -Path (Join-Path $app '*') -DestinationPath $zip -CompressionLevel Optimal
@@ -38,6 +39,7 @@ if (-not $iscc) {
 if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed with exit code $LASTEXITCODE." }
 $setup = Join-Path $dist 'AutelVysor-Setup.exe'
 if (-not (Test-Path $setup)) { throw 'Inno Setup completed without AutelVysor-Setup.exe.' }
+& (Join-Path $PSScriptRoot 'sign-release.ps1') -FilePath $setup
 
 $setupInfo = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($setup)
 $setupDescription = [string]$setupInfo.FileDescription

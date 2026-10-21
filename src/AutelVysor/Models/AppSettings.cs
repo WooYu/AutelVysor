@@ -10,4 +10,5 @@ public sealed class AppSettings
     public bool ClipboardSync { get; set; } = true;
     public bool TurnScreenOffOnMirror { get; set; } = true;
     public bool PreferLegacyAcceleration { get; set; } = true;
+    public bool CheckUpdatesOnStart { get; set; } = true;
 }

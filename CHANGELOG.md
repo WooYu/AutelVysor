@@ -1,14 +1,31 @@
 # Changelog
 
-## 0.9.1
+## 0.10.1
 
-- Simplified real-device rotation to a two-orientation toggle, with a shared busy guard and Fit reset.
-- Track native mirror size changes and restore the embedded viewport after SDL resizes itself on rotation.
-- Resize the external HWND asynchronously and skip identical bounds to avoid blocking the WPF UI or creating resize feedback loops.
-- Unified dark selected, hover and focus states for device rows, tabs, dropdown items and buttons; improved device serial contrast.
-- Cache stable Android metadata until disconnect or transport change, avoid duplicate device scans without reconnect attempts, and preserve unchanged device lists.
-- Run Android 4.4 image capture and decoding loops off the UI thread.
-- Added Windows regressions for repeated native-window resizing, orientation toggling and metadata cache invalidation.
+- Integrated PR #1 (v0.9.1) into v0.10.x without losing the v0.10.0 device-debug, Unicode, batch-operation, networking, capture-management and update-check capabilities.
+- Fixed repeated real-device rotation cropping by tracking native child-window size/position changes and returning to Fit after rotation.
+- Rotation switches between natural and 90-degree device orientations, with a busy guard against rapid repeated clicks.
+- Unified dark UI selection/hover/focus styles for main and debug windows, including editable ComboBoxes.
+- Reduced device polling and UI rebuilding by caching Android metadata and updating device lists only when data changes.
+- Moved legacy capture/decode work away from the UI thread with session cancellation guards.
+- Added automated Windows regressions for 12 native resize cycles, 6 rotation toggles, metadata refresh on reconnect and inactive dark-theme selections.
+- Retained the optional trusted Authenticode signing pipeline; unsigned test builds remain explicitly marked.
+
+
+## 0.10.0
+
+- Added a Unicode text helper to mirror tabs. scrcpy sessions can copy text to Windows clipboard and paste into Android; optional ADBKeyBoard IME enables Base64 Unicode input for legacy Android.
+- Added periodic Android rotation-state sync (including automatic vs locked orientation) and an audio routing diagnostic view.
+- Improved session resilience with transient ADB disconnect tolerance and bounded exponential scrcpy restart delays.
+- Expanded Device Debug: system/user app package filtering, permission grant/revoke and AppOps management.
+- Added Logcat filtering by tag and explicit PID, alongside existing text/priority filters.
+- Added network diagnostics for interfaces, routes, DNS, sockets, Wi-Fi and ping.
+- Added bugreport export and locally saved shell-command favorites.
+- Added batch ADB shell and APK installation across selected devices with per-device results and cancellation.
+- Added screenshot/recording history browser with local image preview and file actions.
+- Added GitHub Release update checks (manual and optional on startup); no unsigned automatic installer execution.
+- Added optional trusted Authenticode signing for the app EXE and installer. Builds are explicitly unsigned without a configured certificate.
+
 
 ## 0.9.0
 
