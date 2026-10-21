@@ -61,7 +61,7 @@ function A {
   [pscustomobject]@{ Code=[int]$code; Text=[string]$stdout }
 }
 function D {
-  param([string]$Serial,[string[]]$Args,[switch]$AllowFailure)
+  param([string]$Serial,[string[]]$Arguments,[switch]$AllowFailure)
   A -Arguments (@('-s',$Serial)+$Arguments) -AllowFailure:$AllowFailure
 }
 function Assert {
