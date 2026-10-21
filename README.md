@@ -2,7 +2,7 @@
 
 Windows Android mirror/control client for **Android 4.4 (API 19) and newer**.
 
-Current source version: **0.8.1**.
+Current source version: **0.9.0**.
 
 ## Compatibility
 
@@ -14,6 +14,15 @@ Current source version: **0.8.1**.
 | Android 11+ | ADB wireless pairing + scrcpy | Implemented |
 
 scrcpy itself requires API 21+, therefore API 19/20 never attempts to start scrcpy.
+
+## v0.9.0 additions
+
+- Mirror workspace controls: hide/show sidebar, F11 full screen, Fit and 1:1 display modes.
+- Device Debug **Shell** tab with command history (Enter to run, Up/Down for history).
+- Device Debug **Files** tab for browsing Android paths, upload, download, new folders and confirmed deletion.
+- Logcat filters for text/tag/message, minimum priority and selected-app PID, plus pause.
+- Rich device details covering build properties, display, battery, memory, storage and network.
+- Existing App / Processes / Logs / Device tooling remains available.
 
 ## v0.8.1 fixes
 
@@ -131,7 +140,7 @@ The build fails if the executable metadata does not contain:
 ```text
 FileDescription : Autel
 ProductName     : Autel Vysor
-FileVersion     : 0.8.1.0
+FileVersion     : 0.9.0.0
 ```
 
 ## Build portable ZIP and installer
@@ -143,7 +152,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build-release.ps1
 Expected artifacts:
 
 ```text
-dist\AutelVysor-v0.8.1-windows-x64.zip
+dist\AutelVysor-v0.9.0-windows-x64.zip
 dist\AutelVysor-Setup.exe           # when Inno Setup 6 is installed
 ```
 
@@ -176,7 +185,7 @@ API 20 remains on the conservative ADB fallback because the pinned upstream mini
 
 ## Current validation status
 
-The Windows x64 GitHub Actions release gate performs self-contained publish, executable self-test, metadata checks, portable ZIP and Inno Setup installer packaging. A green v0.8.1 run validates the packaged Windows build only; Windows 10/11 desktop hardware and Android 4.4+ physical devices still require the hardware matrix below before a Beta compatibility claim.
+The Windows x64 GitHub Actions release gate performs self-contained publish, executable self-test, metadata checks, portable ZIP and Inno Setup installer packaging. A green v0.9.0 run validates the packaged Windows build only; Windows 10/11 desktop hardware and Android 4.4+ physical devices still require the hardware matrix below before a Beta compatibility claim.
 
 ## Third-party components
 
