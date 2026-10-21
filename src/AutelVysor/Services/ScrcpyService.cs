@@ -24,13 +24,10 @@ public sealed class ScrcpyService(string scrcpyPath, AppSettings settings)
         return ToolRunner.Launch(ExecutablePath, args, Path.GetDirectoryName(ExecutablePath));
     }
 
-    public async Task<ScrcpySession> StartEmbeddedAsync(AndroidDevice device, int displayRotation = 0, CancellationToken ct = default)
+    public async Task<ScrcpySession> StartEmbeddedAsync(AndroidDevice device, CancellationToken ct = default)
     {
         var args = BaseArguments(device);
         ApplyRuntimeOptions(args, device);
-        displayRotation = ((displayRotation % 360) + 360) % 360;
-        if (displayRotation is 90 or 180 or 270)
-            args.Add($"--display-orientation={displayRotation}");
         args.Add("--window-borderless");
         args.Add("--window-width=640");
         args.Add("--window-height=960");
@@ -81,7 +78,24 @@ public sealed class ScrcpyService(string scrcpyPath, AppSettings settings)
         }
 
         if (!_settings.EnableAudio)
+        {
             args.Add("--no-audio");
+        }
+        else if (_settings.KeepDeviceAudio)
+        {
+            if (device.ApiLevel >= 33)
+            {
+                // Android 13+: duplicate app playback to the PC while preserving
+                // normal device/Bluetooth playback.
+                args.Add("--audio-dup");
+            }
+            else if (device.ApiLevel is >= 30 and < 33)
+            {
+                // Android 11/12 scrcpy output capture mutes playback on the device.
+                // Prefer the phone/Bluetooth route when the user requests device audio.
+                args.Add("--no-audio");
+            }
+        }
 
         if (!_settings.ClipboardSync)
             args.Add("--no-clipboard-autosync");
