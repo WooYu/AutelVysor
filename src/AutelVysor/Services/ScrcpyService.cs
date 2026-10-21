@@ -7,6 +7,14 @@ public sealed class ScrcpyService(string scrcpyPath, AppSettings settings)
 {
     public string ExecutablePath { get; } = scrcpyPath;
     private readonly AppSettings _settings = settings;
+    private readonly Dictionary<string, RecordingSession> _recordings = new(StringComparer.OrdinalIgnoreCase);
+    private readonly object _recordingLock = new();
+    private bool _stoppingRecordings;
+
+    public bool HasRecordings
+    {
+        get { lock (_recordingLock) return _recordings.Count > 0; }
+    }
 
     public async Task<string> GetVersionAsync(CancellationToken ct = default)
     {
@@ -48,21 +56,82 @@ public sealed class ScrcpyService(string scrcpyPath, AppSettings settings)
 
     public Process StartRecording(AndroidDevice device, string path)
     {
-        var args = BaseArguments(device);
-        args.Add("--no-window");
-        args.Add("--no-audio");
-        args.Add("--record");
-        args.Add(path);
-        return ToolRunner.Launch(ExecutablePath, args, Path.GetDirectoryName(ExecutablePath));
+        lock (_recordingLock)
+        {
+            if (_stoppingRecordings)
+                throw new InvalidOperationException("Recordings are stopping. Wait before starting another.");
+            if (_recordings.TryGetValue(device.Serial, out var existing))
+            {
+                if (!existing.Process.HasExited)
+                    throw new InvalidOperationException("This device is already recording. Use Stop recordings first.");
+                existing.Process.Dispose();
+                _recordings.Remove(device.Serial);
+            }
+            var args = BaseArguments(device);
+            // Keep an off-screen SDL window as a graceful WM_CLOSE endpoint.
+            // --no-window has no CloseMainWindow target and killing it can leave
+            // MP4 without its final index. This is a separate, non-interactive capture.
+            args.AddRange(["--no-audio", "--no-control", "--window-borderless",
+                "--window-width=64", "--window-height=64", "--window-x=-32000", "--window-y=-32000",
+                "--record", path]);
+            var process = ToolRunner.Launch(ExecutablePath, args, Path.GetDirectoryName(ExecutablePath));
+            _recordings.Add(device.Serial, new RecordingSession(process, path));
+            return process;
+        }
+    }
+
+    public async Task StopRecordingsAsync()
+    {
+        RecordingSession[] recordings;
+        lock (_recordingLock)
+        {
+            if (_stoppingRecordings)
+                throw new InvalidOperationException("Recordings are already stopping.");
+            _stoppingRecordings = true;
+            recordings = _recordings.Values.ToArray();
+        }
+        var failures = new List<string>();
+        try
+        {
+            // Stop every recorder even if one failed. Only these owned processes
+            // are touched; mirroring and external ADB processes are independent.
+            foreach (var recording in recordings)
+            {
+                try { await recording.StopAsync(); }
+                catch (Exception ex) { failures.Add(ex.Message); }
+            }
+        }
+        finally
+        {
+            lock (_recordingLock)
+            {
+                foreach (var (serial, recording) in _recordings.ToArray())
+                {
+                    // Failed OS termination/inspection must not lose ownership.
+                    // Retain live or unknown sessions so duplicates stay blocked
+                    // and the user can retry Stop before closing the application.
+                    try
+                    {
+                        if (!recording.Process.HasExited) continue;
+                    }
+                    catch { continue; }
+                    recording.Process.Dispose();
+                    _recordings.Remove(serial);
+                }
+                _stoppingRecordings = false;
+            }
+        }
+        if (failures.Count > 0)
+            throw new InvalidOperationException(string.Join(Environment.NewLine, failures));
     }
 
     private void ApplyRuntimeOptions(List<string> args, AndroidDevice device)
     {
-        // SDK mode is compatible with the widest range of Android devices.
-        // Prefer text events for typed characters (VIN, account, URLs) rather than
-        // translating every letter to a hardware-style key event.
+        // Cross-process embedded SDL windows may receive key events without
+        // SDL_TEXTINPUT. Raw SDK events keep digits/letters on the same working
+        // path as Backspace. Unicode stays available via explicit clipboard/IME.
         args.Add("--keyboard=sdk");
-        args.Add("--prefer-text");
+        args.Add("--raw-key-events");
         switch ((_settings.MirrorQuality ?? "Standard").Trim().ToLowerInvariant())
         {
             case "smooth":
@@ -121,3 +190,4 @@ public sealed class ScrcpyService(string scrcpyPath, AppSettings settings)
             "--push-target=/sdcard/Download/"
         ];
 }
+

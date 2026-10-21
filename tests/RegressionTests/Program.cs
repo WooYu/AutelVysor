@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using AutelVysor.Controls;
+using AutelVysor.Models;
 using AutelVysor.Services;
 
 internal static class Program
@@ -31,6 +32,11 @@ internal static class Program
                 ("Device metadata is reused until disconnect", CachedMetadata),
                 ("Rotation alternates between two orientations", ToggleOrientation),
                 ("Auto-rotation releases WM lock and re-enables sensor", AutoRotation),
+                ("Shell arguments survive the real remote shell boundary", ShellBoundary),
+                ("Rotation reads default display instead of stale user setting", ActualDisplayRotation),
+                ("Embedded keyboard avoids SDL text-event dependency", EmbeddedKeyboard),
+                ("Recording rejects duplicates and finalizes on stop", RecordingLifecycle),
+                ("Failed recorder cleanup retains ownership for retry", RecordingCleanupFailure),
                 ("ASCII text is injected via the actual ADB process boundary", AsciiText),
                 ("Embedded child returns to fit after repeated self-resizing", NativeResize),
                 ("Keyboard focus reaches an external native-window process", CrossProcessFocus),
@@ -101,6 +107,126 @@ internal static class Program
             "ADB did not receive the intended ASCII input text");
     }
 
+    private static async Task ShellBoundary()
+    {
+        // adb joins shell argv with spaces; run that exact string through Git's
+        // real POSIX shell, rather than teaching a fake ADB the desired result.
+        var commands = State("commands");
+        Directory.CreateDirectory(commands);
+        File.WriteAllText(Path.Combine(commands, "dumpsys"), "#!/bin/sh\ncase \"$1\" in battery) echo BatteryStatus;; wifi) echo WifiStatus;; *) echo ALL_DUMPSYS;; esac\n");
+        File.WriteAllText(Path.Combine(commands, "wm"), "#!/bin/sh\ncase \"$1\" in size) echo 'Physical size: 1080x2400';; density) echo 'Physical density: 420';; *) echo WM_HELP;; esac\n");
+        var bridge = Bridge();
+        var output = await bridge.RunShellCommandAsync("test-device", "printf '%s|%s' 'hello world' \"a'b\"");
+        Check(output == "hello world|a'b", "Shell lost command arguments: " + output);
+        output = await bridge.RunShellCommandAsync("test-device", "printf one; printf ' two'");
+        Check(output == "one two", "Compound shell command changed: " + output);
+        var failed = false;
+        try { await bridge.RunShellCommandAsync("test-device", "false"); }
+        catch (InvalidOperationException) { failed = true; }
+        Check(failed, "Nonzero shell status was reported as success");
+        // Exercises AdvancedAdbService's separate shell caller as well.
+        var report = await new AdvancedAdbService(Environment.ProcessPath!).GetNetworkReportAsync("test-device");
+        Check(report.Contains("WifiStatus") && !report.Contains("ALL_DUMPSYS"), "Network query dropped dumpsys wifi argument");
+        var overview = await bridge.GetDeviceOverviewAsync("test-device");
+        Check(overview.Contains("BatteryStatus") && overview.Contains("Physical size: 1080x2400") && !overview.Contains("ALL_DUMPSYS"),
+            "Device overview dropped display/battery arguments");
+    }
+
+    private static async Task ActualDisplayRotation()
+    {
+        File.WriteAllText(State("sensor"), "1");
+        File.WriteAllText(State("rotation"), "1"); // last lock, NOT actual orientation
+        File.WriteAllText(State("modern-display"), "0");
+        try
+        {
+            var state = await new AdvancedAdbService(Environment.ProcessPath!).GetRotationStateAsync("test-device");
+            Check(state.AutoRotate && state.Degrees == 0, "Auto mode used the stale 90-degree user setting");
+            Check(await Bridge().GetCurrentRotationDegreesAsync("test-device") == 0, "Orientation toggle uses a different angle source");
+            File.WriteAllText(State("modern-display"), "3");
+            Check(await Bridge().GetCurrentRotationDegreesAsync("test-device") == 270, "Actual 270-degree display was not detected");
+            File.WriteAllText(State("modern-display"), "unknown");
+            var failed = false;
+            try { await Bridge().GetCurrentRotationDegreesAsync("test-device"); }
+            catch (InvalidOperationException) { failed = true; }
+            Check(failed, "Unavailable display diagnostics became a fabricated angle");
+        }
+        finally { File.Delete(State("modern-display")); }
+    }
+
+    private static AndroidDevice TestDevice() => new("test-device", "device", "Test", "", "", "", "", 34);
+
+    private static async Task EmbeddedKeyboard()
+    {
+        File.Delete(State("native-hwnd"));
+        var service = new ScrcpyService(Environment.ProcessPath!, new AppSettings());
+        using var session = await service.StartEmbeddedAsync(TestDevice());
+        var arguments = File.ReadAllLines(State("scrcpy-args"));
+        Check(arguments.Contains("--keyboard=sdk") && arguments.Contains("--raw-key-events") && !arguments.Contains("--prefer-text"),
+            "Embedded numeric/letter keys still require SDL_TEXTINPUT instead of key events");
+    }
+
+    private static async Task RecordingLifecycle()
+    {
+        var service = new ScrcpyService(Environment.ProcessPath!, new AppSettings());
+        File.Delete(State("native-hwnd"));
+        File.Delete(State("record-finalized"));
+        using var first = service.StartRecording(TestDevice(), State("first.mp4"));
+        var recorderId = first.Id;
+        Process? duplicate = null;
+        var rejected = false;
+        try
+        {
+            try { duplicate = service.StartRecording(TestDevice(), State("second.mp4")); }
+            catch (InvalidOperationException) { rejected = true; }
+            Check(rejected, "Repeated Record launched a second recorder for the same device");
+            var stop = typeof(ScrcpyService).GetMethod("StopRecordingsAsync");
+            Check(stop is not null, "Recording has no owned stop/shutdown operation");
+            await (Task)stop!.Invoke(service, null)!;
+            var stillRunning = Process.GetProcesses().Any(p => { using (p) return p.Id == recorderId; });
+            Check(!stillRunning, "Recorder remained after stop");
+            Check(File.Exists(State("record-finalized")), "Recorder was killed before native close/finalization");
+        }
+        finally
+        {
+            foreach (var process in new[] { first, duplicate })
+            {
+                if (process is null) continue;
+                try { if (!process.HasExited) process.Kill(true); } catch { }
+                process.Dispose();
+            }
+        }
+    }
+
+    private static async Task RecordingCleanupFailure()
+    {
+        var service = new ScrcpyService(Environment.ProcessPath!, new AppSettings());
+        File.Delete(State("native-hwnd"));
+        service.StartRecording(TestDevice(), State("cleanup.mp4"));
+        // A real Process with no associated OS process makes HasExited and Kill
+        // fail, exercising the same unknown-liveness boundary as OS access errors.
+        var field = typeof(ScrcpyService).GetField("_recordings", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        var sessions = (System.Collections.IDictionary)field!.GetValue(service)!;
+        var real = sessions["test-device"]!;
+        using var inaccessible = new Process();
+        var unknown = Activator.CreateInstance(real.GetType(), inaccessible, State("unknown.mp4"));
+        sessions["test-device"] = unknown;
+        try
+        {
+            try { await service.StopRecordingsAsync(); }
+            catch (InvalidOperationException) { }
+            Check(service.HasRecordings, "Failed cleanup discarded an owned recorder whose exit could not be confirmed");
+            var rejected = false;
+            try { service.StartRecording(TestDevice(), State("duplicate.mp4")); }
+            catch (InvalidOperationException) { rejected = true; }
+            Check(rejected, "Unknown recorder liveness allowed a duplicate recording");
+        }
+        finally
+        {
+            sessions["test-device"] = real;
+            await service.StopRecordingsAsync();
+        }
+    }
+
     private static async Task NativeResize()
     {
         var host = new NativeWindowHost();
@@ -137,6 +263,9 @@ internal static class Program
 
     private static async Task CrossProcessFocus()
     {
+        // Recorder/embedded-window tests use the same helper marker. Never read
+        // an HWND left by an already-exited subprocess from an earlier case.
+        File.Delete(State("native-hwnd"));
         var window = new Window { Width = 480, Height = 480, ShowInTaskbar = false };
         var host = new NativeWindowHost();
         window.Content = host;
@@ -173,12 +302,36 @@ internal static class Program
         }
     }
 
+    private delegate IntPtr WindowProcedure(IntPtr hwnd, uint message, IntPtr wParam, IntPtr lParam);
+    private static WindowProcedure? _childProcedure;
+    [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW")]
+    private static extern IntPtr SetProcedure(IntPtr hwnd, int index, WindowProcedure callback);
+    [DllImport("user32.dll")]
+    private static extern IntPtr CallWindowProc(IntPtr previous, IntPtr hwnd, uint message, IntPtr wParam, IntPtr lParam);
+    [DllImport("user32.dll")] private static extern void PostQuitMessage(int exitCode);
+
     private static int NativeChildProcess()
     {
         var hwnd = CreateWindowEx(0, "STATIC", "Autel Vysor native input focus test",
             0x90C00000U, 120, 120, 320, 480,
             IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
         if (hwnd == IntPtr.Zero) return 2;
+        var previous = IntPtr.Zero;
+        _childProcedure = (window, message, wParam, lParam) =>
+        {
+            if (message == 0x0010) // WM_CLOSE: simulate scrcpy flushing MP4
+            {
+                File.WriteAllText(State("record-finalized"), "closed normally");
+                var arguments = Environment.GetCommandLineArgs();
+                var recordIndex = Array.IndexOf(arguments, "--record");
+                if (recordIndex >= 0) File.WriteAllText(arguments[recordIndex + 1], "simulated finalized recording");
+                DestroyWindow(window);
+                PostQuitMessage(0);
+                return IntPtr.Zero;
+            }
+            return CallWindowProc(previous, window, message, wParam, lParam);
+        };
+        previous = SetProcedure(hwnd, -4, _childProcedure);
         // Publish the child HWND atomically to prevent the parent process
         // from opening a partially written / exclusively locked marker file.
         var marker = State("native-hwnd");
@@ -200,6 +353,21 @@ internal static class Program
 
     private static int FakeAdb(string[] args)
     {
+        if (args.Any(a => a.StartsWith("--window-title=")))
+        {
+            File.WriteAllLines(State("scrcpy-args"), args);
+            return NativeChildProcess();
+        }
+        var shellIndex = Array.IndexOf(args, "shell");
+        if (shellIndex >= 0 && args.Length > shellIndex + 1 &&
+            (args[shellIndex + 1] == "sh" || args.Length == shellIndex + 2))
+        {
+            var bash = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Git", "bin", "bash.exe");
+            var result = ToolRunner.RunAsync(bash, ["-c", "export PATH=\"$PWD/commands:$PATH\"; " + string.Join(" ", args.Skip(shellIndex + 1))], workingDirectory: StateDirectory).GetAwaiter().GetResult();
+            Console.Write(result.Output);
+            Console.Error.Write(result.Error);
+            return result.ExitCode;
+        }
         // Real subprocess boundary: exercises ToolRunner and AndroidBridge without a connected phone.
         using (var mutex = new Mutex(false, "AutelVysorRegressionAdb"))
         {
@@ -218,7 +386,14 @@ internal static class Program
         }
         else if (args.Contains("dumpsys"))
         {
-            Console.WriteLine("SurfaceOrientation: " + ReadRotation());
+            if (File.Exists(State("modern-display")))
+            {
+                var rotation = File.ReadAllText(State("modern-display"));
+                if (args.Contains("window") && rotation != "unknown")
+                    Console.WriteLine($"Display: mDisplayId=0\n  DisplayFrames w=1080 h=2400 r={rotation}\n  mRotation=ROTATION_{int.Parse(rotation) * 90}\nDisplay: mDisplayId=2\n  DisplayFrames w=800 h=600 r=1");
+                else Console.WriteLine("No SurfaceOrientation field on this Android");
+            }
+            else Console.WriteLine("SurfaceOrientation: " + ReadRotation());
         }
         else if (args.Contains("settings") && args.Contains("get"))
         {
@@ -332,3 +507,4 @@ internal static class Program
     [DllImport("user32.dll")] private static extern IntPtr DispatchMessage(ref WinMessage message);
 
 }
+

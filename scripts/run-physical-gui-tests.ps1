@@ -24,6 +24,17 @@ Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
+Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+public static class AutelVirtualKeyboard {
+    [DllImport("user32.dll")] private static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra);
+    public static void Press(byte key) {
+        keybd_event(key, 0, 0, UIntPtr.Zero);
+        keybd_event(key, 0, 2, UIntPtr.Zero);
+    }
+}
+'@
 
 $repo = Split-Path $PSScriptRoot -Parent
 if (-not $OutputRoot) {
@@ -68,11 +79,23 @@ function Adb([string[]]$cmd) {
 }
 function Device([string[]]$cmd) { Adb (@('-s',$DeviceSerial) + $cmd) }
 function DeviceRotation {
+    $dump = Device @('shell','dumpsys','window','displays')
+    $headers = [regex]::Matches($dump, '(?m)^\s*Display:\s*mDisplayId=(?<id>\d+)\b[^\r\n]*')
+    for ($i=0; $i -lt $headers.Count; $i++) {
+        if ($headers[$i].Groups['id'].Value -ne '0') { continue }
+        $end = $dump.Length
+        if ($i+1 -lt $headers.Count) { $end = $headers[$i+1].Index }
+        $section = $dump.Substring($headers[$i].Index, $end-$headers[$i].Index)
+        if ($section -match '\bDisplayFrames\b[^\r\n]*\br=([0-3])\b') { return [int]$Matches[1] * 90 }
+        if ($section -match '\bm(?:Current)?Rotation=(?:ROTATION_)?(270|180|90|[0-3])\b') {
+            $value = [int]$Matches[1]
+            if ($value -le 3) { return $value * 90 }
+            return $value
+        }
+    }
     $dump = Device @('shell','dumpsys','input')
-    if ($dump -match 'SurfaceOrientation:\s*([0-3])') { return [int]$Matches[1] * 90 }
-    $raw = Device @('shell','settings','get','system','user_rotation')
-    if ($raw -match '^[0-3]$') { return [int]$raw * 90 }
-    throw 'Unable to read device rotation.'
+    if ($dump -match 'SurfaceOrientation:\s*([0-3])\b') { return [int]$Matches[1] * 90 }
+    throw 'Actual device rotation unavailable; user_rotation is not current display telemetry.'
 }
 
 function Find-ByName($root,[string]$name) {
@@ -212,7 +235,19 @@ try {
             Start-Sleep -Seconds 1
             $sensor = Device @('shell','settings','get','system','accelerometer_rotation')
             Assert ($sensor -eq '1') 'Auto rotate did not re-enable the real Android sensor mode.'
-            'Android sensor mode restored; requires real tilt to prove physical auto rotation.'
+            $deadline = (Get-Date).AddSeconds(15)
+            $synchronized = $false
+            while ((Get-Date) -lt $deadline) {
+                $actual = DeviceRotation
+                $state = Find-ById $main 'RotateStateText'
+                $expected = "Rotation: {0}{1} {2} Auto" -f $actual,([char]0x00b0),([char]0x00b7)
+                if ($state -and $state.Current.Name -eq $expected) {
+                    $synchronized = $true; break
+                }
+                Start-Sleep -Milliseconds 500
+            }
+            Assert $synchronized 'Auto status angle differs from actual display (AV-005).'
+            'Auto setting and displayed angle match real Android display telemetry. Physical tilt remains external validation.'
         }
         if ($installedFixture) {
             Run-Case 'ui.adb-send-text-and-verified-edittext' {
@@ -222,6 +257,24 @@ try {
                 Invoke-Button $main 'Send text'
                 Assert (Wait-Input 'FROMUI123') 'WPF Send text did not enter the fixture EditText on the physical device.'
                 'Actual WPF Send text delivered data to physical Android EditText.'
+            }
+            Run-Case 'ui.virtual-key-digits-and-backspace-AV004' {
+                Device @('shell','am','force-stop','com.autel.vysor.fixture') | Out-Null
+                Device @('shell','am','start','-n','com.autel.vysor.fixture/.MainActivity') | Out-Null
+                Start-Sleep -Milliseconds 700
+                Set-Text $main 'AndroidTextBox' '12345'
+                Invoke-Button $main 'Send text'
+                Assert (Wait-Input '12345') 'ADB seed text did not reach fixture.'
+                Assert ((ReadFixture) -eq '12345') 'Fixture did not contain the exact seed text.'
+                Invoke-Button $main 'Focus keyboard'
+                Start-Sleep -Milliseconds 500
+                foreach ($key in @(0x08,0x36,0x37)) {
+                    [AutelVirtualKeyboard]::Press([byte]$key)
+                    Start-Sleep -Milliseconds 150
+                }
+                Assert (Wait-Input '123467') 'Native Backspace,6,7 did not produce 123467 (AV-004).'
+                Assert ((ReadFixture) -eq '123467') 'Unexpected or duplicated characters after virtual-key entry.'
+                'OS virtual keys Backspace/6/7 changed physical Android text from 12345 to 123467.'
             }
             Run-Case 'ui.pc-keyboard-through-native-scrcpy' {
                 Device @('shell','am','start','-n','com.autel.vysor.fixture/.MainActivity') | Out-Null
@@ -330,3 +383,4 @@ finally {
 }
 
 if (@($results | Where-Object Status -eq 'FAIL').Count -gt 0) { exit 1 }
+

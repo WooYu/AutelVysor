@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../src/AutelVysor/Models/*.cs" Link="Models/%(Filename)%(Extension)" />
+    <Compile Include="../../src/AutelVysor/Services/AndroidBridge.cs" Link="AndroidBridge.cs" />
+    <Compile Include="../../src/AutelVysor/Services/AdvancedAdbService.cs" Link="AdvancedAdbService.cs" />
+    <Compile Include="../../src/AutelVysor/Services/ToolRunner.cs" Link="ToolRunner.cs" />
+    <Compile Include="../../src/AutelVysor/Services/DisplayRotationReader.cs" Link="DisplayRotationReader.cs" Condition="Exists('../../src/AutelVysor/Services/DisplayRotationReader.cs')" />
+    <Compile Include="../../src/AutelVysor/Services/ScrcpyService.cs" Link="ScrcpyService.cs" />
+    <Compile Include="../../src/AutelVysor/Services/ScrcpySession.cs" Link="ScrcpySession.cs" />
+    <Compile Include="../../src/AutelVysor/Services/RecordingSession.cs" Link="RecordingSession.cs" />
+    <Compile Include="../../src/AutelVysor/Services/NativeWindowLocator.cs" Link="NativeWindowLocator.cs" />
+  </ItemGroup>
+</Project>

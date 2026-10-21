@@ -2,7 +2,7 @@
 
 Windows Android mirror/control client for **Android 4.4 (API 19) and newer**.
 
-Current source version: **0.10.2**
+Current source version: **0.10.3**
 
 ## Compatibility
 
@@ -25,6 +25,15 @@ Android fixture APK. It generates local HTML, JSON and CSV real-device reports.
 ADB backend test success is **not** equivalent to Windows UI/scrcpy validation.
 Features blocked by company executable policy are explicitly marked BLOCKED_POLICY.
 See [Chinese usage guide](docs/COMPANY_ADB_ONLY_TESTING.md).
+
+## v0.10.3 report corrections
+
+- Shell, device details, network diagnostics and batch shell commands preserve the complete remote command (AV-001).
+- SDK raw key events avoid the embedded SDL text-event dependency for ordinary keyboard characters (AV-004). Chinese/Windows IME still requires physical acceptance; explicit clipboard/optional Android IME helpers remain available.
+- Rotation status and orientation commands share actual display-0 telemetry, with legacy input diagnostics as fallback. Unavailable telemetry is reported explicitly; user_rotation is never substituted for the live angle (AV-005).
+- Recording has a per-device duplicate guard and **Stop recordings**. App exit waits for owned recorders to close and finalize MP4; forced termination is reported as a possible incomplete recording (AV-002/003).
+- These are code corrections with automated regression coverage, not a declaration that all 18 hardware features passed. See [report follow-up](docs/V0103_REPORT_FOLLOWUP.md).
+- Unsigned builds remain unsigned until an actual trusted company certificate is configured. FileDescription remains **Autel**.
 
 ## v0.10.2 keyboard and rotation fixes
 
@@ -183,7 +192,7 @@ The build fails if the executable metadata does not contain:
 ```text
 FileDescription : Autel
 ProductName     : Autel Vysor
-FileVersion     : 0.10.2.0
+FileVersion     : 0.10.3.0
 ```
 
 ## Build portable ZIP and installer
@@ -195,7 +204,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build-release.ps1
 Expected artifacts:
 
 ```text
-dist\AutelVysor-v0.10.2-windows-x64.zip
+dist\AutelVysor-v0.10.3-windows-x64.zip
 dist\AutelVysor-Setup.exe           # when Inno Setup 6 is installed
 ```
 
@@ -233,3 +242,4 @@ The Windows x64 GitHub Actions release gate performs self-contained publish, exe
 ## Third-party components
 
 See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
