@@ -19,9 +19,62 @@
       <Setter Property="BorderBrush" Value="#334155"/>
       <Setter Property="Margin" Value="0,0,7,7"/>
     </Style>
-    <Style TargetType="Expander">
+    <Style TargetType="CheckBox">
       <Setter Property="Foreground" Value="#E5E7EB"/>
+      <Setter Property="VerticalContentAlignment" Value="Center"/>
+    </Style>
+    <Style TargetType="Expander">
+      <Setter Property="Foreground" Value="#F8FAFC"/>
       <Setter Property="Margin" Value="0,5,0,0"/>
+    </Style>
+    <Style TargetType="ComboBoxItem">
+      <Setter Property="Foreground" Value="#F8FAFC"/>
+      <Setter Property="Background" Value="#111827"/>
+      <Setter Property="Padding" Value="8,6"/>
+    </Style>
+    <Style x:Key="DarkComboBoxStyle" TargetType="ComboBox">
+      <Setter Property="Foreground" Value="#F8FAFC"/>
+      <Setter Property="Background" Value="#111827"/>
+      <Setter Property="BorderBrush" Value="#334155"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="Padding" Value="8,6"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ComboBox">
+            <Grid>
+              <ToggleButton x:Name="DropDownToggle"
+                            Focusable="False"
+                            ClickMode="Press"
+                            IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
+                            Background="{TemplateBinding Background}"
+                            Foreground="{TemplateBinding Foreground}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}">
+                <Grid>
+                  <ContentPresenter Margin="8,4,30,4"
+                                    HorizontalAlignment="Left"
+                                    VerticalAlignment="Center"
+                                    Content="{TemplateBinding SelectionBoxItem}"
+                                    ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                    ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"/>
+                  <TextBlock Text="▼" Margin="0,0,9,0" HorizontalAlignment="Right" VerticalAlignment="Center" Foreground="#CBD5E1" FontSize="10"/>
+                </Grid>
+              </ToggleButton>
+              <Popup x:Name="Popup"
+                     Placement="Bottom"
+                     IsOpen="{TemplateBinding IsDropDownOpen}"
+                     AllowsTransparency="True"
+                     Focusable="False">
+                <Border Background="#111827" BorderBrush="#334155" BorderThickness="1" MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}">
+                  <ScrollViewer CanContentScroll="True" MaxHeight="260">
+                    <ItemsPresenter/>
+                  </ScrollViewer>
+                </Border>
+              </Popup>
+            </Grid>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
     </Style>
   </Window.Resources>
 
@@ -54,8 +107,13 @@
       </Grid.ColumnDefinitions>
 
       <Border Grid.Column="0" Background="#0F172A" BorderBrush="#1E293B" BorderThickness="0,0,1,0" Padding="14">
-        <DockPanel LastChildFill="True">
-          <StackPanel DockPanel.Dock="Top">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="2*"/>
+            <RowDefinition Height="3*"/>
+          </Grid.RowDefinitions>
+          <StackPanel Grid.Row="0">
             <TextBlock FontSize="14" FontWeight="SemiBold" Text="Connected devices"/>
             <TextBlock Margin="0,4,0,10" Foreground="#64748B" Text="Select one or more devices. Double-click to open a mirror tab. Android 4.4 tabs also accept dropped APK/files." TextWrapping="Wrap"/>
             <WrapPanel>
@@ -66,55 +124,8 @@
             </WrapPanel>
           </StackPanel>
 
-          <StackPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">
-            <Expander Header="Wi-Fi debugging">
-              <StackPanel Margin="0,8,0,0">
-                <TextBox x:Name="AddressBox" Text="192.168.1.10:5555" ToolTip="host:port"/>
-                <TextBox x:Name="PairCodeBox" ToolTip="Android 11+ six-digit pairing code"/>
-                <WrapPanel>
-                  <Button Click="Pair_Click" Content="Pair"/>
-                  <Button Click="Connect_Click" Content="Connect"/>
-                  <Button Click="Disconnect_Click" Content="Disconnect" Background="#475569"/>
-                  <Button Click="TcpIp_Click" Content="USB → TCP/IP" Background="#475569"/>
-                </WrapPanel>
-              </StackPanel>
-            </Expander>
-
-            <Expander Header="Mirror settings">
-              <StackPanel Margin="0,8,0,0">
-                <TextBlock Foreground="#94A3B8" Margin="0,0,0,5" Text="Quality preset"/>
-                <ComboBox x:Name="MirrorQualityBox" Margin="0,0,7,7" Padding="6" Background="#111827" Foreground="White">
-                  <ComboBoxItem Content="Smooth · 1280 / 4 Mbps / 30 FPS"/>
-                  <ComboBoxItem Content="Standard · 1920 / 8 Mbps / 60 FPS"/>
-                  <ComboBoxItem Content="High · 2560 / 12 Mbps / 60 FPS"/>
-                </ComboBox>
-                <CheckBox x:Name="AudioBox" Margin="0,3,0,7" Content="Forward Android audio when supported (Android 11+)"/>
-                <CheckBox x:Name="ClipboardBox" Margin="0,3,0,7" Content="Synchronize clipboard"/>
-                <CheckBox x:Name="ScreenOffBox" IsChecked="True" Margin="0,3,0,7" Content="Turn Android screen off while mirroring (default)"/>
-                <CheckBox x:Name="LegacyAccelerationBox" Margin="0,3,0,7" Content="Prefer Android 4.4 accelerated capture when available"/>
-                <Button Click="ApplyMirrorSettings_Click" Content="Apply &amp; restart mirrors" Background="#475569"/>
-              </StackPanel>
-            </Expander>
-
-            <Expander Header="Files / utilities">
-              <StackPanel Margin="0,8,0,0">
-                <WrapPanel>
-                  <Button Click="Screenshot_Click" Content="Screenshot"/>
-                  <Button Click="Record_Click" Content="Record MP4"/>
-                  <Button Click="Install_Click" Content="Install APK"/>
-                  <Button Click="Push_Click" Content="Send file"/>
-                </WrapPanel>
-                <TextBox x:Name="RemotePathBox" Text="/sdcard/Download/example.txt"/>
-                <WrapPanel>
-                  <Button Click="Pull_Click" Content="Pull file" Background="#475569"/>
-                  <Button Click="OpenFolder_Click" Content="Open videos" Background="#475569"/>
-                </WrapPanel>
-              </StackPanel>
-            </Expander>
-          </StackPanel>
-
-          <ListBox x:Name="DeviceList"
-                   Margin="0,10,0,0"
+          <ListBox Grid.Row="1" x:Name="DeviceList"
+                   Margin="0,10,0,8"
                    SelectionMode="Extended"
                    MouseDoubleClick="DeviceList_MouseDoubleClick"
                    Background="#111827"
@@ -158,7 +169,63 @@
               </DataTemplate>
             </ListBox.ItemTemplate>
           </ListBox>
-        </DockPanel>
+
+          <ScrollViewer Grid.Row="2"
+                        Margin="0,4,0,0"
+                        VerticalScrollBarVisibility="Auto"
+                        HorizontalScrollBarVisibility="Disabled"
+                        CanContentScroll="False">
+            <StackPanel>
+            <Expander Header="Wi-Fi debugging">
+              <StackPanel Margin="0,8,0,0">
+                <TextBox x:Name="AddressBox" Text="192.168.1.10:5555" ToolTip="host:port"/>
+                <TextBox x:Name="PairCodeBox" ToolTip="Android 11+ six-digit pairing code"/>
+                <WrapPanel>
+                  <Button Click="Pair_Click" Content="Pair"/>
+                  <Button Click="Connect_Click" Content="Connect"/>
+                  <Button Click="Disconnect_Click" Content="Disconnect" Background="#475569"/>
+                  <Button Click="TcpIp_Click" Content="USB → TCP/IP" Background="#475569"/>
+                </WrapPanel>
+              </StackPanel>
+            </Expander>
+
+            <Expander Header="Mirror settings">
+              <StackPanel Margin="0,8,0,0">
+                <TextBlock Foreground="#94A3B8" Margin="0,0,0,5" Text="Quality preset"/>
+                <ComboBox x:Name="MirrorQualityBox" Style="{StaticResource DarkComboBoxStyle}" Margin="0,0,7,7">
+                  <ComboBoxItem Content="Smooth · 1280 / 4 Mbps / 30 FPS"/>
+                  <ComboBoxItem Content="Standard · 1920 / 8 Mbps / 60 FPS"/>
+                  <ComboBoxItem Content="High · 2560 / 12 Mbps / 60 FPS"/>
+                </ComboBox>
+                <CheckBox x:Name="AudioBox" Margin="0,3,0,7" Content="Enable mirror audio"/>
+                <CheckBox x:Name="KeepDeviceAudioBox" IsChecked="True" Margin="0,3,0,4" Content="Keep phone / Bluetooth audio (recommended)"/>
+                <TextBlock Margin="22,0,4,7" Foreground="#64748B" FontSize="11" TextWrapping="Wrap"
+                           Text="Android 13+: audio is duplicated to PC and device. Android 11/12: device/Bluetooth audio takes priority."/>
+                <CheckBox x:Name="ClipboardBox" Margin="0,3,0,7" Content="Synchronize clipboard"/>
+                <CheckBox x:Name="ScreenOffBox" IsChecked="True" Margin="0,3,0,7" Content="Turn Android screen off while mirroring (default)"/>
+                <CheckBox x:Name="LegacyAccelerationBox" Margin="0,3,0,7" Content="Prefer Android 4.4 accelerated capture when available"/>
+                <Button Click="ApplyMirrorSettings_Click" Content="Apply &amp; restart mirrors" Background="#475569"/>
+              </StackPanel>
+            </Expander>
+
+            <Expander Header="Files / utilities">
+              <StackPanel Margin="0,8,0,0">
+                <WrapPanel>
+                  <Button Click="Screenshot_Click" Content="Screenshot"/>
+                  <Button Click="Record_Click" Content="Record MP4"/>
+                  <Button Click="Install_Click" Content="Install APK"/>
+                  <Button Click="Push_Click" Content="Send file"/>
+                </WrapPanel>
+                <TextBox x:Name="RemotePathBox" Text="/sdcard/Download/example.txt"/>
+                <WrapPanel>
+                  <Button Click="Pull_Click" Content="Pull file" Background="#475569"/>
+                  <Button Click="OpenFolder_Click" Content="Open videos" Background="#475569"/>
+                </WrapPanel>
+              </StackPanel>
+            </Expander>
+            </StackPanel>
+          </ScrollViewer>
+        </Grid>
       </Border>
 
       <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch" Background="#1E293B"/>
