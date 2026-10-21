@@ -16,7 +16,18 @@ public partial class MainWindow : Window
 {
     private sealed record DeviceItem(AndroidDevice Device)
     {
-        public string Display => $"{Device.DisplayName}\n{Device.Serial} · {Device.State} · {Device.Description}";
+        public string Title => Device.DisplayName;
+        public string Meta
+        {
+            get
+            {
+                var api = Device.ApiLevel > 0 ? $"API {Device.ApiLevel}" : "API ?";
+                var android = string.IsNullOrWhiteSpace(Device.AndroidVersion) ? "Android ?" : $"Android {Device.AndroidVersion}";
+                return $"{android} · {api} · {Device.Connection}";
+            }
+        }
+        public string Serial => Device.Serial;
+        public string Status => Device.IsOnline ? "Online" : Device.State;
     }
 
     private readonly string _tools = Path.Combine(AppContext.BaseDirectory, "tools");
@@ -47,6 +58,7 @@ public partial class MainWindow : Window
         AutoReconnectBox.IsChecked = _settings.AutoReconnectWireless;
         AudioBox.IsChecked = _settings.EnableAudio;
         ClipboardBox.IsChecked = _settings.ClipboardSync;
+        ScreenOffBox.IsChecked = _settings.TurnScreenOffOnMirror;
         LegacyAccelerationBox.IsChecked = _settings.PreferLegacyAcceleration;
         MirrorQualityBox.SelectedIndex = (_settings.MirrorQuality ?? "Standard").ToLowerInvariant() switch
         {
@@ -60,6 +72,8 @@ public partial class MainWindow : Window
         AudioBox.Unchecked += (_, _) => PersistSettings();
         ClipboardBox.Checked += (_, _) => PersistSettings();
         ClipboardBox.Unchecked += (_, _) => PersistSettings();
+        ScreenOffBox.Checked += (_, _) => PersistSettings();
+        ScreenOffBox.Unchecked += (_, _) => PersistSettings();
         LegacyAccelerationBox.Checked += (_, _) => PersistSettings();
         LegacyAccelerationBox.Unchecked += (_, _) => PersistSettings();
         MirrorQualityBox.SelectionChanged += (_, _) => PersistSettings();
@@ -395,6 +409,7 @@ public partial class MainWindow : Window
         _settings.AutoReconnectWireless = AutoReconnectBox.IsChecked == true;
         _settings.EnableAudio = AudioBox.IsChecked == true;
         _settings.ClipboardSync = ClipboardBox.IsChecked == true;
+        _settings.TurnScreenOffOnMirror = ScreenOffBox.IsChecked == true;
         _settings.PreferLegacyAcceleration = LegacyAccelerationBox.IsChecked == true;
         _settings.MirrorQuality = MirrorQualityBox.SelectedIndex switch
         {
@@ -411,7 +426,66 @@ public partial class MainWindow : Window
         PersistSettings();
         foreach (var (_, view) in _sessions.Values)
             await view.RestartAsync();
-        StatusText.Text = $"Mirror settings applied · {_settings.MirrorQuality} · audio {(_settings.EnableAudio ? "on" : "off")} · clipboard {(_settings.ClipboardSync ? "on" : "off")}.";
+        StatusText.Text = $"Mirror settings applied · {_settings.MirrorQuality} · screen {(_settings.TurnScreenOffOnMirror ? "off" : "on")} · audio {(_settings.EnableAudio ? "on" : "off")} · clipboard {(_settings.ClipboardSync ? "on" : "off")}.";
+    });
+
+    private string SelectedPackageName()
+    {
+        var packageName = PackageBox.Text.Trim();
+        if (!Regex.IsMatch(packageName, @"^[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+$"))
+            throw new InvalidOperationException("Enter or select a valid Android package name, for example com.autel.example.");
+        return packageName;
+    }
+
+    private async void RefreshPackages_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
+    {
+        var device = SelectedOne();
+        StatusText.Text = $"Reading packages from {device.DisplayName}…";
+        var packages = await _bridge.ListPackagesAsync(device.Serial);
+        PackageBox.ItemsSource = packages;
+        PackageCountText.Text = $"{packages.Count} package(s)";
+        StatusText.Text = $"Loaded {packages.Count} package(s) from {device.DisplayName}.";
+    });
+
+    private async void ForceStopApp_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
+    {
+        var device = SelectedOne();
+        var packageName = SelectedPackageName();
+        await _bridge.ForceStopAppAsync(device.Serial, packageName);
+        StatusText.Text = $"Stopped {packageName}.";
+    });
+
+    private async void StartApp_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
+    {
+        var device = SelectedOne();
+        var packageName = SelectedPackageName();
+        await _bridge.StartAppAsync(device.Serial, packageName);
+        StatusText.Text = $"Started {packageName}.";
+    });
+
+    private async void RestartApp_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
+    {
+        var device = SelectedOne();
+        var packageName = SelectedPackageName();
+        await _bridge.RestartAppAsync(device.Serial, packageName);
+        StatusText.Text = $"Restarted {packageName}.";
+    });
+
+    private async void ClearAppData_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
+    {
+        var device = SelectedOne();
+        var packageName = SelectedPackageName();
+        var answer = MessageBox.Show(
+            $"Clear ALL app data for:\n\n{packageName}\n\non {device.DisplayName}?\n\nThis removes the app's accounts, settings, databases, files and cache. The APK remains installed.",
+            "Confirm clear app data",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning,
+            MessageBoxResult.No);
+        if (answer != MessageBoxResult.Yes)
+            return;
+
+        await _bridge.ClearAppDataAsync(device.Serial, packageName);
+        StatusText.Text = $"Cleared application data for {packageName}.";
     });
 
     private async void Screenshot_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
@@ -434,6 +508,7 @@ public partial class MainWindow : Window
         report.AppendLine($"Mirror quality: {_settings.MirrorQuality}");
         report.AppendLine($"Audio: {_settings.EnableAudio}");
         report.AppendLine($"Clipboard sync: {_settings.ClipboardSync}");
+        report.AppendLine($"Turn device screen off on mirror: {_settings.TurnScreenOffOnMirror}");
         report.AppendLine($"Legacy acceleration preferred: {_settings.PreferLegacyAcceleration}");
 
         if (File.Exists(Adb))
