@@ -44,7 +44,13 @@ if (-not $SkipInstaller) {
     if (-not (Test-Path -LiteralPath $setup)) { throw 'Inno Setup completed without AutelVysor-Setup.exe.' }
     & (Join-Path $PSScriptRoot 'sign-release.ps1') -FilePath $setup -RequireSigning:$RequireSigning -AllowUnsignedInternal:$AllowUnsignedInternal
     $setupInfo = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($setup)
-    if ([string]$setupInfo.FileDescription -ne 'Autel' -or [string]$setupInfo.ProductName -ne 'Autel Vysor') { throw 'Installer branding metadata is invalid.' }
+    # Inno Setup pads version-resource strings; retain the original normalized check.
+    $setupDescription = ([string]$setupInfo.FileDescription).Trim()
+    $setupProduct = ([string]$setupInfo.ProductName).Trim()
+    if ($setupDescription -ne 'Autel') { throw "Installer FileDescription is '$setupDescription', expected 'Autel'." }
+    if ($setupProduct -ne 'Autel Vysor') { throw "Installer ProductName is '$setupProduct', expected 'Autel Vysor'." }
+    Write-Host "Installer FileDescription: $setupDescription"
+    Write-Host "Installer ProductName: $setupProduct"
 }
 $paths = @('AutelVysor/AutelVysor.exe', "AutelVysor-v$version-windows-x64.zip")
 if (-not $SkipInstaller) { $paths += 'AutelVysor-Setup.exe' }
