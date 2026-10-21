@@ -2,7 +2,7 @@
 
 Windows Android mirror/control client for **Android 4.4 (API 19) and newer**.
 
-Current source version: **0.10.1**
+Current source version: **0.10.2**
 
 ## Compatibility
 
@@ -14,6 +14,15 @@ Current source version: **0.10.1**
 | Android 11+ | ADB wireless pairing + scrcpy | Implemented |
 
 scrcpy itself requires API 21+, therefore API 19/20 never attempts to start scrcpy.
+
+## v0.10.2 keyboard and rotation fixes
+
+- **Focus keyboard** moves keyboard focus into the embedded scrcpy window, which is a separate Win32 process reparented into WPF.
+- **Send text** sends ASCII/VIN text through ADB to the focused Android field. For Chinese/Unicode, use the modern scrcpy clipboard or explicitly install/select the optional ADBKeyBoard IME.
+- **Switch orientation** now disables sensor rotation before applying the real Android WindowManager rotation lock and checks the WM policy; apps or vendor ROMs may still enforce an orientation lock.
+- **Auto rotate** releases the WM rotation lock, re-enables sensor mode, and prompts the user to physically tilt the device (the phone may suppress sensors while its display is off).
+- **Windows hardware diagnostics:** Run `scripts/diagnose-connected-devices.ps1` on a Windows PC connected to the phones, optionally with `-TestRotation`. Diagnostics remain local and do not automatically upload personal device data.
+- CI simulates ADB and Win32 host behavior but cannot claim direct physical device testing.
 
 ## v0.10.1 integration
 
@@ -163,7 +172,7 @@ The build fails if the executable metadata does not contain:
 ```text
 FileDescription : Autel
 ProductName     : Autel Vysor
-FileVersion     : 0.10.1.0
+FileVersion     : 0.10.2.0
 ```
 
 ## Build portable ZIP and installer
@@ -175,7 +184,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build-release.ps1
 Expected artifacts:
 
 ```text
-dist\AutelVysor-v0.10.1-windows-x64.zip
+dist\AutelVysor-v0.10.2-windows-x64.zip
 dist\AutelVysor-Setup.exe           # when Inno Setup 6 is installed
 ```
 
