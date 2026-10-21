@@ -240,7 +240,8 @@ try {
             while ((Get-Date) -lt $deadline) {
                 $actual = DeviceRotation
                 $state = Find-ById $main 'RotateStateText'
-                if ($state -and $state.Current.Name -eq ("Rotation: {0}° · Auto" -f $actual)) {
+                $expected = "Rotation: {0}{1} {2} Auto" -f $actual,([char]0x00b0),([char]0x00b7)
+                if ($state -and $state.Current.Name -eq $expected) {
                     $synchronized = $true; break
                 }
                 Start-Sleep -Milliseconds 500
@@ -263,7 +264,8 @@ try {
                 Start-Sleep -Milliseconds 700
                 Set-Text $main 'AndroidTextBox' '12345'
                 Invoke-Button $main 'Send text'
-                Assert ((ReadFixture) -eq '12345') 'ADB seed text did not reach fixture.'
+                Assert (Wait-Input '12345') 'ADB seed text did not reach fixture.'
+                Assert ((ReadFixture) -eq '12345') 'Fixture did not contain the exact seed text.'
                 Invoke-Button $main 'Focus keyboard'
                 Start-Sleep -Milliseconds 500
                 foreach ($key in @(0x08,0x36,0x37)) {

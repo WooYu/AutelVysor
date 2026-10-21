@@ -263,6 +263,9 @@ internal static class Program
 
     private static async Task CrossProcessFocus()
     {
+        // Recorder/embedded-window tests use the same helper marker. Never read
+        // an HWND left by an already-exited subprocess from an earlier case.
+        File.Delete(State("native-hwnd"));
         var window = new Window { Width = 480, Height = 480, ShowInTaskbar = false };
         var host = new NativeWindowHost();
         window.Content = host;
