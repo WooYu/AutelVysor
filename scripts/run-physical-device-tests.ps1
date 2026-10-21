@@ -150,25 +150,27 @@ try {
         $deviceDir = Join-Path $script:EvidenceDir $safe
         New-Item -ItemType Directory -Path $deviceDir -Force | Out-Null
         $remote = "/sdcard/Download/autel-vysor-physical-$runId"
-        $api = 0
-        $isEmulator = $false
-
+        # Read physical-device identity before Run-Test: PowerShell scriptblock
+        # assignments inside a helper do not mutate the caller's scope.
+        $qemu = Invoke-Adb -Command @('-s',$serial,'shell','getprop','ro.kernel.qemu') -AllowFailure
+        $emu = Invoke-Adb -Command @('-s',$serial,'shell','getprop','ro.boot.qemu') -AllowFailure
+        if ($serial.StartsWith('emulator-', [StringComparison]::OrdinalIgnoreCase) -or
+            $qemu -eq '1' -or $emu -eq '1') {
+            Record $serial 'connect.real-device' 'FAIL' 'Detected emulator, not a physical phone; ignoring this target.'
+            continue
+        }
         Run-Test $serial 'connect.real-device' {
-            $qemu = Invoke-Adb -Command @('-s',$serial,'shell','getprop','ro.kernel.qemu') -AllowFailure
-            $emu = Invoke-Adb -Command @('-s',$serial,'shell','getprop','ro.boot.qemu') -AllowFailure
-            if ($serial.StartsWith('emulator-', [StringComparison]::OrdinalIgnoreCase) -or
-                $qemu -eq '1' -or $emu -eq '1') {
-                $isEmulator = $true
-                throw 'This is an emulator and is not counted as physical-device coverage.'
-            }
             $state = Invoke-Adb -Command @('-s',$serial,'get-state')
             Assert-Test ($state -match '\bdevice\b') 'ADB state is not device.'
             'Physical device is online and authorized.'
         }
-        if ($isEmulator) { continue }
+        try { $api = [int](Invoke-Adb -Command @('-s',$serial,'shell','getprop','ro.build.version.sdk')) }
+        catch {
+            Record $serial 'device.info' 'FAIL' "Cannot determine Android API level: $($_.Exception.Message)"
+            continue
+        }
         Run-Test $serial 'device.info' {
             $apiText = Invoke-Adb -Command @('-s',$serial,'shell','getprop','ro.build.version.sdk')
-            $api = [int]$apiText
             $model = Invoke-Adb -Command @('-s',$serial,'shell','getprop','ro.product.model')
             $abi = Invoke-Adb -Command @('-s',$serial,'shell','getprop','ro.product.cpu.abi')
             $size = Invoke-Adb -Command @('-s',$serial,'shell','wm','size') -AllowFailure
