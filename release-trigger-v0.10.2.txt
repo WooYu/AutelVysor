@@ -1,1 +1,0 @@
-Publish verified Autel Vysor v0.10.2 from main CI run 39561439445.
