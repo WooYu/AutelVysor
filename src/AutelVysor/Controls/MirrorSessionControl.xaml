@@ -37,7 +37,8 @@
           <Button Click="VolumeDown_Click" Content="Vol −"/>
           <Button Click="VolumeUp_Click" Content="Vol +"/>
           <Button Click="Power_Click" Content="Power"/>
-          <Button Click="Restart_Click" Content="Restart mirror"/>
+          <Button x:Name="RotateButton" Click="Rotate_Click" Content="Rotate 90°"/>
+          <Button Click="Restart_Click" Content="Restart"/>
         </WrapPanel>
       </DockPanel>
     </Border>
