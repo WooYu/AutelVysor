@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'scripts/run-physical-*.ps1'
+      - 'scripts/run-company-adb-e2e.ps1'
       - 'tests/AndroidFixture/**'
       - '.github/workflows/physical-*.yml'
   workflow_dispatch:
@@ -21,7 +22,8 @@ jobs:
         run: |
           $files = @(
             '.\scripts\run-physical-device-tests.ps1',
-            '.\scripts\run-physical-gui-tests.ps1'
+            '.\scripts\run-physical-gui-tests.ps1',
+            '.\scripts\run-company-adb-e2e.ps1'
           )
           foreach ($file in $files) {
             $tokens = $null
