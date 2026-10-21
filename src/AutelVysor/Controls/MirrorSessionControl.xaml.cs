@@ -32,7 +32,6 @@ public partial class MirrorSessionControl : UserControl, IDisposable
     private bool _disposed;
     private bool _forceLegacyFallback;
     private DateTime _nextModernRetryUtc;
-    private int _displayRotation;
 
     public MirrorSessionControl(
         AndroidBridge bridge,
@@ -153,7 +152,7 @@ public partial class MirrorSessionControl : UserControl, IDisposable
         ShowOverlay("Starting mirror…", $"{_device.DisplayName} · {_device.Serial}");
         StatusText.Text = "Starting scrcpy…";
 
-        var session = await _scrcpy.StartEmbeddedAsync(_device, _displayRotation, _lifetime.Token);
+        var session = await _scrcpy.StartEmbeddedAsync(_device, _lifetime.Token);
         if (_disposed)
         {
             session.Dispose();
@@ -174,8 +173,8 @@ public partial class MirrorSessionControl : UserControl, IDisposable
         _nextModernRetryUtc = DateTime.MinValue;
         Overlay.Visibility = Visibility.Collapsed;
         StatusText.Text = _settings.TurnScreenOffOnMirror
-            ? $"Connected · embedded scrcpy · device screen off · rotation {_displayRotation}°"
-            : $"Connected · embedded scrcpy · rotation {_displayRotation}°";
+            ? "Connected · embedded scrcpy · device screen off"
+            : "Connected · embedded scrcpy";
         BackendText.Text = "scrcpy · Android 5.0+";
     }
 
@@ -398,17 +397,33 @@ public partial class MirrorSessionControl : UserControl, IDisposable
 
     private async void Rotate_Click(object sender, RoutedEventArgs e)
     {
-        if (UsesLegacyBackend)
-        {
-            StatusText.Text = "Display rotation is available on Android 5.0+ scrcpy sessions. Android 4.4 follows the device orientation for capture compatibility.";
-            return;
-        }
-
-        _displayRotation = (_displayRotation + 90) % 360;
-        RotateButton.Content = _displayRotation == 0 ? "Rotate 90°" : $"Rotate · {_displayRotation}°";
         try
         {
-            await RestartAsync();
+            var degrees = await _bridge.RotateDeviceClockwiseAsync(_device.Serial, _lifetime.Token);
+            RotateButton.Content = $"Rotate device · {degrees}°";
+            StatusText.Text = $"Android device rotation locked to {degrees}°. The mirror follows the real device display.";
+            _refreshRequested = true;
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = ex.Message;
+        }
+    }
+
+    private async void AutoRotate_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            await _bridge.EnableAutoRotationAsync(_device.Serial, _lifetime.Token);
+            RotateButton.Content = "Rotate device";
+            StatusText.Text = "Android auto-rotation enabled.";
+            _refreshRequested = true;
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        {
         }
         catch (Exception ex)
         {
