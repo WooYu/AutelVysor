@@ -144,7 +144,7 @@ try {
             Run-Case 'fixture.install' {
                 $output = Device @('install','-r',$FixtureApk)
                 Assert ($output -match '(?i)success') "Fixture APK installation failed: $output"
-                $installedFixture = $true
+                $script:installedFixture = $true
                 'Disposable fixture installed on physical device.'
             }
         }
@@ -155,14 +155,14 @@ try {
     }
 
     Run-Case 'ui.start' {
-        $process = Start-Process -FilePath $AppExePath -WorkingDirectory (Split-Path $AppExePath -Parent) -PassThru
+        $script:process = Start-Process -FilePath $AppExePath -WorkingDirectory (Split-Path $AppExePath -Parent) -PassThru
         $deadline = (Get-Date).AddSeconds(25)
         while ($process.MainWindowHandle -eq [IntPtr]::Zero -and (Get-Date) -lt $deadline) {
             Start-Sleep -Milliseconds 500
             $process.Refresh()
         }
         Assert ($process.MainWindowHandle -ne [IntPtr]::Zero) 'Autel Vysor did not expose a main HWND.'
-        $main = [System.Windows.Automation.AutomationElement]::FromHandle($process.MainWindowHandle)
+        $script:main = [System.Windows.Automation.AutomationElement]::FromHandle($process.MainWindowHandle)
         Assert ($null -ne $main) 'Windows UIAutomation could not access Autel Vysor.'
         'Autel Vysor WPF window is running and accessible by Windows UIAutomation.'
     }
@@ -188,7 +188,7 @@ try {
         Assert ($null -ne $selected) "DeviceList did not contain serial $DeviceSerial."
         $selected.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
         Invoke-Button $main 'Open selected'
-        $session = Wait-ByName $main 'Switch orientation' 30
+        $script:session = Wait-ByName $main 'Switch orientation' 30
         'Selected physical serial and opened actual scrcpy/legacy mirror UI.'
     }
 
@@ -284,7 +284,7 @@ try {
         # Captures desktop for later VISUAL review; a valid file is not an assertion that contrast is correct.
         $bounds = $main.Current.BoundingRectangle
         Assert ($bounds.Width -ge 100 -and $bounds.Height -ge 100) 'App bounds are invalid.'
-        $bitmap = New-Object System.Drawing.Bitmap ([int]$bounds.Width),([int]$bounds.Height)
+        $bitmap = [System.Drawing.Bitmap]::new([int]$bounds.Width, [int]$bounds.Height)
         $gfx = [System.Drawing.Graphics]::FromImage($bitmap)
         try {
             $gfx.CopyFromScreen([int]$bounds.X,[int]$bounds.Y,0,0,
