@@ -1,0 +1,142 @@
+using System.Diagnostics;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Windows;
+using AutelVysor.Controls;
+using AutelVysor.Services;
+
+internal static class Program
+{
+    private static string StateDirectory => Environment.GetEnvironmentVariable("AUTEL_TEST_ADB_STATE")!;
+    private static string State(string file) => Path.Combine(StateDirectory, file);
+
+    [STAThread]
+    public static int Main(string[] args)
+    {
+        if (args.Length > 0)
+            return FakeAdb(args);
+
+        var directory = Path.Combine(Path.GetTempPath(), "AutelVysor-tests-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        Environment.SetEnvironmentVariable("AUTEL_TEST_ADB_STATE", directory);
+        var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+        var failures = 0;
+        app.Startup += async (_, _) =>
+        {
+            foreach (var (name, test) in new (string, Func<Task>)[]
+            {
+                ("Device metadata is reused until disconnect", CachedMetadata),
+                ("Rotation alternates between two orientations", ToggleOrientation),
+                ("Embedded child returns to fit after repeated self-resizing", NativeResize)
+            })
+            {
+                try { await test(); Console.WriteLine("PASS: " + name); }
+                catch (Exception ex) { failures++; Console.WriteLine("FAIL: " + name + "\n" + ex); }
+            }
+            app.Shutdown(failures == 0 ? 0 : 1);
+        };
+        try { return app.Run(); }
+        finally { Directory.Delete(directory, true); }
+    }
+
+    private static AndroidBridge Bridge() => new(Environment.ProcessPath!);
+
+    private static async Task CachedMetadata()
+    {
+        File.WriteAllText(State("calls"), "");
+        var bridge = Bridge();
+        var first = await bridge.ListDevicesAsync();
+        var second = await bridge.ListDevicesAsync();
+        Check(first.Count == 1 && first[0].ApiLevel == 34 && first[0].Abi == "arm64-v8a", "Device enrichment failed");
+        Check(second.SequenceEqual(first), "Stable device metadata changed");
+        var firstReads = File.ReadAllLines(State("calls")).Count(x => x.Contains("getprop"));
+        Check(firstReads == 3, $"Expected 3 property reads across two polls, got {firstReads}");
+        File.WriteAllText(State("offline"), "1");
+        Check((await bridge.ListDevicesAsync()).Count == 0, "Disconnect was not detected");
+        File.Delete(State("offline"));
+        await bridge.ListDevicesAsync();
+        Check(File.ReadAllLines(State("calls")).Count(x => x.Contains("getprop")) == 6, "Reconnect did not refresh cached metadata");
+    }
+
+    private static async Task ToggleOrientation()
+    {
+        var bridge = Bridge();
+        File.WriteAllText(State("rotation"), "0");
+        for (var i = 0; i < 6; i++)
+        {
+            var degrees = await bridge.RotateDeviceClockwiseAsync("test-device");
+            Check(degrees == (i % 2 == 0 ? 90 : 0), $"Click {i + 1}: expected 0/90 toggle, got {degrees}");
+        }
+        File.WriteAllText(State("rotation"), "3");
+        Check(await bridge.RotateDeviceClockwiseAsync("test-device") == 0, "Reverse landscape should return to natural orientation");
+    }
+
+    private static async Task NativeResize()
+    {
+        var host = new NativeWindowHost();
+        var window = new Window { Width = 700, Height = 500, Content = host, ShowInTaskbar = false };
+        var child = IntPtr.Zero;
+        try
+        {
+            window.Show();
+            await Task.Delay(150);
+            child = CreateWindowEx(0, "STATIC", "Test mirror", 0x90000000U, 0, 0, 200, 300, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+            Check(child != IntPtr.Zero, "Unable to create test native window");
+            host.AttachExternalWindow(child);
+            for (var i = 0; i < 12; i++)
+            {
+                // Simulates SDL resizing/repositioning itself after a display orientation change.
+                MoveWindow(child, 17, 23, i % 2 == 0 ? 960 : 320, i % 2 == 0 ? 320 : 960, true);
+                await Task.Delay(250);
+                GetClientRect(host.Handle, out var available);
+                GetWindowRect(child, out var actual);
+                MapWindowPoints(IntPtr.Zero, host.Handle, ref actual, 2);
+                Check(actual.Left == 0 && actual.Top == 0 && actual.Right == available.Right && actual.Bottom == available.Bottom,
+                    $"Rotation {i + 1}: child remained at {actual.Left},{actual.Top} {actual.Right - actual.Left}x{actual.Bottom - actual.Top}; expected {available.Right}x{available.Bottom}");
+            }
+        }
+        finally
+        {
+            host.DetachExternalWindow();
+            if (child != IntPtr.Zero) DestroyWindow(child);
+            window.Close();
+        }
+    }
+
+    private static int FakeAdb(string[] args)
+    {
+        // Real subprocess boundary: exercises ToolRunner and AndroidBridge without a connected phone.
+        using (var mutex = new Mutex(false, "AutelVysorRegressionAdb"))
+        {
+            mutex.WaitOne();
+            try { File.AppendAllText(State("calls"), string.Join(" ", args) + "\n"); }
+            finally { mutex.ReleaseMutex(); }
+        }
+        if (args[0] == "devices")
+        {
+            Console.WriteLine("List of devices attached");
+            if (!File.Exists(State("offline"))) Console.WriteLine("test-device device product:test model:Test device:test transport_id:1");
+        }
+        else if (args.Contains("getprop"))
+        {
+            Console.WriteLine(args[^1] switch { "ro.build.version.sdk" => "34", "ro.build.version.release" => "14", _ => "arm64-v8a" });
+        }
+        else if (args.Contains("dumpsys"))
+            Console.WriteLine("SurfaceOrientation: " + ReadRotation());
+        else if (args.Contains("settings") && args.Contains("get"))
+            Console.WriteLine(ReadRotation());
+        else if ((args.Contains("settings") && args.Contains("put") && args.Contains("user_rotation")) || args.Contains("lock"))
+            File.WriteAllText(State("rotation"), args[^1]);
+        return 0;
+    }
+
+    private static string ReadRotation() => File.Exists(State("rotation")) ? File.ReadAllText(State("rotation")) : "0";
+    private static void Check(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
+    [StructLayout(LayoutKind.Sequential)] private struct Rect { public int Left, Top, Right, Bottom; }
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern IntPtr CreateWindowEx(int ex, string cls, string title, uint style, int x, int y, int width, int height, IntPtr parent, IntPtr menu, IntPtr instance, IntPtr param);
+    [DllImport("user32.dll")] private static extern bool DestroyWindow(IntPtr hwnd);
+    [DllImport("user32.dll")] private static extern bool MoveWindow(IntPtr hwnd, int x, int y, int width, int height, bool repaint);
+    [DllImport("user32.dll")] private static extern bool GetClientRect(IntPtr hwnd, out Rect rect);
+    [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr hwnd, out Rect rect);
+    [DllImport("user32.dll")] private static extern int MapWindowPoints(IntPtr from, IntPtr to, ref Rect rect, uint points);
+}
