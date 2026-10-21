@@ -47,11 +47,13 @@
       </DockPanel>
       <DockPanel Margin="0,7,0,0" LastChildFill="True">
         <Button DockPanel.Dock="Right" Click="AudioRoute_Click" Content="Audio routes" ToolTip="Show configured PC audio and Android route indicators"/>
+        <Button DockPanel.Dock="Right" Click="FocusMirror_Click" Content="Focus keyboard" ToolTip="Move Windows keyboard focus into the embedded scrcpy or Android compatibility screen"/>
+        <Button DockPanel.Dock="Right" Click="SendText_Click" Content="Send text" ToolTip="Send ASCII text directly via ADB; Unicode requires the optional ADBKeyBoard IME"/>
         <Button DockPanel.Dock="Right" Click="SendUnicode_Click" Content="Send via ADB IME" ToolTip="Requires optional ADBKeyBoard to be installed and selected on Android"/>
         <Button DockPanel.Dock="Right" Click="CopyAndroidText_Click" Content="Copy text" ToolTip="Then focus a field in the mirror and use Ctrl+V in scrcpy"/>
         <TextBox x:Name="AndroidTextBox" Background="#0B1220" Foreground="#E5E7EB"
                  BorderBrush="#334155" CaretBrush="White" MinWidth="200" Height="30"
-                 Padding="6,4" ToolTip="Type Chinese / VIN / URLs; Copy text then Ctrl+V in scrcpy, or send with installed ADBKeyBoard"/>
+                 Padding="6,4" ToolTip="Type VIN / URLs or Chinese. Use Send text for ASCII, Copy text + Ctrl+V for modern scrcpy, or Send via ADB IME for Unicode."/>
       </DockPanel>
       </StackPanel>
     </Border>
