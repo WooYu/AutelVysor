@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.8.0
+
+- Added a dedicated Device Debug window.
+- Added app version/versionCode, PID, minSdk/targetSdk, install/update time and data-directory inspection.
+- Added permission inspection and full `dumpsys package` output.
+- Added device process-list inspection.
+- Added live logcat, snapshot logcat and exported logcat files with bounded in-app log memory.
+- Added APK installation and application uninstall with optional data retention.
+- Added Android-device reboot and Windows ADB-server restart actions.
+- Kept force-stop, start, restart and clear-data actions; destructive actions require confirmation.
+- Moved ADB debugging out of the crowded mirror sidebar.
+
+
 ## 0.7.0
 
 - Android 5.0+ mirrors now turn the physical device screen off by default while keeping the PC mirror and controls active.
