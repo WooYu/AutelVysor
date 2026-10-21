@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows;
+using System.Windows.Input;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using AutelVysor.Models;
@@ -18,7 +19,10 @@ public partial class DeviceDebugWindow : Window
     private readonly AndroidDevice _device;
     private readonly ConcurrentQueue<string> _logQueue = new();
     private readonly DispatcherTimer _logFlushTimer;
+    private readonly List<string> _shellHistory = [];
     private Process? _logcatProcess;
+    private int _shellHistoryIndex;
+    private string _selectedLogPid = string.Empty;
 
     public DeviceDebugWindow(AndroidBridge bridge, AndroidDevice device)
     {
@@ -41,7 +45,12 @@ public partial class DeviceDebugWindow : Window
         _logFlushTimer.Tick += (_, _) => FlushLiveLog();
         _logFlushTimer.Start();
 
-        Loaded += async (_, _) => await Guard(LoadPackagesAsync, showDialog: false);
+        Loaded += async (_, _) =>
+        {
+            await Guard(LoadPackagesAsync, showDialog: false);
+            await Guard(RefreshRemoteFilesAsync, showDialog: false);
+            await Guard(RefreshDeviceDetailsAsync, showDialog: false);
+        };
         Closed += (_, _) =>
         {
             StopLiveLog();
@@ -98,6 +107,7 @@ public partial class DeviceDebugWindow : Window
         VersionText.Text = Empty(info.VersionName);
         VersionCodeText.Text = Empty(info.VersionCode);
         PidText.Text = string.IsNullOrWhiteSpace(info.Pid) ? "not running" : info.Pid;
+        _selectedLogPid = info.Pid;
         MinSdkText.Text = Empty(info.MinSdk);
         TargetSdkText.Text = Empty(info.TargetSdk);
         FirstInstallText.Text = Empty(info.FirstInstallTime);
@@ -223,7 +233,8 @@ public partial class DeviceDebugWindow : Window
     private async void SnapshotLog_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
     {
         StatusText.Text = "Reading logcat snapshot…";
-        LogTextBox.Text = await _bridge.GetLogcatSnapshotAsync(_device.Serial);
+        var snapshot = await _bridge.GetLogcatSnapshotAsync(_device.Serial);
+        LogTextBox.Text = ApplyLogFilters(snapshot);
         LogTextBox.ScrollToEnd();
         StatusText.Text = "Logcat snapshot loaded.";
     });
@@ -239,12 +250,12 @@ public partial class DeviceDebugWindow : Window
             process.OutputDataReceived += (_, args) =>
             {
                 if (args.Data is not null)
-                    _logQueue.Enqueue(args.Data);
+                    EnqueueLogLine(args.Data);
             };
             process.ErrorDataReceived += (_, args) =>
             {
                 if (args.Data is not null)
-                    _logQueue.Enqueue("[adb] " + args.Data);
+                    EnqueueLogLine("[adb] " + args.Data);
             };
             process.Exited += (_, _) => Dispatcher.InvokeAsync(() =>
             {
@@ -286,18 +297,29 @@ public partial class DeviceDebugWindow : Window
         try { process.Dispose(); } catch { }
     }
 
+    private void EnqueueLogLine(string line)
+    {
+        _logQueue.Enqueue(line);
+        while (_logQueue.Count > 20_000)
+            _logQueue.TryDequeue(out _);
+    }
+
     private void FlushLiveLog()
     {
-        if (_logQueue.IsEmpty)
+        if (_logQueue.IsEmpty || PauseLogBox.IsChecked == true)
             return;
 
         var chunk = new StringBuilder();
         var count = 0;
         while (count < 500 && _logQueue.TryDequeue(out var line))
         {
-            chunk.AppendLine(line);
+            if (ShouldShowLogLine(line))
+                chunk.AppendLine(line);
             count++;
         }
+
+        if (chunk.Length == 0)
+            return;
 
         LogTextBox.AppendText(chunk.ToString());
         if (LogTextBox.Text.Length > MaxLiveLogChars)
@@ -308,6 +330,52 @@ public partial class DeviceDebugWindow : Window
         }
         LogTextBox.ScrollToEnd();
     }
+
+    private bool ShouldShowLogLine(string line)
+    {
+        var filter = LogFilterBox.Text.Trim();
+        if (filter.Length > 0 && !line.Contains(filter, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        var match = Regex.Match(
+            line,
+            @"^d{2}-d{2}s+d{2}:d{2}:d{2}.d+s+(?<pid>d+)s+(?<tid>d+)s+(?<level>[VDIWEFAS])s+");
+
+        if (OnlySelectedAppLogBox.IsChecked == true)
+        {
+            if (string.IsNullOrWhiteSpace(_selectedLogPid))
+                return false;
+            if (!match.Success || !string.Equals(match.Groups["pid"].Value, _selectedLogPid, StringComparison.Ordinal))
+                return false;
+        }
+
+        var selectedLevel = (LogLevelBox.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag?.ToString() ?? "*";
+        if (selectedLevel != "*" && match.Success)
+        {
+            static int Rank(char level) => level switch
+            {
+                'V' => 0,
+                'D' => 1,
+                'I' => 2,
+                'W' => 3,
+                'E' => 4,
+                'F' or 'A' => 5,
+                _ => 0
+            };
+            if (Rank(match.Groups["level"].Value[0]) < Rank(selectedLevel[0]))
+                return false;
+        }
+
+        return true;
+    }
+
+    private string ApplyLogFilters(string text)
+        => string.Join(
+            Environment.NewLine,
+            text.Split('
+', StringSplitOptions.RemoveEmptyEntries)
+                .Select(line => line.TrimEnd(''))
+                .Where(ShouldShowLogLine));
 
     private async void ExportLog_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
     {
