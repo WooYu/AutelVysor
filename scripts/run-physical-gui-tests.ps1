@@ -63,7 +63,7 @@ function Adb([string[]]$cmd) {
         $text = (& $AdbPath @cmd 2>&1 | Out-String).Trim()
         $exit = $LASTEXITCODE
     } finally { $ErrorActionPreference = $previous }
-    if ($exit -ne 0) { throw "ADB exit $exit: $text" }
+    if ($exit -ne 0) { throw "ADB exit $($exit): $text" }
     return $text
 }
 function Device([string[]]$cmd) { Adb (@('-s',$DeviceSerial) + $cmd) }
