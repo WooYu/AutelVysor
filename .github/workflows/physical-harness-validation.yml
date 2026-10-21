@@ -1,0 +1,66 @@
+name: Physical harness validation (NO real devices)
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/run-physical-*.ps1'
+      - 'tests/AndroidFixture/**'
+      - '.github/workflows/physical-*.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  script-syntax:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse PowerShell physical-device and GUI harness
+        shell: powershell
+        run: |
+          $files = @(
+            '.\scripts\run-physical-device-tests.ps1',
+            '.\scripts\run-physical-gui-tests.ps1'
+          )
+          foreach ($file in $files) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path $file).Path,
+              [ref]$tokens,
+              [ref]$errors
+            ) | Out-Null
+            if ($errors.Count -gt 0) {
+              $errors | Format-Table -AutoSize | Out-String | Write-Host
+              throw "PowerShell parser rejected $file"
+            }
+            Write-Host "PASS PowerShell syntax: $file"
+          }
+
+  build-android-fixture:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install Android compile SDK from preinstalled Ubuntu Android command-line tools
+        shell: bash
+        run: |
+          set -euxo pipefail
+          SDK="${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}"
+          TOOL="$(find "$SDK/cmdline-tools" -name sdkmanager -type f | sort -V | tail -n1)"
+          test -x "$TOOL"
+          "$TOOL" "platforms;android-35" "build-tools;35.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - name: Compile disposable real-device Android test fixture
+        run: gradle -p tests/AndroidFixture :app:assembleDebug --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AutelVysor-physical-android-fixture
+          path: tests/AndroidFixture/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error

@@ -179,7 +179,12 @@ internal static class Program
             0x90C00000U, 120, 120, 320, 480,
             IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
         if (hwnd == IntPtr.Zero) return 2;
-        File.WriteAllText(State("native-hwnd"), hwnd.ToInt64().ToString());
+        // Publish the child HWND atomically to prevent the parent process
+        // from opening a partially written / exclusively locked marker file.
+        var marker = State("native-hwnd");
+        var temporary = marker + ".tmp";
+        File.WriteAllText(temporary, hwnd.ToInt64().ToString());
+        File.Move(temporary, marker, overwrite: true);
         try
         {
             // The separate process has a real native message loop like SDL.
