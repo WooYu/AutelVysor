@@ -1,0 +1,148 @@
+name: Physical Android Devices (self-hosted Windows, real USB)
+
+on:
+  workflow_dispatch:
+    inputs:
+      serial:
+        description: 'Physical ADB serial (empty = test all authorized physical devices)'
+        required: false
+        type: string
+      adb_path:
+        description: 'Optional adb.exe path on the self-hosted Windows lab PC'
+        required: false
+        type: string
+      app_exe_path:
+        description: 'Optional installed AutelVysor.exe path for GUI testing'
+        required: false
+        type: string
+      scrcpy_path:
+        description: 'Optional scrcpy.exe path for real video-record test'
+        required: false
+        type: string
+      run_gui:
+        description: 'Drive unlocked interactive Windows desktop and verify native keyboard'
+        default: false
+        type: boolean
+      rotation:
+        description: 'Opt-in REAL Android orientation change (restored after test)'
+        default: false
+        type: boolean
+      bugreport:
+        description: 'Opt-in potentially sensitive bugreport creation (stored locally)'
+        default: false
+        type: boolean
+      reboot:
+        description: 'Opt-in REAL Android device reboot (disruptive)'
+        default: false
+        type: boolean
+      adb_restart:
+        description: 'Opt-in global ADB server restart (disruptive)'
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  fixture:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - run: gradle -p tests/AndroidFixture :app:assembleDebug --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AutelVysor-physical-fixture
+          path: tests/AndroidFixture/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+  physical:
+    needs: fixture
+    runs-on: [self-hosted, Windows, X64, autel-physical]
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: AutelVysor-physical-fixture
+          path: physical-fixture
+      - name: Run actual device and optional interactive GUI tests
+        shell: powershell
+        env:
+          DEVICE_SERIAL: ${{ inputs.serial }}
+          ADB_PATH: ${{ inputs.adb_path }}
+          APP_EXE_PATH: ${{ inputs.app_exe_path }}
+          SCRCPY_PATH: ${{ inputs.scrcpy_path }}
+          DO_GUI: ${{ inputs.run_gui }}
+          DO_ROTATION: ${{ inputs.rotation }}
+          DO_BUGREPORT: ${{ inputs.bugreport }}
+          DO_REBOOT: ${{ inputs.reboot }}
+          DO_ADB_RESTART: ${{ inputs.adb_restart }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = Join-Path $env:GITHUB_WORKSPACE 'test-results/physical-current'
+          $fixture = Join-Path $env:GITHUB_WORKSPACE 'physical-fixture/app-debug.apk'
+          $parameters = @{
+            FixtureApk = $fixture
+            OutputRoot = $root
+          }
+          if ($env:ADB_PATH) { $parameters.AdbPath = $env:ADB_PATH }
+          if ($env:SCRCPY_PATH) { $parameters.ScrcpyPath = $env:SCRCPY_PATH }
+          if ($env:DEVICE_SERIAL) { $parameters.Serials = @($env:DEVICE_SERIAL) }
+          if ($env:DO_ROTATION -eq 'true') { $parameters.IncludeRotation = $true }
+          if ($env:DO_BUGREPORT -eq 'true') { $parameters.IncludeBugreport = $true }
+          if ($env:DO_REBOOT -eq 'true') { $parameters.IncludeReboot = $true }
+          if ($env:DO_ADB_RESTART -eq 'true') { $parameters.IncludeAdbRestart = $true }
+
+          try {
+            & .\scripts\run-physical-device-tests.ps1 @parameters
+            if ($LASTEXITCODE -ne 0) { throw 'One or more REAL physical-device tests failed.' }
+
+            if ($env:DO_GUI -eq 'true') {
+              if (-not $env:APP_EXE_PATH -or -not $env:DEVICE_SERIAL) {
+                throw 'GUI E2E needs an explicit app_exe_path and one physical device serial.'
+              }
+              $guiArgs = @{
+                AppExePath = $env:APP_EXE_PATH
+                DeviceSerial = $env:DEVICE_SERIAL
+                FixtureApk = $fixture
+                OutputRoot = (Join-Path $root 'gui')
+              }
+              if ($env:ADB_PATH) { $guiArgs.AdbPath = $env:ADB_PATH }
+              & .\scripts\run-physical-gui-tests.ps1 @guiArgs
+              if ($LASTEXITCODE -ne 0) { throw 'Real WPF/Android GUI test failed.' }
+            }
+          }
+          finally {
+            # PRIVATE evidence remains on this trusted lab PC, NOT uploaded to Actions.
+            Write-Host "Private local evidence: $root"
+            if (Test-Path (Join-Path $root 'summary.json')) {
+              $data = Get-Content (Join-Path $root 'summary.json') -Raw | ConvertFrom-Json
+              Write-Host "REAL physical result counts:"
+              $data.Counts | Format-List | Out-String | Write-Host
+              $public = @($data.Results | ForEach-Object {
+                [pscustomobject]@{
+                  Device = 'physical-' + [Array]::IndexOf(@($data.Results.Serial | Select-Object -Unique), $_.Serial)
+                  Feature = $_.Feature
+                  Status = $_.Status
+                }
+              })
+              $public | ConvertTo-Json -Depth 4 |
+                Set-Content -Encoding UTF8 (Join-Path $env:GITHUB_WORKSPACE 'physical-result-redacted.json')
+            }
+          }
+      - name: Upload REDACTED statuses only (no device logs/screen/battery/serial)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: AutelVysor-physical-test-status
+          path: physical-result-redacted.json
+          if-no-files-found: warn
