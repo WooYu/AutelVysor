@@ -400,6 +400,197 @@ public partial class DeviceDebugWindow : Window
         StatusText.Text = "Log view cleared.";
     }
 
+    private async Task RefreshRemoteFilesAsync()
+    {
+        var path = RemoteFilePathBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(path))
+            path = "/sdcard/Download";
+
+        StatusText.Text = $"Reading {path}…";
+        var entries = await _bridge.ListRemoteFilesAsync(_device.Serial, path);
+        RemoteFileList.ItemsSource = entries;
+        RemoteFilePathBox.Text = path;
+        StatusText.Text = $"{entries.Count} item(s) in {path}.";
+    }
+
+    private async void RefreshRemoteFiles_Click(object sender, RoutedEventArgs e)
+        => await Guard(RefreshRemoteFilesAsync);
+
+    private async void RemoteUp_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
+    {
+        var path = RemoteFilePathBox.Text.Trim().TrimEnd('/');
+        if (path.Length <= 1)
+        {
+            RemoteFilePathBox.Text = "/";
+        }
+        else
+        {
+            var slash = path.LastIndexOf('/');
+            RemoteFilePathBox.Text = slash <= 0 ? "/" : path[..slash];
+        }
+        await RefreshRemoteFilesAsync();
+    });
+
+    private async void RemoteFileList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (RemoteFileList.SelectedItem is not RemoteFileEntry entry || !entry.IsDirectory)
+            return;
+
+        RemoteFilePathBox.Text = entry.FullPath;
+        await Guard(RefreshRemoteFilesAsync);
+    }
+
+    private async void UploadRemoteFile_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = $"Upload files to {RemoteFilePathBox.Text.Trim()}",
+            Multiselect = true
+        };
+        if (dialog.ShowDialog(this) != true)
+            return;
+
+        var remoteDir = RemoteFilePathBox.Text.Trim().TrimEnd('/');
+        foreach (var file in dialog.FileNames)
+        {
+            var remote = (remoteDir.Length == 0 ? "/" : remoteDir + "/") + System.IO.Path.GetFileName(file);
+            StatusText.Text = $"Uploading {System.IO.Path.GetFileName(file)}…";
+            await _bridge.PushAsync(_device.Serial, file, remote);
+        }
+        await RefreshRemoteFilesAsync();
+    });
+
+    private async void DownloadRemoteFile_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
+    {
+        if (RemoteFileList.SelectedItem is not RemoteFileEntry entry)
+            throw new InvalidOperationException("Select a file to download.");
+        if (entry.IsDirectory)
+            throw new InvalidOperationException("Folder download is not enabled yet. Open the folder and download files individually.");
+
+        var dialog = new SaveFileDialog
+        {
+            Title = $"Download {entry.Name}",
+            FileName = entry.Name,
+            Filter = "All files (*.*)|*.*"
+        };
+        if (dialog.ShowDialog(this) != true)
+            return;
+
+        StatusText.Text = $"Downloading {entry.Name}…";
+        await _bridge.PullAsync(_device.Serial, entry.FullPath, dialog.FileName);
+        StatusText.Text = $"Saved to {dialog.FileName}";
+    });
+
+    private async void CreateRemoteFolder_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
+    {
+        var name = NewFolderNameBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(name) || name.Length > 80 || name.IndexOfAny(['/', '\\', ':', '*', '?', '"', '<', '>', '|']) >= 0)
+            throw new InvalidOperationException("Enter a valid folder name.");
+
+        var parent = RemoteFilePathBox.Text.Trim().TrimEnd('/');
+        var path = (parent.Length == 0 ? "/" : parent + "/") + name;
+        await _bridge.CreateRemoteDirectoryAsync(_device.Serial, path);
+        NewFolderNameBox.Clear();
+        await RefreshRemoteFilesAsync();
+    });
+
+    private async void DeleteRemoteFile_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
+    {
+        var entries = RemoteFileList.SelectedItems.Cast<RemoteFileEntry>().ToArray();
+        if (entries.Length == 0)
+            throw new InvalidOperationException("Select at least one file or folder to delete.");
+
+        var answer = MessageBox.Show(
+            this,
+            $"Delete {entries.Length} selected item(s) from Android?\n\nThis action cannot be undone.",
+            "Confirm remote delete",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning,
+            MessageBoxResult.No);
+        if (answer != MessageBoxResult.Yes)
+            return;
+
+        foreach (var entry in entries)
+            await _bridge.DeleteRemotePathAsync(_device.Serial, entry.FullPath);
+        await RefreshRemoteFilesAsync();
+    });
+
+    private async Task ExecuteShellCommandAsync()
+    {
+        var command = ShellCommandBox.Text.Trim();
+        if (command.Length == 0)
+            return;
+
+        _shellHistory.RemoveAll(item => string.Equals(item, command, StringComparison.Ordinal));
+        _shellHistory.Add(command);
+        if (_shellHistory.Count > 100)
+            _shellHistory.RemoveAt(0);
+        _shellHistoryIndex = _shellHistory.Count;
+
+        ShellOutputBox.AppendText($"$ {command}{Environment.NewLine}");
+        ShellCommandBox.Clear();
+        StatusText.Text = "Running shell command…";
+        try
+        {
+            var output = await _bridge.RunShellCommandAsync(_device.Serial, command);
+            if (!string.IsNullOrWhiteSpace(output))
+                ShellOutputBox.AppendText(output + Environment.NewLine);
+            ShellOutputBox.AppendText(Environment.NewLine);
+            ShellOutputBox.ScrollToEnd();
+            StatusText.Text = "Shell command completed.";
+        }
+        catch (Exception ex)
+        {
+            ShellOutputBox.AppendText($"[error] {ex.Message}{Environment.NewLine}{Environment.NewLine}");
+            ShellOutputBox.ScrollToEnd();
+            StatusText.Text = ex.Message;
+        }
+    }
+
+    private async void RunShell_Click(object sender, RoutedEventArgs e)
+        => await ExecuteShellCommandAsync();
+
+    private void ClearShell_Click(object sender, RoutedEventArgs e)
+    {
+        ShellOutputBox.Clear();
+        StatusText.Text = "Shell output cleared.";
+    }
+
+    private async void ShellCommandBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            e.Handled = true;
+            await ExecuteShellCommandAsync();
+            return;
+        }
+
+        if (e.Key == Key.Up && _shellHistory.Count > 0)
+        {
+            e.Handled = true;
+            _shellHistoryIndex = Math.Max(0, _shellHistoryIndex - 1);
+            ShellCommandBox.Text = _shellHistory[_shellHistoryIndex];
+            ShellCommandBox.CaretIndex = ShellCommandBox.Text.Length;
+        }
+        else if (e.Key == Key.Down && _shellHistory.Count > 0)
+        {
+            e.Handled = true;
+            _shellHistoryIndex = Math.Min(_shellHistory.Count, _shellHistoryIndex + 1);
+            ShellCommandBox.Text = _shellHistoryIndex >= _shellHistory.Count ? string.Empty : _shellHistory[_shellHistoryIndex];
+            ShellCommandBox.CaretIndex = ShellCommandBox.Text.Length;
+        }
+    }
+
+    private async Task RefreshDeviceDetailsAsync()
+    {
+        StatusText.Text = "Reading device details…";
+        DeviceDetailsTextBox.Text = await _bridge.GetDeviceOverviewAsync(_device.Serial);
+        StatusText.Text = "Device details refreshed.";
+    }
+
+    private async void RefreshDeviceDetails_Click(object sender, RoutedEventArgs e)
+        => await Guard(RefreshDeviceDetailsAsync);
+
     private async void RebootDevice_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
     {
         var answer = MessageBox.Show(
