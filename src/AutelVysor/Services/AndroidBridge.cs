@@ -442,6 +442,159 @@ public sealed class AndroidBridge(string adbPath)
         EnsureSuccess(start, "Unable to restart ADB server.", "failed", "error");
     }
 
+    public async Task<string> RunShellCommandAsync(string serial, string command, CancellationToken ct = default)
+    {
+        command = command.Trim();
+        if (command.Length == 0)
+            throw new InvalidOperationException("Enter an ADB shell command.");
+        if (command.Length > 8192)
+            throw new InvalidOperationException("The shell command is too long.");
+
+        var result = await RunAsync(["-s", serial, "shell", "sh", "-c", command], ct: ct);
+        var combined = (result.Output + (string.IsNullOrWhiteSpace(result.Error) ? string.Empty : "\n" + result.Error)).TrimEnd();
+        if (result.ExitCode != 0)
+            throw new InvalidOperationException(string.IsNullOrWhiteSpace(combined) ? $"Shell command failed with exit code {result.ExitCode}." : combined);
+        return combined;
+    }
+
+    public async Task<(int Width, int Height)> GetDisplaySizeAsync(string serial, CancellationToken ct = default)
+    {
+        var result = await RunAsync(["-s", serial, "shell", "wm", "size"], ct: ct);
+        EnsureSuccess(result, "Unable to read Android display size.");
+        var matches = Regex.Matches(result.Output + "\n" + result.Error, @"(?<w>\d{2,5})x(?<h>\d{2,5})");
+        if (matches.Count == 0)
+            throw new InvalidOperationException("Android did not report a display size.");
+        var match = matches[^1];
+        return (int.Parse(match.Groups["w"].Value, CultureInfo.InvariantCulture),
+                int.Parse(match.Groups["h"].Value, CultureInfo.InvariantCulture));
+    }
+
+    public async Task<IReadOnlyList<RemoteFileEntry>> ListRemoteFilesAsync(string serial, string remoteDirectory, CancellationToken ct = default)
+    {
+        remoteDirectory = NormalizeRemotePath(remoteDirectory);
+        var result = await RunAsync(["-s", serial, "shell", "ls", "-la", remoteDirectory], ct: ct);
+        EnsureSuccess(result, "Unable to list remote directory.", "No such file or directory", "Permission denied");
+
+        var entries = new List<RemoteFileEntry>();
+        foreach (var raw in result.Output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var line = raw.TrimEnd();
+            if (line.Length == 0 || line.StartsWith("total ", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var match = Regex.Match(
+                line,
+                @"^(?<perm>[bcdlps-][rwxStTs-]{9})\s+(?:\d+\s+)?\S+\s+\S+\s+(?<size>\d+)\s+(?<date>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2})\s+(?<name>.+)$");
+            if (!match.Success)
+                continue;
+
+            var name = match.Groups["name"].Value.Trim();
+            var arrow = name.IndexOf(" -> ", StringComparison.Ordinal);
+            if (arrow >= 0)
+                name = name[..arrow];
+            if (name is "." or ".." || name.Length == 0)
+                continue;
+
+            _ = long.TryParse(match.Groups["size"].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var size);
+            var fullPath = remoteDirectory == "/"
+                ? "/" + name
+                : remoteDirectory.TrimEnd('/') + "/" + name;
+            entries.Add(new RemoteFileEntry(
+                name,
+                fullPath,
+                match.Groups["perm"].Value.StartsWith("d", StringComparison.Ordinal),
+                size,
+                match.Groups["date"].Value));
+        }
+
+        return entries
+            .OrderByDescending(entry => entry.IsDirectory)
+            .ThenBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    public async Task CreateRemoteDirectoryAsync(string serial, string remotePath, CancellationToken ct = default)
+    {
+        remotePath = NormalizeRemotePath(remotePath);
+        var result = await RunAsync(["-s", serial, "shell", "mkdir", "-p", remotePath], ct: ct);
+        EnsureSuccess(result, "Unable to create remote directory.", "Permission denied", "Read-only file system");
+    }
+
+    public async Task DeleteRemotePathAsync(string serial, string remotePath, CancellationToken ct = default)
+    {
+        remotePath = NormalizeRemotePath(remotePath);
+        if (remotePath is "/" or "/sdcard" or "/storage" or "/storage/emulated" or "/storage/emulated/0")
+            throw new InvalidOperationException("Refusing to delete a protected root storage path.");
+
+        var result = await RunAsync(["-s", serial, "shell", "rm", "-rf", remotePath], ct: ct);
+        EnsureSuccess(result, "Unable to delete remote path.", "Permission denied", "Read-only file system");
+    }
+
+    public async Task<string> GetDeviceOverviewAsync(string serial, CancellationToken ct = default)
+    {
+        var report = new StringBuilder();
+        async Task AddProp(string label, string key)
+        {
+            try
+            {
+                var value = await GetPropAsync(serial, key, ct);
+                report.AppendLine($"{label}: {(string.IsNullOrWhiteSpace(value) ? "?" : value)}");
+            }
+            catch
+            {
+                report.AppendLine($"{label}: ?");
+            }
+        }
+
+        report.AppendLine("=== Device ===");
+        await AddProp("Manufacturer", "ro.product.manufacturer");
+        await AddProp("Brand", "ro.product.brand");
+        await AddProp("Model", "ro.product.model");
+        await AddProp("Device", "ro.product.device");
+        await AddProp("Android", "ro.build.version.release");
+        await AddProp("SDK", "ro.build.version.sdk");
+        await AddProp("ABI", "ro.product.cpu.abi");
+        await AddProp("Build", "ro.build.display.id");
+        await AddProp("Security patch", "ro.build.version.security_patch");
+        report.AppendLine($"Serial: {serial}");
+
+        foreach (var section in new[]
+        {
+            ("Display", "wm size; wm density"),
+            ("Battery", "dumpsys battery"),
+            ("Memory", "cat /proc/meminfo"),
+            ("Storage", "df /data /sdcard 2>/dev/null"),
+            ("Network", "ip -f inet addr 2>/dev/null")
+        })
+        {
+            report.AppendLine();
+            report.AppendLine($"=== {section.Item1} ===");
+            try
+            {
+                var text = await RunShellCommandAsync(serial, section.Item2, ct);
+                report.AppendLine(string.IsNullOrWhiteSpace(text) ? "(no output)" : text);
+            }
+            catch (Exception ex)
+            {
+                report.AppendLine($"Unavailable: {ex.Message}");
+            }
+        }
+
+        return report.ToString().TrimEnd();
+    }
+
+    private static string NormalizeRemotePath(string remotePath)
+    {
+        remotePath = remotePath.Trim().Replace('\\', '/');
+        if (!remotePath.StartsWith("/", StringComparison.Ordinal))
+            throw new InvalidOperationException("Remote paths must be absolute Android paths.");
+        while (remotePath.Contains("//", StringComparison.Ordinal))
+            remotePath = remotePath.Replace("//", "/", StringComparison.Ordinal);
+        if (remotePath.Contains("/../", StringComparison.Ordinal) || remotePath.EndsWith("/..", StringComparison.Ordinal))
+            throw new InvalidOperationException("Parent path traversal is not allowed.");
+        return remotePath.Length > 1 ? remotePath.TrimEnd('/') : remotePath;
+    }
+
     public async Task<IReadOnlyList<string>> ListPackagesAsync(string serial, CancellationToken ct = default)
     {
         var result = await RunAsync(["-s", serial, "shell", "pm", "list", "packages"], ct: ct);
