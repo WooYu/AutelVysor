@@ -101,6 +101,7 @@ internal static class Program
         await Task.Delay(150);
         var watch = System.Diagnostics.Stopwatch.StartNew();
         session.Stop();
+        Console.WriteLine($"Windowless mirror stop elapsed: {watch.Elapsed.TotalMilliseconds:F1} ms (fixture, not a device benchmark)");
         Check(watch.Elapsed < TimeSpan.FromSeconds(1), "A mirror without a main window waited the 1.2s graceful-close timeout");
         await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
     }

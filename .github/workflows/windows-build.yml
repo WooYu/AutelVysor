@@ -31,7 +31,6 @@ jobs:
         shell: powershell
         run: dotnet run --project tests/BridgeRegressionTests -c Release
       - name: Run rotation, native resize, recording and device polling regressions
-        if: ${{ !cancelled() }}
         shell: powershell
         run: dotnet run --project tests/RegressionTests/RegressionTests.csproj -c Release
       - uses: actions/upload-artifact@v4

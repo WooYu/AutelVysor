@@ -112,7 +112,8 @@ internal static class Program
             for (var i = 0; i < 100; i++) DebugCall(window, "EnqueueLogLine", $"{i:D3}:" + new string('x', 4000));
             DebugCall(window, "FlushLiveLog");
             var output = (TextBox)window.FindName("LogTextBox");
-            Check(output.Text.Length > 0 && output.Text.Length <= 32_768, "A single UI tick appended more than 32 KiB");
+            Console.WriteLine($"Logcat first flush: {output.Text.Length} characters (100 queued 4K lines)");
+            Check(output.Text.Length > 0 && output.Text.Length <= 32_768, "A single UI tick appended more than 32K characters");
             for (var i = 0; i < 100; i++) DebugCall(window, "FlushLiveLog");
             Check(output.Text.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length == 100, "Batched log lines were lost or duplicated");
             Check(output.Text.StartsWith("000:") && output.Text.Contains("099:"), "Log order changed");
@@ -144,6 +145,7 @@ internal static class Program
             ((ComboBox)window.FindName("PackageBox")).Text = "com.test.app";
             await (Task)DebugCall(window, "RefreshSelectedAppAsync")!;
             var calls = File.ReadAllLines(State("calls"));
+            Console.WriteLine($"App details: {calls.Length} ADB subprocesses; {calls.Count(line => line.Contains("dumpsys package com.test.app"))} package dump(s)");
             Check(calls.Count(line => line.Contains("dumpsys package com.test.app")) == 1, "App refresh repeated dumpsys package instead of sharing its snapshot");
             Check(((TextBlock)window.FindName("VersionText")).Text == "1.2.3", "App info did not use the snapshot");
             Check(((TextBox)window.FindName("PermissionsTextBox")).Text.Contains("android.permission.CAMERA"), "Permission view lost shared data");

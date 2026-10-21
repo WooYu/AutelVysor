@@ -339,7 +339,23 @@ public sealed class AndroidBridge(string adbPath)
     {
         var dump = await GetPackageDumpAsync(serial, packageName, ct);
         var pid = await GetPidAsync(serial, packageName, ct);
+        return ParseAppInfo(packageName, dump, pid);
+    }
 
+    public async Task<(AndroidAppInfo Info, string Permissions, string PackageDump)> GetAppDetailsAsync(
+        string serial, string packageName, CancellationToken ct = default)
+    {
+        // All three views must use the same dump, rather than starting three
+        // potentially expensive dumpsys calls with inconsistent snapshots.
+        var dumpTask = GetPackageDumpAsync(serial, packageName, ct);
+        var pidTask = GetPidAsync(serial, packageName, ct);
+        await Task.WhenAll(dumpTask, pidTask);
+        var dump = await dumpTask;
+        return (ParseAppInfo(packageName, dump, await pidTask), ParsePermissions(dump), dump);
+    }
+
+    private static AndroidAppInfo ParseAppInfo(string packageName, string dump, string pid)
+    {
         static string Capture(string text, string pattern)
         {
             var match = Regex.Match(text, pattern, RegexOptions.IgnoreCase | RegexOptions.Multiline);
@@ -394,6 +410,11 @@ public sealed class AndroidBridge(string adbPath)
     public async Task<string> GetAppPermissionsAsync(string serial, string packageName, CancellationToken ct = default)
     {
         var dump = await GetPackageDumpAsync(serial, packageName, ct);
+        return ParsePermissions(dump);
+    }
+
+    private static string ParsePermissions(string dump)
+    {
         var lines = dump.Split('\n', StringSplitOptions.RemoveEmptyEntries)
             .Select(line => line.Trim())
             .Where(line =>
