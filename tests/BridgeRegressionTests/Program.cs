@@ -31,6 +31,7 @@ internal static class Program
         Directory.CreateDirectory(commands);
         File.WriteAllText(Path.Combine(commands, "dumpsys"), "#!/bin/sh\ncase \"$1\" in battery) echo BatteryStatus;; wifi) echo WifiStatus;; dnsresolver) echo ResolverStatus;; connectivity) echo ConnectivityStatus;; *) echo ALL_DUMPSYS;; esac\n");
         File.WriteAllText(Path.Combine(commands, "wm"), "#!/bin/sh\ncase \"$1\" in size) echo 'Physical size: 1080x2400';; density) echo 'Physical density: 420';; *) echo WM_HELP;; esac\n");
+        File.WriteAllText(Path.Combine(commands, "settings"), "#!/bin/sh\ncase \"$3\" in accelerometer_rotation) cat \"$PWD/sensor\";; *) cat \"$PWD/rotation\";; esac\n");
         if (!OperatingSystem.IsWindows())
             foreach (var file in Directory.GetFiles(commands))
                 File.SetUnixFileMode(file, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);

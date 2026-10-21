@@ -17,7 +17,7 @@ internal static class Program
         Directory.CreateDirectory(Path.Combine(fixture, "commands"));
         Environment.SetEnvironmentVariable("AUTEL_COMMAND_FIXTURE", fixture);
         Environment.SetEnvironmentVariable("AUTEL_COMMAND_SELF", Self.Replace('\\', '/'));
-        foreach (var name in new[] { "getprop", "dumpsys", "ip", "ifconfig", "route", "ss", "netstat", "ping" })
+        foreach (var name in new[] { "getprop", "dumpsys", "ip", "ifconfig", "route", "ss", "netstat", "ping", "pm", "appops", "settings" })
         {
             var path = Path.Combine(fixture, "commands", name);
             File.WriteAllText(path, "#!/bin/sh\nexec \"$AUTEL_COMMAND_SELF\" fake-probe " + name + " \"$@\"\n", new UTF8Encoding(false));
@@ -45,7 +45,15 @@ internal static class Program
             ("DnsCommandFailureIsNotUnsupported", DnsCommandFailureIsNotUnsupported),
             ("NetworkFallbackProbesHaveIndependentStatuses", NetworkFallbackProbesHaveIndependentStatuses),
             ("LegacyNetworkQueryRetainsRemoteFailure", LegacyNetworkQueryRetainsRemoteFailure),
-            ("LegacyFailedPingRetainsRemoteFailure", LegacyFailedPingRetainsRemoteFailure)
+            ("LegacyFailedPingRetainsRemoteFailure", LegacyFailedPingRetainsRemoteFailure),
+            ("AdvancedPackageFailureDiagnostics", () => AdvancedShellFailure(async (service, serial) => { await service.ListPackagesAsync(serial, "User"); })),
+            ("AdvancedPermissionFailureDiagnostics", () => AdvancedShellFailure(async (service, serial) => { await service.SetRuntimePermissionAsync(serial, "com.test.app", "android.permission.CAMERA", true); })),
+            ("AdvancedAppOpSetFailureDiagnostics", () => AdvancedShellFailure(async (service, serial) => { await service.SetAppOpAsync(serial, "com.test.app", "CAMERA", "allow"); })),
+            ("AdvancedAppOpGetFailureDiagnostics", () => AdvancedShellFailure(async (service, serial) => { await service.GetAppOpsAsync(serial, "com.test.app"); })),
+            ("AdvancedRotationFailureDiagnostics", () => AdvancedShellFailure(async (service, serial) => { await service.GetRotationStateAsync(serial); })),
+            ("AdvancedMutationSuccessDisplaysStreams", AdvancedMutationSuccessDisplaysStreams),
+            ("AudioFailureDiagnostics", AudioFailureDiagnostics),
+            ("BugreportFailureDiagnostics", BugreportFailureDiagnostics)
         })
         {
             try { await run(); Console.WriteLine("PASS: " + name); }
@@ -236,6 +244,47 @@ internal static class Program
         Check(report.Contains("100% packet loss"), "Failed ping evidence was lost");
     }
 
+    private static async Task AdvancedShellFailure(Func<AdvancedAdbService, string, Task> operation)
+    {
+        try { await operation(new AdvancedAdbService(Self), "legacy-advanced-failure"); }
+        catch (AdbCommandException ex)
+        {
+            Check(ex.Result.ExitCode == 0 && ex.Result.RemoteExitCode == 29, "Advanced operation lost host/remote status: " + ex.Message);
+            Check(ex.Result.Output == "partial 中文\n" && ex.Result.Error == "rejected é\n", "Advanced operation changed or merged raw streams");
+            return;
+        }
+        throw new Exception("Advanced operation did not retain typed command failure");
+    }
+
+    private static async Task AdvancedMutationSuccessDisplaysStreams()
+    {
+        var service = new AdvancedAdbService(Self);
+        var permission = await service.SetRuntimePermissionAsync(Device, "com.test.app", "android.permission.CAMERA", false);
+        var appop = await service.SetAppOpAsync(Device, "com.test.app", "CAMERA", "allow");
+        foreach (var display in new[] { permission, appop })
+            Check(display.Contains("Exit code: 0") && display.Contains("stdout:\nother diagnostic\n") && display.Contains("stderr:\n(empty)"), "Successful mutation omitted command evidence: " + display);
+    }
+
+    private static async Task AudioFailureDiagnostics()
+    {
+        var device = new AutelVysor.Models.AndroidDevice("legacy-advanced-failure", "device", "Test", "", "", "", "", ApiLevel: 33);
+        var report = await new AdvancedAdbService(Self).GetAudioRouteReportAsync(device, false, false);
+        Check(report.Contains("Audio diagnostics: Query failed") && report.Contains("Remote exit code: 29") && report.Contains("ADB exit code: 0"), "Audio diagnostics lost failure status: " + report);
+        Check(report.Contains("stdout:\npartial 中文\n") && report.Contains("stderr:\nrejected é\n"), "Audio diagnostics discarded unfiltered command evidence");
+    }
+
+    private static async Task BugreportFailureDiagnostics()
+    {
+        var directory = Path.Combine(Environment.GetEnvironmentVariable("AUTEL_COMMAND_FIXTURE")!, "bugreports");
+        try { await new AdvancedAdbService(Self).ExportBugreportAsync("bugreport-failed", directory); }
+        catch (AdbCommandException ex)
+        {
+            Check(ex.Result.ExitCode == 31 && ex.Result.Output == "partial 中文\n" && ex.Result.Error == "rejected é\n", "Bugreport lost host status or raw streams");
+            return;
+        }
+        throw new Exception("Bugreport did not retain typed command failure");
+    }
+
     private static async Task<int> Child(string[] args)
     {
         if (args[0] == "fake-probe") return await Probe(args.Skip(1).ToArray());
@@ -253,6 +302,7 @@ internal static class Program
             return 0;
         }
         var serial = args.Length >= 2 ? args[1] : "";
+        if (args.Contains("bugreport")) return await Emit("partial 中文\n", "rejected é\n", 31);
         if (args.Contains("logcat"))
         {
             await Console.OpenStandardOutput().WriteAsync(Utf8Payload);
@@ -277,6 +327,8 @@ internal static class Program
     private static async Task<int> Probe(string[] args)
     {
         var serial = Environment.GetEnvironmentVariable("AUTEL_COMMAND_DEVICE");
+        if (serial == "legacy-advanced-failure" && args[0] is "pm" or "appops" or "settings" or "dumpsys")
+            return await Emit("partial 中文\n", "rejected é\n", 29);
         if (args[0] == "getprop") return await Emit("[ro.build.version.release]: [14]\n");
         if (args[0] == "dumpsys" && args.ElementAtOrDefault(1) == "dnsresolver")
         {

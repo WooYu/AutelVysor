@@ -4,7 +4,7 @@ User requirements: AV-006 Chinese/special-character echo, explicit command diagn
 
 Base: main 79f35791036c329a40bd018e512ce979c1f357cc.
 
-- [x] Reproduce text encoding/diagnostics/DNS failures through subprocess and simulated-runner regressions; implement explicit UTF-8, separate streams, and verified remote exit status. Seventeen command tests and three existing bridge tests pass locally.
+- [x] Reproduce text encoding/diagnostics/DNS failures through subprocess and simulated-runner regressions; implement explicit UTF-8, separate streams, and verified remote exit status. Twenty-five command tests and three existing bridge tests pass locally, including advanced permission/AppOps/audio/bugreport diagnostics.
 - [x] Implement explicit ADBKeyBoard setup/activation/restoration with persistent recovery and receiver/result verification; add service tests and physical clipboard acceptance steps. Eighteen portable Unicode/IME tests pass; device acceptance is pending.
 - [x] Require trusted valid timestamped EXE/installer signatures for public release, hash after signing, and verify packaged executable bytes. Eleven portable negative signing/package tests pass; trusted-positive signing is pending certificate configuration.
 - [x] Integrate all focused tests into Windows CI and retain existing Bridge/WPF regressions.

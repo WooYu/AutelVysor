@@ -21,15 +21,9 @@ public sealed class AdvancedAdbService(string adbPath)
     public async Task<IReadOnlyList<string>> ListPackagesAsync(
         string serial, string filter, CancellationToken ct = default)
     {
-        var args = new List<string> { "-s", serial, "shell", "pm", "list", "packages" };
-        switch (filter)
-        {
-            case "User": args.Add("-3"); break;
-            case "System": args.Add("-s"); break;
-        }
-        var result = await RunAsync(args, ct);
-        if (result.ExitCode != 0)
-            throw new InvalidOperationException((result.Output + result.Error).Trim());
+        var command = "pm list packages" + (filter switch { "User" => " -3", "System" => " -s", _ => "" });
+        var result = await _shellBridge.RunShellCommandResultAsync(serial, command, ct);
+        EnsureDiagnosticSuccess(result, "Unable to list Android packages.");
         return result.Output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Where(s => s.StartsWith("package:", StringComparison.Ordinal))
             .Select(s => s["package:".Length..].Trim())
@@ -59,11 +53,11 @@ public sealed class AdvancedAdbService(string adbPath)
     {
         packageName = ValidatePackage(packageName);
         permission = ValidatePermission(permission);
-        var result = await RunAsync(["-s", serial, "shell", "pm", grant ? "grant" : "revoke", packageName, permission], ct);
-        var output = (result.Output + "\n" + result.Error).Trim();
-        if (result.ExitCode != 0 || output.Contains("Exception", StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException(string.IsNullOrWhiteSpace(output) ? "Permission operation failed." : output);
-        return $"{(grant ? "Granted" : "Revoked")} {permission} for {packageName}. Android may reject non-runtime permissions.";
+        var result = await _shellBridge.RunShellCommandResultAsync(serial,
+            $"pm {(grant ? "grant" : "revoke")} {packageName} {permission}", ct);
+        EnsureDiagnosticSuccess(result, "Permission operation failed.");
+        return $"{(grant ? "Granted" : "Revoked")} {permission} for {packageName}. Android may reject non-runtime permissions.\n"
+            + result.FormatForDisplay();
     }
 
     public async Task<string> SetAppOpAsync(
@@ -75,28 +69,27 @@ public sealed class AdvancedAdbService(string adbPath)
             throw new InvalidOperationException("Invalid appops operation name.");
         if (mode is not ("allow" or "ignore" or "deny" or "default"))
             throw new InvalidOperationException("Select allow, ignore, deny or default.");
-        var result = await RunAsync(["-s", serial, "shell", "appops", "set", packageName, op, mode], ct);
-        var output = (result.Output + "\n" + result.Error).Trim();
-        if (result.ExitCode != 0 || output.Contains("Error", StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException(string.IsNullOrWhiteSpace(output) ? "AppOps change failed." : output);
-        return $"appops: {packageName} {op} = {mode}";
+        var result = await _shellBridge.RunShellCommandResultAsync(serial, $"appops set {packageName} {op} {mode}", ct);
+        EnsureDiagnosticSuccess(result, "AppOps change failed.");
+        return $"appops: {packageName} {op} = {mode}\n" + result.FormatForDisplay();
     }
 
     public async Task<string> GetAppOpsAsync(string serial, string packageName, CancellationToken ct = default)
     {
         ValidatePackage(packageName);
-        var result = await RunAsync(["-s", serial, "shell", "appops", "get", packageName], ct);
-        var output = (result.Output + "\n" + result.Error).Trim();
-        return result.ExitCode == 0 ? output : $"AppOps unavailable: {output}";
+        var result = await _shellBridge.RunShellCommandResultAsync(serial, "appops get " + packageName, ct);
+        EnsureDiagnosticSuccess(result, "AppOps unavailable.");
+        return result.FormatForDisplay();
     }
 
     public async Task<(int Degrees, bool AutoRotate)> GetRotationStateAsync(
         string serial, CancellationToken ct = default)
     {
-        var auto = await RunAsync(["-s", serial, "shell", "settings", "get", "system", "accelerometer_rotation"], ct);
+        var auto = await _shellBridge.RunShellCommandResultAsync(serial, "settings get system accelerometer_rotation", ct);
+        EnsureDiagnosticSuccess(auto, "Android rotation mode is unavailable.");
         var automatic = auto.Output.Trim() == "1";
-        if (auto.ExitCode != 0 || auto.Output.Trim() is not ("0" or "1"))
-            throw new InvalidOperationException("Android rotation mode is unavailable.");
+        if (auto.Output.Trim() is not ("0" or "1"))
+            throw new AdbCommandException("Android rotation mode is unavailable.", auto);
         var rotation = await DisplayRotationReader.ReadAsync(adbPath, serial, ct);
         return (rotation, automatic);
     }
@@ -118,15 +111,18 @@ public sealed class AdvancedAdbService(string adbPath)
 
         try
         {
-            var result = await RunAsync(["-s", device.Serial, "shell", "dumpsys", "audio"], ct);
+            var result = await _shellBridge.RunShellCommandResultAsync(device.Serial, "dumpsys audio", ct);
             var lines = result.Output.Split('\n')
                 .Where(line => Regex.IsMatch(line, @"bluetooth|a2dp|le.audio|sco|wired.head|speaker|active.device|mDevices", RegexOptions.IgnoreCase))
                 .Take(20)
                 .Select(line => line.Trim());
             sb.AppendLine("Android audio diagnostics (routing indicators only):");
+            sb.AppendLine("Audio diagnostics: " + DiagnosticStatus(result));
+            sb.AppendLine("Filtered routing indicators:");
             foreach (var line in lines) sb.AppendLine("  " + line);
-            if (result.ExitCode != 0) sb.AppendLine("  Diagnostics unavailable.");
+            sb.AppendLine(result.FormatForDisplay(16000));
         }
+        catch (OperationCanceledException) { throw; }
         catch (Exception ex)
         {
             sb.AppendLine($"Android audio diagnostics unavailable: {ex.Message}");
@@ -199,6 +195,13 @@ public sealed class AdvancedAdbService(string adbPath)
         return "Reported";
     }
 
+    private static void EnsureDiagnosticSuccess(CommandResult result, string message)
+    {
+        result.EnsureSuccess(message);
+        if (DiagnosticStatus(result) != "Reported")
+            throw new AdbCommandException(message, result);
+    }
+
     public async Task<string> PingAsync(string serial, string host, CancellationToken ct = default)
     {
         host = host.Trim();
@@ -216,14 +219,14 @@ public sealed class AdvancedAdbService(string adbPath)
         var outputPath = Path.Combine(outputDirectory, $"autel-bugreport-{safeSerial}-{DateTime.Now:yyyyMMdd-HHmmss}.zip");
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(TimeSpan.FromMinutes(7));
-        var result = await RunAsync(["-s", serial, "bugreport", outputPath], timeout.Token);
-        if (result.ExitCode != 0)
-            throw new InvalidOperationException($"bugreport failed: {(result.Output + result.Error).Trim()}");
+        var raw = await RunAsync(["-s", serial, "bugreport", outputPath], timeout.Token);
+        var result = new CommandResult(raw.ExitCode, raw.Output, raw.Error);
+        result.EnsureSuccess("Bugreport failed.");
         var file = File.Exists(outputPath) ? outputPath :
             Directory.EnumerateFiles(outputDirectory, $"autel-bugreport-{safeSerial}-*")
                      .OrderByDescending(File.GetLastWriteTimeUtc).FirstOrDefault();
         if (file is null)
-            throw new InvalidOperationException("ADB finished but did not produce a bugreport file. Check device support.");
+            throw new AdbCommandException("ADB finished but did not produce a bugreport file. Check device support.", result);
         return file;
     }
 
