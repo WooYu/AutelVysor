@@ -40,7 +40,7 @@ powershell.exe -NoProfile -File ".\scripts\run-company-adb-e2e.ps1" -AdbPath "C:
 - Android 屏幕实际方向状态读取（dumpsys；仅 settings 值不足以判定真实旋转）
 - Android dumpsys audio 元信息（**并非耳机实际有声**）
 
-不卸载公司业务 App、不清理真实 App 数据、不重启手机、不更改旋转、不重启 ADB 服务，也不会将报告上传到 GitHub。
+不卸载公司业务 App、不清理真实 App 数据、不重启手机、不更改旋转、不重启 ADB 服务，也不会将报告上传到 GitHub。自愿启用的 App 清数据和权限/AppOps 测试仅允许包名前缀 com.autel.vysor.fixture，防止误操作公司业务 App。
 
 可只测一台（serial 从 `adb devices -l` 获取）：
 
@@ -119,3 +119,5 @@ CI 使用 **PowerShell 编写的模拟 ADB** 测试脚本的执行逻辑、临�
 **实现说明**：PowerShell 的自动变量 `$args` 与显式参数不能重名；当前脚本统一使用 `$Arguments` 传递 ADB 命令数组，CI 模拟执行将验证参数确实传递给现有 ADB。
 
 **CI 调用检查**：模拟 ADB 测试会记录每一条收到的设备命令，检查 PowerShell 传参是否完整；这不会访问任何公司实体设备。
+
+CI 逻辑自测还验证端口读取以及脚本中只能存在一组 ADB 函数和退出判断，避免自动生成补丁时出现重复脚本。
