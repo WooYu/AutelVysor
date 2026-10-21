@@ -37,6 +37,8 @@
           <Button Click="VolumeDown_Click" Content="Vol −"/>
           <Button Click="VolumeUp_Click" Content="Vol +"/>
           <Button Click="Power_Click" Content="Power"/>
+          <Button Click="FitView_Click" Content="Fit"/>
+          <Button Click="ActualSize_Click" Content="1:1"/>
           <Button x:Name="RotateButton" Click="Rotate_Click" Content="Rotate device"/>
           <Button Click="AutoRotate_Click" Content="Auto rotate"/>
           <Button Click="Restart_Click" Content="Restart"/>
