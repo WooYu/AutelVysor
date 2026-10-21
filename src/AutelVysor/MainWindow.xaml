@@ -96,6 +96,7 @@
           <CheckBox x:Name="AutoReconnectBox" IsChecked="True" VerticalAlignment="Center" Margin="0,0,16,7" Content="Auto reconnect Wi-Fi"/>
           <Button x:Name="SidebarToggleButton" Click="SidebarToggle_Click" Content="Hide sidebar" Background="#475569"/>
           <Button Click="Fullscreen_Click" Content="Full screen" Background="#475569"/>
+          <Button Click="CheckUpdates_Click" Content="Check updates" Background="#475569"/>
           <Button Click="Diagnostics_Click" Content="Copy diagnostics" Background="#475569"/>
           <Button Click="Refresh_Click" Content="Refresh devices"/>
         </StackPanel>
@@ -124,6 +125,8 @@
               <Button Click="OpenAll_Click" Content="Open all" Background="#334155"/>
               <Button Click="CloseSession_Click" Content="Close current tab" Background="#334155"/>
               <Button Click="DeviceDebug_Click" Content="Device debug" Background="#475569"/>
+              <Button Click="BatchOperations_Click" Content="Batch operations" Background="#475569"/>
+              <Button Click="Captures_Click" Content="Captures" Background="#475569"/>
             </WrapPanel>
           </StackPanel>
 
@@ -207,6 +210,8 @@
                 <CheckBox x:Name="ClipboardBox" Margin="0,3,0,7" Content="Synchronize clipboard"/>
                 <CheckBox x:Name="ScreenOffBox" IsChecked="True" Margin="0,3,0,7" Content="Turn Android screen off while mirroring (default)"/>
                 <CheckBox x:Name="LegacyAccelerationBox" Margin="0,3,0,7" Content="Prefer Android 4.4 accelerated capture when available"/>
+                <CheckBox x:Name="AutoUpdateCheckBox" Margin="0,3,0,7"
+                          Content="Check GitHub Releases for updates on startup"/>
                 <Button Click="ApplyMirrorSettings_Click" Content="Apply &amp; restart mirrors" Background="#475569"/>
               </StackPanel>
             </Expander>
