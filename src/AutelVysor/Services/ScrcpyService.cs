@@ -58,6 +58,11 @@ public sealed class ScrcpyService(string scrcpyPath, AppSettings settings)
 
     private void ApplyRuntimeOptions(List<string> args, AndroidDevice device)
     {
+        // SDK mode is compatible with the widest range of Android devices.
+        // Prefer text events for typed characters (VIN, account, URLs) rather than
+        // translating every letter to a hardware-style key event.
+        args.Add("--keyboard=sdk");
+        args.Add("--prefer-text");
         switch ((_settings.MirrorQuality ?? "Standard").Trim().ToLowerInvariant())
         {
             case "smooth":

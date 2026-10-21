@@ -261,51 +261,71 @@ public sealed class AndroidBridge(string adbPath)
             : 0;
     }
 
+    private static bool RotationCommandSucceeded((int ExitCode, string Output, string Error) result)
+    {
+        var output = (result.Output + "\n" + result.Error).Trim();
+        return result.ExitCode == 0
+            && !Regex.IsMatch(output, @"(?:unknown|not found|unsupported|permission denied|securityexception|error:|exception)", RegexOptions.IgnoreCase);
+    }
+
+    /// <summary>
+    /// Locks the actual Android display rotation. First disable the sensor setting,
+    /// then use the system WindowManager command, with a Settings.System fallback for
+    /// Android 4.4 and vendor ROMs. This never rotates only the PC capture image.
+    /// </summary>
     public async Task<int> ToggleDeviceOrientationAsync(string serial, CancellationToken ct = default)
     {
         var current = await GetCurrentRotationDegreesAsync(serial, ct);
         var next = current is 90 or 270 ? 0 : 1;
+        var nextText = next.ToString(CultureInfo.InvariantCulture);
 
-        // Prefer WindowManager's user-rotation command on newer Android.
-        // Command spelling differs across Android generations, so fall back to the
-        // system settings used by Android CTS and older releases.
-        var wm = await RunAsync(["-s", serial, "shell", "wm", "user-rotation", "lock", next.ToString(CultureInfo.InvariantCulture)], ct: ct);
-        var wmText = (wm.Output + "\n" + wm.Error).Trim();
-        var wmFailed = wm.ExitCode != 0
-                       || wmText.Contains("Unknown", StringComparison.OrdinalIgnoreCase)
-                       || wmText.Contains("Error", StringComparison.OrdinalIgnoreCase);
+        // On several vendor ROMs, accelerometer_rotation=1 immediately overrides
+        // wm user-rotation lock. Disable it before requesting a fixed orientation.
+        var sensor = await RunAsync(["-s", serial, "shell", "settings", "put", "system", "accelerometer_rotation", "0"], ct: ct);
 
-        if (wmFailed)
+        var wm = await RunAsync(["-s", serial, "shell", "wm", "user-rotation", "lock", nextText], ct: ct);
+        if (!RotationCommandSucceeded(wm))
+            wm = await RunAsync(["-s", serial, "shell", "wm", "set-user-rotation", "lock", nextText], ct: ct);
+
+        // Maintain the settings fallback even on devices that claim wm success: some
+        // OEM builds accept the command but leave the rotation setting unchanged.
+        var setting = await RunAsync(["-s", serial, "shell", "settings", "put", "system", "user_rotation", nextText], ct: ct);
+        if (!RotationCommandSucceeded(wm) && setting.ExitCode != 0)
         {
-            wm = await RunAsync(["-s", serial, "shell", "wm", "set-user-rotation", "lock", next.ToString(CultureInfo.InvariantCulture)], ct: ct);
-            wmText = (wm.Output + "\n" + wm.Error).Trim();
-            wmFailed = wm.ExitCode != 0
-                       || wmText.Contains("Unknown", StringComparison.OrdinalIgnoreCase)
-                       || wmText.Contains("Error", StringComparison.OrdinalIgnoreCase);
+            var details = (wm.Output + wm.Error + setting.Output + setting.Error).Trim();
+            throw new InvalidOperationException("Android rejected rotation lock. " + details);
         }
 
-        if (!wmFailed)
-            return next * 90;
+        if (sensor.ExitCode != 0 && !RotationCommandSucceeded(wm))
+            throw new InvalidOperationException("Android could not disable sensor rotation or set a rotation lock.");
 
-        // Keep Settings.System in sync and provide the compatibility path for
-        // Android 4.4 / vendor builds without wm user-rotation.
-        var accel = await RunAsync(["-s", serial, "shell", "settings", "put", "system", "accelerometer_rotation", "0"], ct: ct);
-        EnsureSuccess(accel, "Unable to disable auto-rotation.", "error", "failed");
-        var rotation = await RunAsync(["-s", serial, "shell", "settings", "put", "system", "user_rotation", next.ToString(CultureInfo.InvariantCulture)], ct: ct);
-        EnsureSuccess(rotation, "Unable to rotate Android device.", "error", "failed");
+        // Verify the WindowManager policy, rather than treating exit code 0 as proof.
+        var policy = await RunAsync(["-s", serial, "shell", "wm", "user-rotation"], ct: ct);
+        var match = Regex.Match(policy.Output, @"\block\s+(?<rotation>[0-3])\b", RegexOptions.IgnoreCase);
+        if (policy.ExitCode == 0 && match.Success && match.Groups["rotation"].Value != nextText)
+            throw new InvalidOperationException($"Android kept rotation {match.Groups["rotation"].Value} instead of {nextText}.");
 
         return next * 90;
     }
 
     public async Task EnableAutoRotationAsync(string serial, CancellationToken ct = default)
     {
-        var result = await RunAsync(["-s", serial, "shell", "settings", "put", "system", "accelerometer_rotation", "1"], ct: ct);
-        EnsureSuccess(result, "Unable to enable Android auto-rotation.", "error", "failed");
-
-        // Best effort on newer Android. Older versions do not expose this wm command.
+        // Release WindowManager's fixed lock before enabling the sensor again.
         var wm = await RunAsync(["-s", serial, "shell", "wm", "user-rotation", "free"], ct: ct);
-        if (wm.ExitCode != 0 || (wm.Output + wm.Error).Contains("Unknown", StringComparison.OrdinalIgnoreCase))
-            await RunAsync(["-s", serial, "shell", "wm", "set-user-rotation", "free"], ct: ct);
+        if (!RotationCommandSucceeded(wm))
+            wm = await RunAsync(["-s", serial, "shell", "wm", "set-user-rotation", "free"], ct: ct);
+
+        var sensor = await RunAsync(["-s", serial, "shell", "settings", "put", "system", "accelerometer_rotation", "1"], ct: ct);
+        EnsureSuccess(sensor, "Unable to enable Android sensor auto-rotation.", "error", "failed", "exception");
+
+        var verify = await RunAsync(["-s", serial, "shell", "settings", "get", "system", "accelerometer_rotation"], ct: ct);
+        if (verify.ExitCode == 0 && verify.Output.Trim() == "0")
+            throw new InvalidOperationException("Android did not enable sensor auto-rotation; please check device settings.");
+
+        var policy = await RunAsync(["-s", serial, "shell", "wm", "user-rotation"], ct: ct);
+        if (RotationCommandSucceeded(wm) &&
+            policy.Output.TrimStart().StartsWith("lock", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Android is still locked by WindowManager; please check the device orientation policy.");
     }
 
     public Task InputTextAsync(string serial, string text, CancellationToken ct = default)

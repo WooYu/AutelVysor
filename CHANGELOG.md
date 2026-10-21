@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.10.2
+
+- Fixed cross-process keyboard focus transfer from the WPF native host to scrcpy's SDL window.
+- Added explicit **Focus keyboard** and **Send text** actions inside mirror sessions.
+- Prefer scrcpy SDK text events for PC typing; ASCII text can be sent directly through ADB without requiring native keyboard focus.
+- Preserved optional ADBKeyBoard/clipboard pathways for Chinese and other Unicode text.
+- Rotation now disables sensor rotation before locking Android orientation, uses WM command plus OEM compatibility fallback, and checks system rotation policy.
+- Auto rotate releases WindowManager's rotation lock and verifies sensor mode.
+- Updated status descriptions to distinguish an accepted rotation command from a display that refuses to rotate.
+- Added regression tests and a Windows physical-device ADB diagnostic script.
+
+
 ## 0.10.1
 
 - Integrated PR #1 (v0.9.1) into v0.10.x without losing the v0.10.0 device-debug, Unicode, batch-operation, networking, capture-management and update-check capabilities.

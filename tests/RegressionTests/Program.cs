@@ -17,7 +17,7 @@ internal static class Program
     public static int Main(string[] args)
     {
         if (args.Length > 0)
-            return FakeAdb(args);
+            return args[0] == "--native-child" ? NativeChildProcess() : FakeAdb(args);
 
         var directory = Path.Combine(Path.GetTempPath(), "AutelVysor-tests-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
@@ -30,7 +30,10 @@ internal static class Program
             {
                 ("Device metadata is reused until disconnect", CachedMetadata),
                 ("Rotation alternates between two orientations", ToggleOrientation),
+                ("Auto-rotation releases WM lock and re-enables sensor", AutoRotation),
+                ("ASCII text is injected via the actual ADB process boundary", AsciiText),
                 ("Embedded child returns to fit after repeated self-resizing", NativeResize),
+                ("Keyboard focus reaches an external native-window process", CrossProcessFocus),
                 ("Dark selections remain readable without keyboard focus", DarkSelection)
             })
             {
@@ -75,6 +78,29 @@ internal static class Program
         Check(await bridge.ToggleDeviceOrientationAsync("test-device") == 0, "Reverse landscape should return to natural orientation");
     }
 
+    private static async Task AutoRotation()
+    {
+        var bridge = Bridge();
+        File.WriteAllText(State("rotation"), "0");
+        File.WriteAllText(State("sensor"), "1");
+        await bridge.ToggleDeviceOrientationAsync("test-device");
+        Check(File.ReadAllText(State("sensor")) == "0", "Manual rotation did not disable the accelerometer before locking orientation");
+        Check(File.ReadAllText(State("rotation")) == "1", "Manual orientation did not reach 90 degrees");
+
+        await bridge.EnableAutoRotationAsync("test-device");
+        Check(File.ReadAllText(State("sensor")) == "1", "Auto rotate did not enable accelerometer");
+        Check(File.ReadAllText(State("wm-mode")) == "free", "WindowManager remained in a fixed rotation mode");
+    }
+
+    private static async Task AsciiText()
+    {
+        var bridge = Bridge();
+        File.WriteAllText(State("calls"), "");
+        await bridge.InputTextAsync("test-device", "VIN123 ABC");
+        Check(File.ReadAllLines(State("calls")).Any(x => x.Contains("shell input text VIN123%sABC", StringComparison.Ordinal)),
+            "ADB did not receive the intended ASCII input text");
+    }
+
     private static async Task NativeResize()
     {
         var host = new NativeWindowHost();
@@ -87,6 +113,8 @@ internal static class Program
             child = CreateWindowEx(0, "STATIC", "Test mirror", 0x90000000U, 0, 0, 200, 300, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
             Check(child != IntPtr.Zero, "Unable to create test native window");
             host.AttachExternalWindow(child);
+            window.Activate();
+            Check(host.FocusEmbeddedWindow(), "Keyboard focus was not delivered to the embedded native window");
             for (var i = 0; i < 12; i++)
             {
                 // Simulates SDL resizing/repositioning itself after a display orientation change.
@@ -105,6 +133,64 @@ internal static class Program
             if (child != IntPtr.Zero) DestroyWindow(child);
             window.Close();
         }
+    }
+
+    private static async Task CrossProcessFocus()
+    {
+        var window = new Window { Width = 480, Height = 480, ShowInTaskbar = false };
+        var host = new NativeWindowHost();
+        window.Content = host;
+        using var child = new Process
+        {
+            StartInfo = new ProcessStartInfo(Environment.ProcessPath!)
+            {
+                Arguments = "--native-child",
+                UseShellExecute = false,
+                CreateNoWindow = true
+            }
+        };
+        try
+        {
+            child.Start();
+            var started = Stopwatch.StartNew();
+            while (!File.Exists(State("native-hwnd")) && started.Elapsed < TimeSpan.FromSeconds(8))
+                await Task.Delay(50);
+            Check(File.Exists(State("native-hwnd")), "Native helper did not create its own Win32 window");
+            var hwnd = new IntPtr(long.Parse(File.ReadAllText(State("native-hwnd"))));
+            window.Show();
+            await Task.Delay(150);
+            host.AttachExternalWindow(hwnd);
+            window.Activate();
+            await Task.Delay(100);
+            Check(host.FocusEmbeddedWindow(), "Unable to give keyboard focus to the foreign SDL-style HWND");
+        }
+        finally
+        {
+            host.DetachExternalWindow();
+            window.Close();
+            try { if (!child.HasExited) child.Kill(entireProcessTree: true); } catch { }
+            try { child.WaitForExit(3000); } catch { }
+        }
+    }
+
+    private static int NativeChildProcess()
+    {
+        var hwnd = CreateWindowEx(0, "STATIC", "Autel Vysor native input focus test",
+            0x90C00000U, 120, 120, 320, 480,
+            IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+        if (hwnd == IntPtr.Zero) return 2;
+        File.WriteAllText(State("native-hwnd"), hwnd.ToInt64().ToString());
+        try
+        {
+            // The separate process has a real native message loop like SDL.
+            while (GetMessage(out var message, IntPtr.Zero, 0, 0) > 0)
+            {
+                TranslateMessage(ref message);
+                DispatchMessage(ref message);
+            }
+        }
+        finally { DestroyWindow(hwnd); }
+        return 0;
     }
 
     private static int FakeAdb(string[] args)
@@ -126,11 +212,38 @@ internal static class Program
             Console.WriteLine(args[^1] switch { "ro.build.version.sdk" => "34", "ro.build.version.release" => "14", _ => "arm64-v8a" });
         }
         else if (args.Contains("dumpsys"))
+        {
             Console.WriteLine("SurfaceOrientation: " + ReadRotation());
+        }
         else if (args.Contains("settings") && args.Contains("get"))
-            Console.WriteLine(ReadRotation());
-        else if ((args.Contains("settings") && args.Contains("put") && args.Contains("user_rotation")) || args.Contains("lock"))
-            File.WriteAllText(State("rotation"), args[^1]);
+        {
+            Console.WriteLine(args.Contains("accelerometer_rotation")
+                ? (File.Exists(State("sensor")) ? File.ReadAllText(State("sensor")) : "1")
+                : ReadRotation());
+        }
+        else if (args.Contains("settings") && args.Contains("put"))
+        {
+            if (args.Contains("accelerometer_rotation"))
+                File.WriteAllText(State("sensor"), args[^1]);
+            if (args.Contains("user_rotation"))
+                File.WriteAllText(State("rotation"), args[^1]);
+        }
+        else if (args.Contains("wm") && (args.Contains("user-rotation") || args.Contains("set-user-rotation")))
+        {
+            if (args.Contains("lock"))
+            {
+                File.WriteAllText(State("rotation"), args[^1]);
+                File.WriteAllText(State("wm-mode"), "lock " + args[^1]);
+            }
+            else if (args.Contains("free"))
+            {
+                File.WriteAllText(State("wm-mode"), "free");
+            }
+            else
+            {
+                Console.WriteLine(File.Exists(State("wm-mode")) ? File.ReadAllText(State("wm-mode")) : "free");
+            }
+        }
         return 0;
     }
 
@@ -194,4 +307,23 @@ internal static class Program
     [DllImport("user32.dll")] private static extern bool GetClientRect(IntPtr hwnd, out Rect rect);
     [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr hwnd, out Rect rect);
     [DllImport("user32.dll")] private static extern int MapWindowPoints(IntPtr from, IntPtr to, ref Rect rect, uint points);
+    [StructLayout(LayoutKind.Sequential)]
+    private struct WinPoint { public int X; public int Y; }
+    [StructLayout(LayoutKind.Sequential)]
+    private struct WinMessage
+    {
+        public IntPtr Hwnd;
+        public uint Message;
+        public IntPtr WParam;
+        public IntPtr LParam;
+        public uint Time;
+        public WinPoint Point;
+        public uint Private;
+    }
+
+    [DllImport("user32.dll")] private static extern int GetMessage(out WinMessage message, IntPtr hwnd, uint min, uint max);
+    [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool TranslateMessage(ref WinMessage message);
+    [DllImport("user32.dll")] private static extern IntPtr DispatchMessage(ref WinMessage message);
+
 }

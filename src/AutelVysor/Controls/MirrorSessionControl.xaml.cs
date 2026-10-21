@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using AutelVysor.Models;
 using AutelVysor.Services;
 
@@ -498,6 +499,57 @@ public partial class MirrorSessionControl : UserControl, IDisposable
         RotateStateText.Text = $"Rotation: {rotation}° · {(automatic ? "Auto" : "Locked")}";
     }
 
+    private void FocusMirror_Click(object sender, RoutedEventArgs e)
+    {
+        if (UsesLegacyBackend)
+        {
+            Focus();
+            StatusText.Text = "Keyboard focus moved to Android 4.4 mirror. Type ASCII or use Send text.";
+            return;
+        }
+
+        // A toolbar button may reclaim focus while its Click event is running.
+        // Transfer native Win32 focus after WPF has processed the button click.
+        Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(() =>
+        {
+            StatusText.Text = ScrcpyHost.FocusEmbeddedWindow()
+                ? "Keyboard connected to scrcpy. Click an Android text field and type on the PC keyboard."
+                : "Could not focus the embedded scrcpy window. Use Send text or restart the mirror.";
+        }));
+    }
+
+    private async void SendText_Click(object sender, RoutedEventArgs e)
+    {
+        var text = AndroidTextBox.Text;
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            StatusText.Text = "Type text in the box first.";
+            return;
+        }
+
+        try
+        {
+            if (text.Any(ch => ch > 127))
+            {
+                // adb shell input text cannot reliably type CJK / Unicode.
+                // The helper IME is opt-in, and its absence is reported explicitly.
+                StatusText.Text = await _advanced.SendUnicodeViaAdbKeyboardAsync(
+                    _device.Serial, text, _lifetime.Token);
+            }
+            else
+            {
+                await _bridge.InputTextAsync(_device.Serial, text, _lifetime.Token);
+                StatusText.Text = "ASCII input sent to Android via ADB. Tap the target text field first.";
+            }
+            _refreshRequested = true;
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
+        catch (Exception ex)
+        {
+            StatusText.Text = ex.Message;
+        }
+    }
+
     private void CopyAndroidText_Click(object sender, RoutedEventArgs e)
     {
         var text = AndroidTextBox.Text;
@@ -553,7 +605,7 @@ public partial class MirrorSessionControl : UserControl, IDisposable
             if (automatic)
             {
                 await _bridge.EnableAutoRotationAsync(_device.Serial, _lifetime.Token);
-                StatusText.Text = "Android auto-rotation enabled · view fitted to window.";
+                StatusText.Text = "Auto-rotate enabled. Tilt the physical device to rotate; the view is fitted. Some ROMs suspend sensors while the screen is off.";
             }
             else
             {
@@ -570,8 +622,8 @@ public partial class MirrorSessionControl : UserControl, IDisposable
                     await Task.Delay(100, _lifetime.Token);
                 }
                 StatusText.Text = applied
-                    ? "Android orientation switched · view fitted to window."
-                    : "Orientation requested · the current Android app may lock its orientation.";
+                    ? $"Android display orientation verified at {degrees}° · view fitted."
+                    : $"Android requested {degrees}°, but actual display did not rotate. Foreground app or OEM rotation policy may be locking it.";
             }
             if (_minicapSession is not null)
                 await RestartAsync(); // minicap's capture projection is set when its stream starts.
