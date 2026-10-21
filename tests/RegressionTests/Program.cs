@@ -2,6 +2,9 @@ using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using AutelVysor.Controls;
 using AutelVysor.Services;
 
@@ -27,7 +30,8 @@ internal static class Program
             {
                 ("Device metadata is reused until disconnect", CachedMetadata),
                 ("Rotation alternates between two orientations", ToggleOrientation),
-                ("Embedded child returns to fit after repeated self-resizing", NativeResize)
+                ("Embedded child returns to fit after repeated self-resizing", NativeResize),
+                ("Dark selections remain readable without keyboard focus", DarkSelection)
             })
             {
                 try { await test(); Console.WriteLine("PASS: " + name); }
@@ -128,6 +132,44 @@ internal static class Program
         else if ((args.Contains("settings") && args.Contains("put") && args.Contains("user_rotation")) || args.Contains("lock"))
             File.WriteAllText(State("rotation"), args[^1]);
         return 0;
+    }
+
+    private static async Task DarkSelection()
+    {
+        Application.Current.Resources.MergedDictionaries.Add(new ResourceDictionary
+        {
+            Source = new Uri("pack://application:,,,/AutelVysor;component/Theme.xaml")
+        });
+        var window = new AutelVysor.MainWindow { Width = 1180, Height = 780, ShowInTaskbar = false };
+        try
+        {
+            var list = (ListBox)window.FindName("DeviceList");
+            list.ItemsSource = new[] { new { Title = "SM S9180", Meta = "Android 16 · API 36 · USB", Serial = "TEST-DEVICE", Status = "Online" } };
+            list.SelectedIndex = 0;
+            var tabs = (TabControl)window.FindName("SessionTabs");
+            var selectedTab = new TabItem { Header = "SM S9180", Content = new TextBlock { Text = "Mirror viewport", Foreground = Brushes.White, Margin = new Thickness(30) } };
+            tabs.Items.Add(selectedTab);
+            tabs.SelectedItem = selectedTab;
+            ((FrameworkElement)window.FindName("EmptyWorkspace")).Visibility = Visibility.Collapsed;
+            window.Show();
+            tabs.Focus();
+            await Task.Delay(150);
+            window.UpdateLayout();
+            var item = (ListBoxItem)list.ItemContainerGenerator.ContainerFromIndex(0);
+            var rowSurface = (Border)item.Template.FindName("Surface", item);
+            var tabSurface = (Border)selectedTab.Template.FindName("Surface", selectedTab);
+            Check(((SolidColorBrush)rowSurface.Background).Color == (Color)ColorConverter.ConvertFromString("#173454"), "Inactive device selection lost dark background");
+            Check(((SolidColorBrush)tabSurface.Background).Color == (Color)ColorConverter.ConvertFromString("#173454"), "Selected tab uses a system light background");
+            var output = Path.GetFullPath("test-results");
+            Directory.CreateDirectory(output);
+            var bitmap = new RenderTargetBitmap((int)window.ActualWidth, (int)window.ActualHeight, 96, 96, PixelFormats.Pbgra32);
+            bitmap.Render(window);
+            var png = new PngBitmapEncoder();
+            png.Frames.Add(BitmapFrame.Create(bitmap));
+            using var stream = File.Create(Path.Combine(output, "dark-selection.png"));
+            png.Save(stream);
+        }
+        finally { window.Close(); }
     }
 
     private static string ReadRotation() => File.Exists(State("rotation")) ? File.ReadAllText(State("rotation")) : "0";

@@ -21,6 +21,10 @@ jobs:
       - name: Run rotation, native resize and device polling regressions
         shell: powershell
         run: dotnet run --project tests/RegressionTests/RegressionTests.csproj -c Release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AutelVysor-visual-check
+          path: test-results/dark-selection.png
   build:
     needs: regression-tests
     runs-on: windows-latest
