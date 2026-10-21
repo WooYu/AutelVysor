@@ -11,6 +11,8 @@ namespace AutelVysor.Services;
 
 public sealed class AndroidBridge(string adbPath)
 {
+    public string ExecutablePath => adbPath;
+
     private readonly ConcurrentDictionary<string, AndroidDevice> _metadataCache = new(StringComparer.OrdinalIgnoreCase);
     private static string ValueOf(IEnumerable<string> fields, string key)
     {

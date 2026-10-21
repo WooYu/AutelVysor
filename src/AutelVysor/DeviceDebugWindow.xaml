@@ -79,6 +79,16 @@
               <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <StackPanel>
+              <WrapPanel Margin="0,0,0,8">
+                <TextBlock Text="Apps" Foreground="#94A3B8" Margin="0,7,8,0"/>
+                <ComboBox x:Name="AppCategoryBox" Width="120" SelectedIndex="0" SelectionChanged="AppFilterChanged">
+                  <ComboBoxItem Content="All"/>
+                  <ComboBoxItem Content="User"/>
+                  <ComboBoxItem Content="System"/>
+                </ComboBox>
+                <TextBox x:Name="PackageSearchBox" Width="255" Margin="8,0,0,0"
+                         TextChanged="AppFilterChanged" ToolTip="Search installed package names"/>
+              </WrapPanel>
               <TextBlock Foreground="#94A3B8" Margin="0,0,0,5" Text="Package name"/>
               <ComboBox x:Name="PackageBox"
                         IsEditable="True"
@@ -155,6 +165,39 @@
                          HorizontalScrollBarVisibility="Auto"
                          FontFamily="Consolas" FontSize="12"/>
               </TabItem>
+              <TabItem Header="Permission manager">
+                <Grid Margin="8">
+                  <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                  </Grid.RowDefinitions>
+                  <TextBlock Grid.Row="0" Text="Runtime permission (pm grant / revoke)" Foreground="#CBD5E1"/>
+                  <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,6,0,9">
+                    <TextBox x:Name="PermissionNameBox" Width="290" Text="android.permission.CAMERA"/>
+                    <Button Click="GrantPermission_Click" Content="Grant" Margin="8,0,4,0"/>
+                    <Button Click="RevokePermission_Click" Content="Revoke" Background="#B45309"/>
+                  </StackPanel>
+                  <TextBlock Grid.Row="2" Text="AppOps (Android enforces support / permissions)" Foreground="#CBD5E1"/>
+                  <StackPanel Grid.Row="3" Margin="0,6,0,0">
+                    <WrapPanel>
+                      <TextBox x:Name="AppOpNameBox" Width="140" Text="CAMERA"/>
+                      <ComboBox x:Name="AppOpModeBox" Width="120" Margin="8,0,8,0" SelectedIndex="0">
+                        <ComboBoxItem Content="allow"/>
+                        <ComboBoxItem Content="ignore"/>
+                        <ComboBoxItem Content="deny"/>
+                        <ComboBoxItem Content="default"/>
+                      </ComboBox>
+                      <Button Click="SetAppOp_Click" Content="Set AppOp"/>
+                      <Button Click="RefreshAppOps_Click" Content="Read AppOps" Background="#475569"/>
+                    </WrapPanel>
+                    <TextBox x:Name="AppOpsTextBox" IsReadOnly="True" AcceptsReturn="True"
+                             VerticalScrollBarVisibility="Auto" Margin="0,10,0,0"
+                             FontFamily="Consolas" MinHeight="100"/>
+                  </StackPanel>
+                </Grid>
+              </TabItem>
               <TabItem Header="dumpsys package">
                 <TextBox x:Name="PackageDumpTextBox"
                          IsReadOnly="True" AcceptsReturn="True"
@@ -205,6 +248,10 @@
                 <ComboBoxItem Content="Error" Tag="E"/>
                 <ComboBoxItem Content="Fatal" Tag="F"/>
               </ComboBox>
+              <TextBlock Text="Tag" Foreground="#94A3B8" Margin="0,7,6,0"/>
+              <TextBox x:Name="LogTagBox" Width="110" Margin="0,0,8,7" ToolTip="Exact Android logcat Tag substring"/>
+              <TextBlock Text="PID" Foreground="#94A3B8" Margin="0,7,6,0"/>
+              <TextBox x:Name="LogPidBox" Width="76" Margin="0,0,8,7" ToolTip="Optional PID"/>
               <CheckBox x:Name="OnlySelectedAppLogBox" Margin="0,7,14,7" Content="Selected app PID only"/>
               <CheckBox x:Name="PauseLogBox" Margin="0,7,0,7" Content="Pause"/>
             </WrapPanel>
@@ -281,13 +328,19 @@
           <Grid.RowDefinitions>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
           </Grid.RowDefinitions>
+          <WrapPanel Grid.Row="1" Margin="0,9,0,3" HorizontalAlignment="Left">
+            <ComboBox x:Name="SavedCommandsBox" Width="210" SelectionChanged="SavedCommandSelected" ToolTip="Favorite ADB shell commands"/>
+            <Button Click="SaveShellFavorite_Click" Content="★ Save" Background="#475569"/>
+            <Button Click="RemoveShellFavorite_Click" Content="Remove" Background="#475569"/>
+          </WrapPanel>
           <TextBox Grid.Row="0" x:Name="ShellOutputBox"
                    IsReadOnly="True" AcceptsReturn="True"
                    VerticalScrollBarVisibility="Auto"
                    HorizontalScrollBarVisibility="Auto"
                    FontFamily="Consolas" FontSize="12"/>
-          <Grid Grid.Row="1" Margin="0,10,0,0">
+          <Grid Grid.Row="2" Margin="0,6,0,0">
             <Grid.ColumnDefinitions>
               <ColumnDefinition Width="*"/>
               <ColumnDefinition Width="Auto"/>
@@ -300,6 +353,23 @@
             <Button Grid.Column="1" Click="RunShell_Click" Content="Run"/>
             <Button Grid.Column="2" Click="ClearShell_Click" Content="Clear" Background="#475569"/>
           </Grid>
+        </Grid>
+      </TabItem>
+
+      <TabItem Header="Network">
+        <Grid Margin="12">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+          </Grid.RowDefinitions>
+          <WrapPanel Grid.Row="0" Margin="0,0,0,10">
+            <Button Click="RefreshNetwork_Click" Content="Interfaces / DNS / routes / ports"/>
+            <TextBox x:Name="PingHostBox" Width="200" Text="8.8.8.8" Margin="8,0,6,7"/>
+            <Button Click="PingHost_Click" Content="Ping" Background="#475569"/>
+          </WrapPanel>
+          <TextBox Grid.Row="1" x:Name="NetworkTextBox" IsReadOnly="True"
+                   AcceptsReturn="True" FontFamily="Consolas" FontSize="12"
+                   VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"/>
         </Grid>
       </TabItem>
 
@@ -331,6 +401,7 @@
           <WrapPanel Grid.Row="2" Margin="0,12,0,0">
             <Button Click="RebootDevice_Click" Content="Reboot device" Background="#B45309"/>
             <Button Click="RestartAdb_Click" Content="Restart ADB server" Background="#B45309"/>
+            <Button Click="ExportBugreport_Click" Content="Export bugreport" Background="#475569"/>
             <TextBlock Margin="10,7,0,0" Foreground="#64748B" TextWrapping="Wrap"
                        Text="Restarting ADB affects all connected devices and active mirror sessions."/>
           </WrapPanel>

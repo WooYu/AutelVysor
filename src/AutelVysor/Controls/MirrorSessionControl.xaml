@@ -25,6 +25,7 @@
     </Grid.RowDefinitions>
 
     <Border Grid.Row="0" Background="#111827" BorderBrush="#1F2937" BorderThickness="0,0,0,1" Padding="10">
+      <StackPanel>
       <DockPanel LastChildFill="True">
         <StackPanel DockPanel.Dock="Left">
           <TextBlock x:Name="DeviceTitleText" FontSize="15" FontWeight="SemiBold"/>
@@ -44,6 +45,15 @@
           <Button Click="Restart_Click" Content="Restart"/>
         </WrapPanel>
       </DockPanel>
+      <DockPanel Margin="0,7,0,0" LastChildFill="True">
+        <Button DockPanel.Dock="Right" Click="AudioRoute_Click" Content="Audio routes" ToolTip="Show configured PC audio and Android route indicators"/>
+        <Button DockPanel.Dock="Right" Click="SendUnicode_Click" Content="Send via ADB IME" ToolTip="Requires optional ADBKeyBoard to be installed and selected on Android"/>
+        <Button DockPanel.Dock="Right" Click="CopyAndroidText_Click" Content="Copy text" ToolTip="Then focus a field in the mirror and use Ctrl+V in scrcpy"/>
+        <TextBox x:Name="AndroidTextBox" Background="#0B1220" Foreground="#E5E7EB"
+                 BorderBrush="#334155" CaretBrush="White" MinWidth="200" Height="30"
+                 Padding="6,4" ToolTip="Type Chinese / VIN / URLs; Copy text then Ctrl+V in scrcpy, or send with installed ADBKeyBoard"/>
+      </DockPanel>
+      </StackPanel>
     </Border>
 
     <Grid Grid.Row="1" Background="Black">
@@ -69,6 +79,8 @@
     <Border Grid.Row="2" Background="#111827" BorderBrush="#1F2937" BorderThickness="0,1,0,0" Padding="8,6">
       <DockPanel>
         <TextBlock x:Name="BackendText" DockPanel.Dock="Right" Foreground="#64748B" Margin="12,0,0,0"/>
+        <TextBlock x:Name="AudioRouteText" DockPanel.Dock="Right" Foreground="#93C5FD" Margin="12,0,0,0"/>
+        <TextBlock x:Name="RotateStateText" DockPanel.Dock="Right" Foreground="#CBD5E1" Margin="12,0,0,0"/>
         <TextBlock x:Name="StatusText" Foreground="#94A3B8" TextTrimming="CharacterEllipsis"/>
       </DockPanel>
     </Border>

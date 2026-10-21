@@ -16,6 +16,10 @@ public partial class DeviceDebugWindow : Window
     private const int MaxLiveLogChars = 500_000;
 
     private readonly AndroidBridge _bridge;
+    private readonly AdvancedAdbService _advanced;
+    private readonly ShellFavoritesService _favoritesService = new();
+    private readonly List<string> _favorites = [];
+    private IReadOnlyList<string> _allPackages = Array.Empty<string>();
     private readonly AndroidDevice _device;
     private readonly ConcurrentQueue<string> _logQueue = new();
     private readonly DispatcherTimer _logFlushTimer;
@@ -28,7 +32,10 @@ public partial class DeviceDebugWindow : Window
     {
         InitializeComponent();
         _bridge = bridge;
+        _advanced = new AdvancedAdbService(bridge.ExecutablePath);
         _device = device;
+        _favorites.AddRange(_favoritesService.Load());
+        SavedCommandsBox.ItemsSource = _favorites.ToArray();
 
         DeviceNameText.Text = device.DisplayName;
         DeviceMetaText.Text = $"{device.Serial} · Android {Fallback(device.AndroidVersion)} · API {(device.ApiLevel > 0 ? device.ApiLevel : 0)} · {Fallback(device.Abi)} · {device.Connection}";
@@ -86,11 +93,31 @@ public partial class DeviceDebugWindow : Window
     {
         var previous = PackageBox.Text.Trim();
         StatusText.Text = "Loading installed packages…";
-        var packages = await _bridge.ListPackagesAsync(_device.Serial);
-        PackageBox.ItemsSource = packages;
-        if (!string.IsNullOrWhiteSpace(previous))
-            PackageBox.Text = previous;
-        StatusText.Text = $"Loaded {packages.Count} package(s).";
+        var category = (AppCategoryBox.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Content?.ToString() ?? "All";
+        _allPackages = await _advanced.ListPackagesAsync(_device.Serial, category);
+        ApplyPackageFilter(previous);
+        StatusText.Text = $"Loaded {_allPackages.Count} {category.ToLowerInvariant()} package(s).";
+    }
+
+    private void ApplyPackageFilter(string? previouslySelected = null)
+    {
+        var selection = previouslySelected ?? PackageBox.Text.Trim();
+        var search = PackageSearchBox.Text.Trim();
+        var filtered = _allPackages
+            .Where(name => search.Length == 0 || name.Contains(search, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        PackageBox.ItemsSource = filtered;
+        if (!string.IsNullOrWhiteSpace(selection))
+            PackageBox.Text = selection;
+    }
+
+    private async void AppFilterChanged(object sender, RoutedEventArgs e)
+    {
+        if (!IsLoaded) return;
+        if (ReferenceEquals(sender, AppCategoryBox))
+            await Guard(LoadPackagesAsync, showDialog: false);
+        else
+            ApplyPackageFilter();
     }
 
     private async Task RefreshSelectedAppAsync()
@@ -207,6 +234,44 @@ public partial class DeviceDebugWindow : Window
         PackageDumpTextBox.Clear();
         await LoadPackagesAsync();
         StatusText.Text = $"Uninstalled {packageName}.";
+    });
+
+    private async void GrantPermission_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
+    {
+        StatusText.Text = await _advanced.SetRuntimePermissionAsync(
+            _device.Serial, SelectedPackageName(), PermissionNameBox.Text, grant: true);
+        await RefreshSelectedAppAsync();
+    });
+
+    private async void RevokePermission_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
+    {
+        var packageName = SelectedPackageName();
+        if (MessageBox.Show(this,
+            $"Revoke {PermissionNameBox.Text.Trim()} from {packageName}?\nThe app may lose access to a required feature.",
+            "Confirm permission revoke", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+            return;
+        StatusText.Text = await _advanced.SetRuntimePermissionAsync(
+            _device.Serial, packageName, PermissionNameBox.Text, grant: false);
+        await RefreshSelectedAppAsync();
+    });
+
+    private async void RefreshAppOps_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
+    {
+        AppOpsTextBox.Text = await _advanced.GetAppOpsAsync(_device.Serial, SelectedPackageName());
+        StatusText.Text = "AppOps refreshed.";
+    });
+
+    private async void SetAppOp_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
+    {
+        var name = SelectedPackageName();
+        var op = AppOpNameBox.Text.Trim();
+        var mode = (AppOpModeBox.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Content?.ToString() ?? "default";
+        if (MessageBox.Show(this,
+            $"Set {name} appop {op} = {mode}?\nThis changes Android app access policy.",
+            "Confirm AppOps change", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+            return;
+        StatusText.Text = await _advanced.SetAppOpAsync(_device.Serial, name, op, mode);
+        AppOpsTextBox.Text = await _advanced.GetAppOpsAsync(_device.Serial, name);
     });
 
     private async void RefreshProcesses_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
@@ -346,6 +411,23 @@ public partial class DeviceDebugWindow : Window
             if (string.IsNullOrWhiteSpace(_selectedLogPid))
                 return false;
             if (!match.Success || !string.Equals(match.Groups["pid"].Value, _selectedLogPid, StringComparison.Ordinal))
+                return false;
+        }
+
+        var pidFilter = LogPidBox.Text.Trim();
+        if (pidFilter.Length > 0 && (!match.Success || match.Groups["pid"].Value != pidFilter))
+            return false;
+
+        var tagFilter = LogTagBox.Text.Trim();
+        if (tagFilter.Length > 0)
+        {
+            if (!match.Success)
+                return false;
+            var levelEnd = match.Index + match.Length;
+            var remaining = line[levelEnd..];
+            var colon = remaining.IndexOf(':');
+            var tag = colon < 0 ? remaining.Trim() : remaining[..colon].Trim();
+            if (!tag.Contains(tagFilter, StringComparison.OrdinalIgnoreCase))
                 return false;
         }
 
@@ -590,6 +672,75 @@ public partial class DeviceDebugWindow : Window
 
     private async void RefreshDeviceDetails_Click(object sender, RoutedEventArgs e)
         => await Guard(RefreshDeviceDetailsAsync);
+
+    private async void RefreshNetwork_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
+    {
+        StatusText.Text = "Collecting network interfaces, routes, DNS and ports…";
+        NetworkTextBox.Text = await _advanced.GetNetworkReportAsync(_device.Serial);
+        StatusText.Text = "Network diagnostics ready.";
+    });
+
+    private async void PingHost_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
+    {
+        var host = PingHostBox.Text.Trim();
+        StatusText.Text = $"Pinging {host}…";
+        NetworkTextBox.AppendText(Environment.NewLine + "=== PING " + host + " ===" + Environment.NewLine);
+        NetworkTextBox.AppendText(await _advanced.PingAsync(_device.Serial, host));
+        NetworkTextBox.ScrollToEnd();
+        StatusText.Text = "Ping finished.";
+    });
+
+    private async void ExportBugreport_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
+    {
+        var dialog = new SaveFileDialog
+        {
+            Title = "Select bugreport output folder (file name will be generated)",
+            FileName = "autel-bugreport.zip",
+            Filter = "ZIP archive (*.zip)|*.zip"
+        };
+        if (dialog.ShowDialog(this) != true)
+            return;
+        StatusText.Text = "Collecting bugreport; this can take several minutes…";
+        var file = await _advanced.ExportBugreportAsync(_device.Serial,
+            Path.GetDirectoryName(dialog.FileName) ?? AppContext.BaseDirectory);
+        StatusText.Text = $"Bugreport saved: {file}";
+        MessageBox.Show(this, $"Bugreport exported:\n{file}\n\nCheck for sensitive content before sharing.",
+            "Autel Vysor", MessageBoxButton.OK, MessageBoxImage.Information);
+    });
+
+    private void RefreshSavedCommands()
+    {
+        var selected = SavedCommandsBox.SelectedItem as string;
+        SavedCommandsBox.ItemsSource = _favorites.ToArray();
+        if (selected is not null)
+            SavedCommandsBox.SelectedItem = selected;
+    }
+
+    private void SavedCommandSelected(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (!IsLoaded || SavedCommandsBox.SelectedItem is not string cmd) return;
+        ShellCommandBox.Text = cmd;
+        ShellCommandBox.CaretIndex = cmd.Length;
+    }
+
+    private void SaveShellFavorite_Click(object sender, RoutedEventArgs e)
+    {
+        var cmd = ShellCommandBox.Text.Trim();
+        if (cmd.Length == 0) { StatusText.Text = "Enter a command to save."; return; }
+        if (!_favorites.Contains(cmd, StringComparer.Ordinal)) _favorites.Add(cmd);
+        _favoritesService.Save(_favorites);
+        RefreshSavedCommands();
+        StatusText.Text = "Shell command saved locally.";
+    }
+
+    private void RemoveShellFavorite_Click(object sender, RoutedEventArgs e)
+    {
+        if (SavedCommandsBox.SelectedItem is not string cmd) return;
+        _favorites.Remove(cmd);
+        _favoritesService.Save(_favorites);
+        RefreshSavedCommands();
+        StatusText.Text = "Saved command removed.";
+    }
 
     private async void RebootDevice_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
     {
