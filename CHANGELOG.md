@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.9.0
+
+- Added hide/show sidebar and F11 full-screen workspace modes.
+- Added Fit and 1:1 mirror display modes.
+- Added an interactive ADB Shell tab with command history.
+- Added a remote Android file manager with browse, upload, download, mkdir and confirmed delete.
+- Added logcat filtering by text, minimum priority and selected-app PID, plus pause.
+- Added detailed device reporting for build, display, battery, memory, storage and network.
+- Preserved the v0.8.1 real-device rotation, readable dark sidebar and Bluetooth/device-audio fixes.
+
+
 ## 0.8.1
 
 - Fixed low-contrast left-sidebar controls with explicit dark CheckBox, ComboBox and Expander styling.
