@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.9.1
+
+- Simplified real-device rotation to a two-orientation toggle, with a shared busy guard and Fit reset.
+- Track native mirror size changes and restore the embedded viewport after SDL resizes itself on rotation.
+- Resize the external HWND asynchronously and skip identical bounds to avoid blocking the WPF UI or creating resize feedback loops.
+- Unified dark selected, hover and focus states for device rows, tabs, dropdown items and buttons; improved device serial contrast.
+- Cache stable Android metadata until disconnect or transport change, avoid duplicate device scans without reconnect attempts, and preserve unchanged device lists.
+- Run Android 4.4 image capture and decoding loops off the UI thread.
+- Added Windows regressions for repeated native-window resizing, orientation toggling and metadata cache invalidation.
+
 ## 0.9.0
 
 - Added hide/show sidebar and F11 full-screen workspace modes.

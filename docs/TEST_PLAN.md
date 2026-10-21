@@ -61,3 +61,14 @@ For each device verify discovery, mirror, click, drag, keyboard, Home/Back/Recen
 5. Verify Volume +/- toolbar actions on both legacy and scrcpy sessions.
 6. Choose **Copy diagnostics** and verify app version, OS, adb/scrcpy versions and device API/ABI are present.
 7. Force a test exception in a debug build and verify `%LOCALAPPDATA%\Autel\AutelVysor\AutelVysor.log` is created.
+# 0.9.1 rotation and responsiveness regressions
+
+Run `dotnet run --project tests/RegressionTests/RegressionTests.csproj -c Release` on Windows.
+The runner uses real Win32 windows and real subprocess calls to a test ADB endpoint.
+It checks 12 consecutive child-window resize events, six orientation toggles, and metadata refresh on reconnect.
+
+On physical devices: repeat horizontal/vertical switching at least 20 times, including rapid clicks, Fit/1:1, resized windows, 100%/150%/200% DPI, and sensor auto-rotation.
+Verify the complete display and touch alignment. Check natural-landscape tablets and an app that locks orientation.
+Confirm selected tabs, device rows and dropdowns stay readable when focus moves to the mirror.
+Verify four connected devices with high-quality mirroring and Android 4.4 capture, and check Bluetooth audio remains available.
+These hardware and visual checks are separate from automated Windows regression coverage.

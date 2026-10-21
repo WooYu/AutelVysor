@@ -64,11 +64,11 @@ internal static class Program
         File.WriteAllText(State("rotation"), "0");
         for (var i = 0; i < 6; i++)
         {
-            var degrees = await bridge.RotateDeviceClockwiseAsync("test-device");
+            var degrees = await bridge.ToggleDeviceOrientationAsync("test-device");
             Check(degrees == (i % 2 == 0 ? 90 : 0), $"Click {i + 1}: expected 0/90 toggle, got {degrees}");
         }
         File.WriteAllText(State("rotation"), "3");
-        Check(await bridge.RotateDeviceClockwiseAsync("test-device") == 0, "Reverse landscape should return to natural orientation");
+        Check(await bridge.ToggleDeviceOrientationAsync("test-device") == 0, "Reverse landscape should return to natural orientation");
     }
 
     private static async Task NativeResize()

@@ -32,6 +32,7 @@ public partial class MirrorSessionControl : UserControl, IDisposable
     private volatile bool _refreshRequested;
     private bool _disposed;
     private bool _forceLegacyFallback;
+    private bool _orientationBusy;
     private DateTime _nextModernRetryUtc;
 
     public MirrorSessionControl(
@@ -220,9 +221,10 @@ public partial class MirrorSessionControl : UserControl, IDisposable
             ShowOverlay("Starting Android 4.4 accelerated mirror…", "Trying DeviceFarmer minicap; Autel Vysor will fall back to ADB screenshots automatically if it is not compatible with this device.");
             try
             {
-                _minicapSession = await _minicap.StartAsync(_device, ct);
+                var session = await _minicap.StartAsync(_device, ct);
+                _minicapSession = session;
                 BackendText.Text = "minicap accelerated · Android 4.4 / API 19";
-                _legacyLoop = LegacyMinicapLoopAsync(_minicapSession, ct);
+                _legacyLoop = Task.Run(() => LegacyMinicapLoopAsync(session, ct), ct);
                 return;
             }
             catch (Exception ex) when (!ct.IsCancellationRequested)
@@ -235,7 +237,7 @@ public partial class MirrorSessionControl : UserControl, IDisposable
 
         BackendText.Text = "ADB compatibility · Android 4.4";
         ShowOverlay("Starting Android 4.4 mirror…", "Compatibility mode uses ADB screenshots and input injection.");
-        _legacyLoop = LegacyRefreshLoopAsync(ct);
+        _legacyLoop = Task.Run(() => LegacyRefreshLoopAsync(ct), ct);
     }
 
     private async Task LegacyMinicapLoopAsync(LegacyMinicapSession session, CancellationToken ct)
@@ -437,31 +439,47 @@ public partial class MirrorSessionControl : UserControl, IDisposable
         }
     }
 
-    private async void Rotate_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            var degrees = await _bridge.RotateDeviceClockwiseAsync(_device.Serial, _lifetime.Token);
-            RotateButton.Content = $"Rotate device · {degrees}°";
-            StatusText.Text = $"Android device rotation locked to {degrees}°. The mirror follows the real device display.";
-            _refreshRequested = true;
-        }
-        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
-        {
-        }
-        catch (Exception ex)
-        {
-            StatusText.Text = ex.Message;
-        }
-    }
+    private async void Rotate_Click(object sender, RoutedEventArgs e) => await ChangeOrientationAsync(automatic: false);
 
-    private async void AutoRotate_Click(object sender, RoutedEventArgs e)
+    private async void AutoRotate_Click(object sender, RoutedEventArgs e) => await ChangeOrientationAsync(automatic: true);
+
+    private async Task ChangeOrientationAsync(bool automatic)
     {
+        if (_disposed || _orientationBusy)
+            return;
+        _orientationBusy = true;
+        RotateButton.IsEnabled = false;
+        AutoRotateButton.IsEnabled = false;
         try
         {
-            await _bridge.EnableAutoRotationAsync(_device.Serial, _lifetime.Token);
-            RotateButton.Content = "Rotate device";
-            StatusText.Text = "Android auto-rotation enabled.";
+            // Orientation changes always return to Fit, including from a cropped 1:1 view.
+            ScrcpyHost.SetFitMode();
+            LegacyImage.Stretch = Stretch.Uniform;
+            if (automatic)
+            {
+                await _bridge.EnableAutoRotationAsync(_device.Serial, _lifetime.Token);
+                StatusText.Text = "Android auto-rotation enabled · view fitted to window.";
+            }
+            else
+            {
+                var degrees = await _bridge.ToggleDeviceOrientationAsync(_device.Serial, _lifetime.Token);
+                var started = Stopwatch.StartNew();
+                var applied = false;
+                while (started.Elapsed < TimeSpan.FromSeconds(2))
+                {
+                    if (await _bridge.GetCurrentRotationDegreesAsync(_device.Serial, _lifetime.Token) == degrees)
+                    {
+                        applied = true;
+                        break;
+                    }
+                    await Task.Delay(100, _lifetime.Token);
+                }
+                StatusText.Text = applied
+                    ? "Android orientation switched · view fitted to window."
+                    : "Orientation requested · the current Android app may lock its orientation.";
+            }
+            if (_minicapSession is not null)
+                await RestartAsync(); // minicap's capture projection is set when its stream starts.
             _refreshRequested = true;
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
@@ -470,6 +488,15 @@ public partial class MirrorSessionControl : UserControl, IDisposable
         catch (Exception ex)
         {
             StatusText.Text = ex.Message;
+        }
+        finally
+        {
+            _orientationBusy = false;
+            if (!_disposed)
+            {
+                RotateButton.IsEnabled = true;
+                AutoRotateButton.IsEnabled = true;
+            }
         }
     }
 
