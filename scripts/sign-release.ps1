@@ -1,33 +1,25 @@
 param(
-    [Parameter(Mandatory=$true)]
-    [string]$FilePath
+    [Parameter(Mandatory=$true)][string]$FilePath,
+    [switch]$RequireSigning,
+    [switch]$AllowUnsignedInternal
 )
 $ErrorActionPreference = 'Stop'
-if (-not (Test-Path $FilePath)) { throw "Signing target missing: $FilePath" }
-
-if ([string]::IsNullOrWhiteSpace($env:AUTEL_SIGN_PFX_BASE64) -or
-    [string]::IsNullOrWhiteSpace($env:AUTEL_SIGN_PFX_PASSWORD)) {
-    Write-Host "Unsigned internal test build (trusted certificate not configured): $FilePath"
+. (Join-Path $PSScriptRoot 'release-signing.ps1')
+if ($RequireSigning -and $AllowUnsignedInternal) { throw 'Choose exactly one signing mode.' }
+if (-not $RequireSigning -and -not $AllowUnsignedInternal) { throw 'Specify -RequireSigning or -AllowUnsignedInternal explicitly.' }
+if (-not (Test-Path -LiteralPath $FilePath -PathType Leaf)) { throw "Signing target missing: $FilePath" }
+if ($AllowUnsignedInternal) {
+    Write-Host "UNSIGNED INTERNAL candidate; blocked from public release: $FilePath"
     return
 }
-
-$tool = Get-Command signtool.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -First 1
-if (-not $tool) {
-    $sdkBin = Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Windows Kits\10\bin'
-    $candidates = @(Get-ChildItem -Path $sdkBin -Recurse -Filter signtool.exe -ErrorAction SilentlyContinue |
-        Where-Object { $_.DirectoryName -like '*\x64' } |
-        Sort-Object FullName -Descending)
-    if ($candidates.Count -gt 0) { $tool = $candidates[0].FullName }
-}
-if (-not $tool) { throw "signtool.exe not found. Install Windows SDK or use a Windows SDK runner." }
-
-$temp = Join-Path $env:TEMP ("autel-codesign-" + [guid]::NewGuid().ToString('N') + '.pfx')
+Assert-ReleaseSigningConfiguration
+$tool = Get-ReleaseSignTool
+$temp = Join-Path ([System.IO.Path]::GetTempPath()) ('autel-codesign-' + [guid]::NewGuid().ToString('N') + '.pfx')
 try {
     [System.IO.File]::WriteAllBytes($temp, [Convert]::FromBase64String($env:AUTEL_SIGN_PFX_BASE64))
-    & $tool sign /fd SHA256 /td SHA256 /tr "http://timestamp.digicert.com" /f $temp /p $env:AUTEL_SIGN_PFX_PASSWORD $FilePath
-    if ($LASTEXITCODE -ne 0) { throw "signtool signing failed." }
-    & $tool verify /pa /v $FilePath
-    if ($LASTEXITCODE -ne 0) { throw "signtool verification failed." }
-    Write-Host "Trusted Authenticode signature verified: $FilePath"
+    & $tool sign /fd SHA256 /td SHA256 /tr 'http://timestamp.digicert.com' /f $temp /p $env:AUTEL_SIGN_PFX_PASSWORD $FilePath
+    if ($LASTEXITCODE -ne 0) { throw 'signtool signing or timestamping failed.' }
+    $null = Get-VerifiedReleaseSignature -FilePath $FilePath -ExpectedThumbprint (Get-ReleasePublisherThumbprint)
+    Write-Host "Trusted timestamped Authenticode signature verified: $FilePath"
 }
 finally { Remove-Item -LiteralPath $temp -Force -ErrorAction SilentlyContinue }

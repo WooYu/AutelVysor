@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   publish:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -31,6 +31,8 @@ jobs:
               throw new Error('Invalid release identity');
             if (!Number.isSafeInteger(m.source_run_id) || !Number.isSafeInteger(m.artifact_id))
               throw new Error('Invalid build reference');
+            if (!/^[a-f0-9]{64}$/.test(m.manifest_sha256 || ''))
+              throw new Error('A pinned signed release-manifest.json SHA-256 is required');
             const repo = context.repo;
             const {data: run} = await github.rest.actions.getWorkflowRun({...repo, run_id: m.source_run_id});
             if (run.conclusion !== 'success' || run.status !== 'completed' || run.head_branch !== 'main' ||
@@ -41,12 +43,24 @@ jobs:
             if (!artifact || artifact.expired || artifact.name !== 'AutelVysor-windows-x64')
               throw new Error('Pinned Windows artifact unavailable');
             core.setOutput('run_id', String(m.source_run_id));
+            core.setOutput('version', m.tag_name.slice(1));
+            core.setOutput('source_commit', m.source_commit);
       - uses: actions/download-artifact@v4
         with:
           name: AutelVysor-windows-x64
           path: release-artifacts
           github-token: ${{ github.token }}
           run-id: ${{ steps.source.outputs.run_id }}
+      - name: Verify pinned signed manifest and Windows trust before any release mutation
+        shell: powershell
+        env:
+          AUTEL_SIGN_CERT_THUMBPRINT: ${{ vars.AUTEL_SIGN_CERT_THUMBPRINT }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $request = Get-Content release-request.json -Raw | ConvertFrom-Json
+          $manifestHash = (Get-FileHash release-artifacts/release-manifest.json -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($manifestHash -cne $request.manifest_sha256) { throw 'Pinned release manifest SHA-256 mismatch.' }
+          .\scripts\verify-release.ps1 -ArtifactDirectory release-artifacts -ExpectedVersion '${{ steps.source.outputs.version }}' -ExpectedSourceCommit '${{ steps.source.outputs.source_commit }}' -ExpectedSourceRunId '${{ steps.source.outputs.run_id }}'
       - name: Check hashes, stage assets, then publish release
         uses: actions/github-script@v7
         with:
@@ -57,18 +71,31 @@ jobs:
             const m = JSON.parse(fs.readFileSync('release-request.json', 'utf8'));
             const repo = context.repo;
             const sha = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
+            const manifestBytes = fs.readFileSync(path.join('release-artifacts', 'release-manifest.json'));
+            if (sha(manifestBytes) !== m.manifest_sha256) throw new Error('Manifest changed after trust verification');
+            const manifest = JSON.parse(manifestBytes.toString('utf8').replace(/^\uFEFF/, ''));
+            if (manifest.releaseMode !== 'signed-release') throw new Error('Unsigned internal candidates cannot be published');
             fs.mkdirSync('release-assets', {recursive: true});
             if (!Array.isArray(m.files) || m.files.length !== 2) throw new Error('Expected ZIP and installer');
             const files = m.files.map(f => {
               if (path.basename(f.source) !== f.source || path.basename(f.name) !== f.name ||
                   !/^AutelVysor-[A-Za-z0-9.-]+\.(zip|exe)$/.test(f.name) || !/^[a-f0-9]{64}$/.test(f.sha256))
                 throw new Error('Invalid release asset');
+              const expectedSources = ['AutelVysor-v' + manifest.version + '-windows-x64.zip', 'AutelVysor-Setup.exe'];
+              if (!expectedSources.includes(f.source)) throw new Error('Unexpected package source');
+              const evidence = manifest.files.find(e => e.path === f.source);
+              if (!evidence || evidence.sha256 !== f.sha256) throw new Error('Request differs from post-signing manifest');
               const bytes = fs.readFileSync(path.join('release-artifacts', f.source));
               if (sha(bytes) !== f.sha256) throw new Error('SHA-256 mismatch: ' + f.source);
               const local = path.join('release-assets', f.name);
               fs.writeFileSync(local, bytes);
               return {...f, local, size: bytes.length};
             });
+            if (new Set(files.map(f => f.source)).size !== 2 || new Set(files.map(f => f.name)).size !== 2)
+              throw new Error('Expected distinct portable ZIP and installer');
+            const manifestLocal = path.join('release-assets', 'release-manifest.json');
+            fs.writeFileSync(manifestLocal, manifestBytes);
+            files.push({name: 'release-manifest.json', local: manifestLocal, size: manifestBytes.length, sha256: sha(manifestBytes)});
             const sums = Buffer.from(files.map(f => f.sha256 + '  ' + f.name).join('\n') + '\n');
             const sumsPath = path.join('release-assets', 'SHA256SUMS.txt');
             fs.writeFileSync(sumsPath, sums);
@@ -84,6 +111,7 @@ jobs:
             // Listing also finds a draft left by an interrupted publish attempt.
             const releases = await github.paginate(github.rest.repos.listReleases, repo);
             let release = releases.find(r => r.tag_name === m.tag_name);
+            if (release && !release.draft) throw new Error('Existing public releases are immutable; create a new version');
             if (release && release.draft && release.target_commitish !== m.source_commit)
               throw new Error('Existing draft targets another commit');
             if (!release) {
@@ -91,6 +119,8 @@ jobs:
                 target_commitish: m.source_commit, name: m.name, body: m.notes, draft: true, prerelease: false})).data;
             }
             let assets = await github.paginate(github.rest.repos.listReleaseAssets, {...repo, release_id: release.id});
+            const expectedAssets = new Set(files.map(f => f.name));
+            if (assets.some(a => !expectedAssets.has(a.name))) throw new Error('Draft contains unexpected unverified assets');
             for (const f of files) {
               const existing = assets.find(a => a.name === f.name);
               if (existing) {
@@ -104,6 +134,10 @@ jobs:
               if (asset.state !== 'uploaded' || asset.size !== f.size || asset.digest !== 'sha256:' + f.sha256)
                 throw new Error('Uploaded asset verification failed: ' + f.name);
             }
+            assets = await github.paginate(github.rest.repos.listReleaseAssets, {...repo, release_id: release.id});
+            if (assets.length !== files.length || files.some(f => !assets.some(a => a.name === f.name &&
+                a.state === 'uploaded' && a.size === f.size && a.digest === 'sha256:' + f.sha256)))
+              throw new Error('Final release asset set does not match verified packages and manifest');
             await github.rest.repos.updateRelease({...repo, release_id: release.id, name: m.name, body: m.notes,
               draft: false, prerelease: false, make_latest: 'true'});
             core.notice('Published ' + release.html_url);

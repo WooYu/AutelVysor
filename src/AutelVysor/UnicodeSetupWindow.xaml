@@ -1,0 +1,41 @@
+<Window x:Class="AutelVysor.UnicodeSetupWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Unicode input and clipboard acceptance" Width="780" Height="800"
+        MinWidth="640" MinHeight="580" Background="#0B1220" Foreground="#E5E7EB"
+        WindowStartupLocation="CenterOwner">
+  <ScrollViewer VerticalScrollBarVisibility="Auto">
+    <StackPanel Margin="18">
+      <TextBlock Text="Unicode input · optional ADBKeyBoard" FontSize="21" FontWeight="SemiBold"/>
+      <TextBlock x:Name="DeviceText" Margin="0,6,0,12" Foreground="#93C5FD"/>
+      <TextBlock TextWrapping="Wrap" Text="Use an approved local APK from the ADBKeyBoard project or your own reviewed build. This app does not download a keyboard. Installation and temporary activation are separate actions. Your original keyboard is saved before switching. Close this window to restore an activation started here; a recovery remains if the device disconnects."/>
+      <TextBox Margin="0,8,0,8" IsReadOnly="True" Text="https://github.com/senzhk/ADBKeyBoard"/>
+      <WrapPanel>
+        <Button Content="1. Install trusted local APK…" Click="Install_Click" Margin="0,0,8,8" Padding="8,5"/>
+        <Button Content="2. Activate temporarily" Click="Activate_Click" Margin="0,0,8,8" Padding="8,5"/>
+        <Button Content="Restore original keyboard" Click="Restore_Click" Margin="0,0,8,8" Padding="8,5"/>
+        <Button Content="Refresh status" Click="Refresh_Click" Margin="0,0,8,8" Padding="8,5"/>
+      </WrapPanel>
+      <TextBlock Text="Focus an empty, non-password Android text field, then send. Upstream ADBKeyBoard does not acknowledge commitText; this app checks a registered receiver and reads actual Android field text. A broadcast result of 0 alone is never a pass. Custom fields can remain unverified." TextWrapping="Wrap" Foreground="#CBD5E1"/>
+      <TextBox x:Name="UnicodeText" Margin="0,8,0,6" MinHeight="55" AcceptsReturn="True" TextWrapping="Wrap"/>
+      <Button Content="3. Send Unicode and verify Android field" Click="Send_Click" HorizontalAlignment="Left" Padding="8,5"/>
+      <Separator Margin="0,16,0,12"/>
+      <TextBlock Text="Real scrcpy clipboard acceptance" FontSize="18" FontWeight="SemiBold"/>
+      <TextBlock Margin="0,6,0,8" TextWrapping="Wrap" Text="These checks require an active modern scrcpy mirror with clipboard sync enabled and device permission. Android 4.4 compatibility mode has no scrcpy clipboard channel. No clipboard is read automatically. Keep this window open while using the mirror. Use only a disposable test field; Android readback is displayed locally."/>
+      <TextBlock Text="PC → Android: copy the generated sample, click an empty Android test field in the mirror and press Ctrl+V, then verify the actual field." TextWrapping="Wrap"/>
+      <TextBox x:Name="ClipboardSample" Margin="0,6,0,6" IsReadOnly="True" TextWrapping="Wrap"/>
+      <WrapPanel>
+        <Button Content="Copy PC sample" Click="CopySample_Click" Margin="0,0,8,8" Padding="8,5"/>
+        <Button Content="Verify PC → Android" Click="VerifyForward_Click" Margin="0,0,8,8" Padding="8,5"/>
+      </WrapPanel>
+      <TextBlock Text="Android → PC: enter different test text on Android and focus that field. Capture it below (this replaces the PC clipboard with a fresh marker), then select/copy the Android text using Android Copy or scrcpy Ctrl+C. Finally verify the PC clipboard." TextWrapping="Wrap"/>
+      <WrapPanel Margin="0,6,0,0">
+        <Button Content="Capture Android source + clear PC clipboard" Click="CaptureSource_Click" Margin="0,0,8,8" Padding="8,5"/>
+        <Button Content="Verify Android → PC" Click="VerifyReverse_Click" Margin="0,0,8,8" Padding="8,5"/>
+      </WrapPanel>
+      <TextBlock x:Name="AcceptanceText" Text="Clipboard checks: not run." Foreground="#93C5FD" TextWrapping="Wrap"/>
+      <TextBlock Text="Status / Android field readback" FontWeight="SemiBold" Margin="0,14,0,6"/>
+      <TextBox x:Name="ResultText" IsReadOnly="True" MinHeight="135" MaxHeight="260" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"/>
+    </StackPanel>
+  </ScrollViewer>
+</Window>

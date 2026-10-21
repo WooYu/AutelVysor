@@ -2,7 +2,7 @@
 
 Windows Android mirror/control client for **Android 4.4 (API 19) and newer**.
 
-Current source version: **0.10.3**
+Current source version: **0.10.4**
 
 ## Compatibility
 
@@ -25,6 +25,15 @@ Android fixture APK. It generates local HTML, JSON and CSV real-device reports.
 ADB backend test success is **not** equivalent to Windows UI/scrcpy validation.
 Features blocked by company executable policy are explicitly marked BLOCKED_POLICY.
 See [Chinese usage guide](docs/COMPANY_ADB_ONLY_TESTING.md).
+
+## v0.10.4 correction candidate
+
+- **AV-006:** explicit BOM-free UTF-8 for redirected command output/error/input and live logcat; raw binary capture remains byte-preserving.
+- Shell UI/batch output separates stdout/stderr and displays process/remote exit status. Batch operations do not count unverified remote status as success.
+- DNS diagnostics query legacy properties and modern resolver/connectivity services separately, distinguish unsupported/permission/query failures, and retain command evidence. Reported DNS configuration is not a successful hostname-resolution test.
+- **Unicode setup:** explicit trusted-local-APK install, temporary ADBKeyBoard activation, saved original IME recovery, and exact focused-field readback. Broadcast completion alone is not insertion proof. The setup window provides action-driven PC→Android and Android→PC clipboard acceptance; physical acceptance remains pending.
+- **Signed public release gate:** trusted timestamped signatures are required on the app and installer; hashes are calculated after signing, then the publisher rechecks signatures, hashes and exact ZIP executable bytes. Unsigned internal candidates remain explicitly marked and cannot be published by that gate.
+- `FileDescription=Autel` remains unchanged. See [signing setup](docs/SIGNING.md) and [Unicode/clipboard acceptance](docs/UNICODE_AND_CLIPBOARD.md). A trusted certificate is required to finish signed publication.
 
 ## v0.10.3 report corrections
 
@@ -192,23 +201,23 @@ The build fails if the executable metadata does not contain:
 ```text
 FileDescription : Autel
 ProductName     : Autel Vysor
-FileVersion     : 0.10.3.0
+FileVersion     : 0.10.4.0
 ```
 
 ## Build portable ZIP and installer
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\build-release.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\build-release.ps1 -RequireSigning
 ```
 
-Expected artifacts:
+Expected artifacts after a successfully signed build:
 
 ```text
-dist\AutelVysor-v0.10.3-windows-x64.zip
+dist\AutelVysor-v0.10.4-windows-x64.zip
 dist\AutelVysor-Setup.exe           # when Inno Setup 6 is installed
 ```
 
-The installer is also configured with `VersionInfoDescription=Autel`.
+The installer is also configured with `VersionInfoDescription=Autel`. For deliberately unsigned internal testing, use `scripts/build-release.ps1 -AllowUnsignedInternal`. A public release requires `-RequireSigning`, the configured trusted certificate, and an independently verified post-signing manifest. Builds no longer silently downgrade a final release to unsigned.
 
 ## Android 4.4 behavior
 
