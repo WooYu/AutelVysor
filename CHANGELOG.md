@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.1
+
+- Fixed low-contrast left-sidebar controls with explicit dark CheckBox, ComboBox and Expander styling.
+- Made the lower left settings and Files / utilities section vertically scrollable.
+- Changed rotation to modify the real Android system display orientation instead of rotating only the PC mirror image.
+- Added an Auto rotate action to restore Android sensor-based rotation.
+- Preserved phone/Bluetooth audio by default; Android 13+ uses scrcpy audio duplication to keep both PC and device playback.
+- Android 11/12 preserve device/Bluetooth audio when the new preference is enabled.
+
+
 ## 0.8.0
 
 - Added a dedicated Device Debug window.
