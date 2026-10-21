@@ -1,0 +1,107 @@
+name: Publish requested GitHub release
+
+'on':
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['release-request.json']
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: publish-requested-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify successful main build and pinned artifact
+        id: source
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const m = JSON.parse(fs.readFileSync('release-request.json', 'utf8'));
+            if (!/^v\d+\.\d+\.\d+$/.test(m.tag_name) || !/^[a-f0-9]{40}$/.test(m.source_commit))
+              throw new Error('Invalid release identity');
+            if (!Number.isSafeInteger(m.source_run_id) || !Number.isSafeInteger(m.artifact_id))
+              throw new Error('Invalid build reference');
+            const repo = context.repo;
+            const {data: run} = await github.rest.actions.getWorkflowRun({...repo, run_id: m.source_run_id});
+            if (run.conclusion !== 'success' || run.status !== 'completed' || run.head_branch !== 'main' ||
+                run.event !== 'push' || run.head_sha !== m.source_commit || run.path !== '.github/workflows/windows-build.yml')
+              throw new Error('Source is not the requested successful main Windows build');
+            const {data: artifacts} = await github.rest.actions.listWorkflowRunArtifacts({...repo, run_id: m.source_run_id});
+            const artifact = artifacts.artifacts.find(a => a.id === m.artifact_id);
+            if (!artifact || artifact.expired || artifact.name !== 'AutelVysor-windows-x64')
+              throw new Error('Pinned Windows artifact unavailable');
+            core.setOutput('run_id', String(m.source_run_id));
+      - uses: actions/download-artifact@v4
+        with:
+          name: AutelVysor-windows-x64
+          path: release-artifacts
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.source.outputs.run_id }}
+      - name: Check hashes, stage assets, then publish release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const crypto = require('crypto');
+            const m = JSON.parse(fs.readFileSync('release-request.json', 'utf8'));
+            const repo = context.repo;
+            const sha = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
+            fs.mkdirSync('release-assets', {recursive: true});
+            if (!Array.isArray(m.files) || m.files.length !== 2) throw new Error('Expected ZIP and installer');
+            const files = m.files.map(f => {
+              if (path.basename(f.source) !== f.source || path.basename(f.name) !== f.name ||
+                  !/^AutelVysor-[A-Za-z0-9.-]+\.(zip|exe)$/.test(f.name) || !/^[a-f0-9]{64}$/.test(f.sha256))
+                throw new Error('Invalid release asset');
+              const bytes = fs.readFileSync(path.join('release-artifacts', f.source));
+              if (sha(bytes) !== f.sha256) throw new Error('SHA-256 mismatch: ' + f.source);
+              const local = path.join('release-assets', f.name);
+              fs.writeFileSync(local, bytes);
+              return {...f, local, size: bytes.length};
+            });
+            const sums = Buffer.from(files.map(f => f.sha256 + '  ' + f.name).join('\n') + '\n');
+            const sumsPath = path.join('release-assets', 'SHA256SUMS.txt');
+            fs.writeFileSync(sumsPath, sums);
+            files.push({name: 'SHA256SUMS.txt', local: sumsPath, size: sums.length, sha256: sha(sums)});
+            let release;
+            try { release = (await github.rest.repos.getReleaseByTag({...repo, tag: m.tag_name})).data; }
+            catch (e) { if (e.status !== 404) throw e; }
+            if (!release) {
+              release = (await github.rest.repos.createRelease({...repo, tag_name: m.tag_name,
+                target_commitish: m.source_commit, name: m.name, body: m.notes, draft: true, prerelease: false})).data;
+            }
+            let tagged;
+            try { tagged = (await github.rest.repos.getCommit({...repo, ref: m.tag_name})).data; }
+            catch (e) {
+              if (e.status !== 404) throw e;
+              await github.rest.git.createRef({...repo, ref: 'refs/tags/' + m.tag_name, sha: m.source_commit});
+              tagged = (await github.rest.repos.getCommit({...repo, ref: m.tag_name})).data;
+            }
+            if (tagged.sha !== m.source_commit) throw new Error('Release tag points to another commit');
+            let assets = await github.paginate(github.rest.repos.listReleaseAssets, {...repo, release_id: release.id});
+            for (const f of files) {
+              const existing = assets.find(a => a.name === f.name);
+              if (existing) {
+                if (existing.state === 'uploaded' && existing.size === f.size && existing.digest === 'sha256:' + f.sha256) continue;
+                if (!release.draft) throw new Error('Published asset differs: ' + f.name);
+                await github.rest.repos.deleteReleaseAsset({...repo, asset_id: existing.id});
+              }
+              const {data: asset} = await github.rest.repos.uploadReleaseAsset({...repo, release_id: release.id,
+                name: f.name, data: fs.readFileSync(f.local),
+                headers: {'content-type': 'application/octet-stream', 'content-length': f.size}});
+              if (asset.state !== 'uploaded' || asset.size !== f.size || asset.digest !== 'sha256:' + f.sha256)
+                throw new Error('Uploaded asset verification failed: ' + f.name);
+            }
+            await github.rest.repos.updateRelease({...repo, release_id: release.id, name: m.name, body: m.notes,
+              draft: false, prerelease: false, make_latest: 'true'});
+            core.notice('Published ' + release.html_url);

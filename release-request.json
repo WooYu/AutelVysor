@@ -1,0 +1,20 @@
+{
+  "tag_name": "v0.10.3",
+  "name": "Autel Vysor v0.10.3",
+  "source_commit": "66e8b09619d81ce9b7b6bb4cc5d6d1b1e5b747c3",
+  "source_run_id": 39591858155,
+  "artifact_id": 12341334222,
+  "files": [
+    {
+      "source": "AutelVysor-v0.10.3-windows-x64.zip",
+      "name": "AutelVysor-v0.10.3-windows-x64.zip",
+      "sha256": "5f2d7ed2b7e4ffe619665deec2dafd15e30dfdd2d0ebf7d4005c2f93f5a5017e"
+    },
+    {
+      "source": "AutelVysor-Setup.exe",
+      "name": "AutelVysor-v0.10.3-Setup.exe",
+      "sha256": "626daeb3c9360306881f4cc46aa9248a8f7bd339576502da97b617a8d62c26e6"
+    }
+  ],
+  "notes": "## 修复内容\n\n- 修复 ADB Shell 参数丢失，覆盖设备详情、网络诊断和批量命令。\n- 调整 scrcpy 键盘输入路径，处理普通数字/字母丢失。\n- 旋转状态读取实际默认显示器角度，避免 Auto 显示上次锁定角度。\n- 增加录屏停止、防重复启动和退出清理；清理失败时继续跟踪进程。\n\n## 下载与验证\n\n- Windows x64：ZIP 为免安装版，Setup.exe 为安装版。\n- FileDescription：Autel；FileVersion：0.10.3.0。\n- 已通过 3 项 Bridge + 12 项 Windows 自动回归、自包含 EXE 自检及安装包构建。\n- 本版使用 main 合并提交 66e8b09619d81ce9b7b6bb4cc5d6d1b1e5b747c3 的已验证构建产物。\n- 构建记录：https://github.com/WooYu/AutelVysor/actions/runs/39591858155\n- SHA256SUMS.txt 用于核对下载文件完整性。\n\n## 当前限制\n\n当前包未进行可信数字签名。真机 18 项功能尚未全部验收，中文/双向剪贴板、音频、物理旋转、USB 恢复及真实 MP4 播放完整性仍待补测。旧 adbd 无法可靠传回远端 Shell 退出码。\n\n完整整改说明：https://github.com/WooYu/AutelVysor/blob/v0.10.3/docs/V0103_REPORT_FOLLOWUP.md\n"
+}
