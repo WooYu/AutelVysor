@@ -36,6 +36,7 @@ elseif($cmd -eq 'shell dumpsys package android') {Write-Output ('Package [androi
 elseif($cmd -like 'shell ps*') {Write-Output 'USER PID PPID VSIZE RSS WCHAN PC NAME';Write-Output 'root 1 0 1000 1000 0 0 init'}
 elseif($cmd -eq 'shell ip addr') {Write-Output '1: lo: LOOPBACK UP inet 127.0.0.1/8 scope host'}
 elseif($cmd -eq 'shell ip route') {Write-Output 'default via 192.0.2.1 dev wlan0'}
+elseif($cmd -eq 'shell ss -tuna' -or $cmd -eq 'shell netstat -an') {Write-Output 'Netid State Recv-Q Send-Q Local Address:Port Peer Address:Port';Write-Output 'tcp ESTAB 0 0 127.0.0.1:5555 127.0.0.1:1234'}
 elseif($cmd -like 'shell ping*') {Write-Output '1 packets transmitted, 1 received, 0% packet loss'}
 elseif($cmd -like 'shell mkdir*') {Write-Output ''}
 elseif($cmd -like 'push *') {
