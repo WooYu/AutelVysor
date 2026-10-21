@@ -350,7 +350,7 @@ foreach($serial in $detected) {
         'Installed approved test fixture inspected.'
       }
       Test $serial 'fixture.permission-and-AppOps-inspection' {
-        $dump=(D $serial @('shell','dumpsys','package',$FixturePackage')).Text
+        $dump=(D $serial @('shell','dumpsys','package',$FixturePackage)).Text
         $ops=D $serial @('shell','appops','get',$FixturePackage) -AllowFailure
         Assert ($dump -match '(?i)permission' -and $ops.Code -eq 0) 'Cannot inspect Android permissions and AppOps on this fixture.'
         Save $folder 'fixture-permissions.txt' ($dump.Substring(0,[Math]::Min($dump.Length,5000))+$script:NewLine+$ops.Text)
@@ -379,19 +379,19 @@ foreach($serial in $detected) {
       } else {Skip $serial 'fixture.stop-clear-restart' 'Requires explicit -IncludeFixtureMutations; clears test-app data.'}
       if($IncludeFixtureMutations -and $api -ge 23) {
         Test $serial 'fixture.CAMERA-grant-verify-restore' {
-          $before=(D $serial @('shell','dumpsys','package',$FixturePackage')).Text
+          $before=(D $serial @('shell','dumpsys','package',$FixturePackage)).Text
           $old=[regex]::Match($before,'(?m)^\s*android\.permission\.CAMERA:\s+granted=(true|false)')
           Assert ($old.Success) 'Fixture does not expose an original CAMERA grant state; no changes made.'
           $was=$old.Groups[1].Value
           try {
             [void](D $serial @('shell','pm','grant',$FixturePackage,'android.permission.CAMERA'))
-            $now=(D $serial @('shell','dumpsys','package',$FixturePackage')).Text
+            $now=(D $serial @('shell','dumpsys','package',$FixturePackage)).Text
             Assert ($now -match '(?m)^\s*android\.permission\.CAMERA:\s+granted=true') 'CAMERA permission grant not verified.'
             'Runtime CAMERA permission set on dedicated fixture and restored.'
           } finally {
             $action=if($was -eq 'true'){'grant'}else{'revoke'}
             [void](D $serial @('shell','pm',$action,$FixturePackage,'android.permission.CAMERA') -AllowFailure)
-            $restored=(D $serial @('shell','dumpsys','package',$FixturePackage') -AllowFailure).Text
+            $restored=(D $serial @('shell','dumpsys','package',$FixturePackage) -AllowFailure).Text
             Assert ($restored -match ('(?m)^\s*android\.permission\.CAMERA:\s+granted='+$was)) 'Could not restore original CAMERA permission.'
           }
         }
