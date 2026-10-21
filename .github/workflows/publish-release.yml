@@ -73,21 +73,23 @@ jobs:
             const sumsPath = path.join('release-assets', 'SHA256SUMS.txt');
             fs.writeFileSync(sumsPath, sums);
             files.push({name: 'SHA256SUMS.txt', local: sumsPath, size: sums.length, sha256: sha(sums)});
-            let release;
-            try { release = (await github.rest.repos.getReleaseByTag({...repo, tag: m.tag_name})).data; }
-            catch (e) { if (e.status !== 404) throw e; }
+            // Create the immutable version tag before creating/publishing a draft.
+            try { await github.rest.git.getRef({...repo, ref: 'tags/' + m.tag_name}); }
+            catch (e) {
+              if (e.status !== 404) throw e;
+              await github.rest.git.createRef({...repo, ref: 'refs/tags/' + m.tag_name, sha: m.source_commit});
+            }
+            const {data: tagged} = await github.rest.repos.getCommit({...repo, ref: m.tag_name});
+            if (tagged.sha !== m.source_commit) throw new Error('Release tag points to another commit');
+            // Listing also finds a draft left by an interrupted publish attempt.
+            const releases = await github.paginate(github.rest.repos.listReleases, repo);
+            let release = releases.find(r => r.tag_name === m.tag_name);
+            if (release && release.draft && release.target_commitish !== m.source_commit)
+              throw new Error('Existing draft targets another commit');
             if (!release) {
               release = (await github.rest.repos.createRelease({...repo, tag_name: m.tag_name,
                 target_commitish: m.source_commit, name: m.name, body: m.notes, draft: true, prerelease: false})).data;
             }
-            let tagged;
-            try { tagged = (await github.rest.repos.getCommit({...repo, ref: m.tag_name})).data; }
-            catch (e) {
-              if (e.status !== 404) throw e;
-              await github.rest.git.createRef({...repo, ref: 'refs/tags/' + m.tag_name, sha: m.source_commit});
-              tagged = (await github.rest.repos.getCommit({...repo, ref: m.tag_name})).data;
-            }
-            if (tagged.sha !== m.source_commit) throw new Error('Release tag points to another commit');
             let assets = await github.paginate(github.rest.repos.listReleaseAssets, {...repo, release_id: release.id});
             for (const f of files) {
               const existing = assets.find(a => a.name === f.name);
