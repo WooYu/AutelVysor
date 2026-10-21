@@ -17,7 +17,7 @@ internal static class Program
     public static int Main(string[] args)
     {
         if (args.Length > 0)
-            return FakeAdb(args);
+            return args[0] == "--native-child" ? NativeChildProcess() : FakeAdb(args);
 
         var directory = Path.Combine(Path.GetTempPath(), "AutelVysor-tests-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
@@ -33,6 +33,7 @@ internal static class Program
                 ("Auto-rotation releases WM lock and re-enables sensor", AutoRotation),
                 ("ASCII text is injected via the actual ADB process boundary", AsciiText),
                 ("Embedded child returns to fit after repeated self-resizing", NativeResize),
+                ("Keyboard focus reaches an external native-window process", CrossProcessFocus),
                 ("Dark selections remain readable without keyboard focus", DarkSelection)
             })
             {
@@ -132,6 +133,64 @@ internal static class Program
             if (child != IntPtr.Zero) DestroyWindow(child);
             window.Close();
         }
+    }
+
+    private static async Task CrossProcessFocus()
+    {
+        var window = new Window { Width = 480, Height = 480, ShowInTaskbar = false };
+        var host = new NativeWindowHost();
+        window.Content = host;
+        using var child = new Process
+        {
+            StartInfo = new ProcessStartInfo(Environment.ProcessPath!)
+            {
+                Arguments = "--native-child",
+                UseShellExecute = false,
+                CreateNoWindow = true
+            }
+        };
+        try
+        {
+            child.Start();
+            var started = Stopwatch.StartNew();
+            while (!File.Exists(State("native-hwnd")) && started.Elapsed < TimeSpan.FromSeconds(8))
+                await Task.Delay(50);
+            Check(File.Exists(State("native-hwnd")), "Native helper did not create its own Win32 window");
+            var hwnd = new IntPtr(long.Parse(File.ReadAllText(State("native-hwnd"))));
+            window.Show();
+            await Task.Delay(150);
+            host.AttachExternalWindow(hwnd);
+            window.Activate();
+            await Task.Delay(100);
+            Check(host.FocusEmbeddedWindow(), "Unable to give keyboard focus to the foreign SDL-style HWND");
+        }
+        finally
+        {
+            host.DetachExternalWindow();
+            window.Close();
+            try { if (!child.HasExited) child.Kill(entireProcessTree: true); } catch { }
+            try { child.WaitForExit(3000); } catch { }
+        }
+    }
+
+    private static int NativeChildProcess()
+    {
+        var hwnd = CreateWindowEx(0, "STATIC", "Autel Vysor native input focus test",
+            0x90C00000U, 120, 120, 320, 480,
+            IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+        if (hwnd == IntPtr.Zero) return 2;
+        File.WriteAllText(State("native-hwnd"), hwnd.ToInt64().ToString());
+        try
+        {
+            // The separate process has a real native message loop like SDL.
+            while (GetMessage(out var message, IntPtr.Zero, 0, 0) > 0)
+            {
+                TranslateMessage(ref message);
+                DispatchMessage(ref message);
+            }
+        }
+        finally { DestroyWindow(hwnd); }
+        return 0;
     }
 
     private static int FakeAdb(string[] args)
@@ -248,4 +307,23 @@ internal static class Program
     [DllImport("user32.dll")] private static extern bool GetClientRect(IntPtr hwnd, out Rect rect);
     [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr hwnd, out Rect rect);
     [DllImport("user32.dll")] private static extern int MapWindowPoints(IntPtr from, IntPtr to, ref Rect rect, uint points);
+    [StructLayout(LayoutKind.Sequential)]
+    private struct WinPoint { public int X; public int Y; }
+    [StructLayout(LayoutKind.Sequential)]
+    private struct WinMessage
+    {
+        public IntPtr Hwnd;
+        public uint Message;
+        public IntPtr WParam;
+        public IntPtr LParam;
+        public uint Time;
+        public WinPoint Point;
+        public uint Private;
+    }
+
+    [DllImport("user32.dll")] private static extern int GetMessage(out WinMessage message, IntPtr hwnd, uint min, uint max);
+    [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool TranslateMessage(ref WinMessage message);
+    [DllImport("user32.dll")] private static extern IntPtr DispatchMessage(ref WinMessage message);
+
 }
