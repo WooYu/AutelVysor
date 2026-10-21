@@ -248,14 +248,17 @@ public partial class MirrorSessionControl : UserControl, IDisposable
             {
                 var started = Stopwatch.GetTimestamp();
                 var data = await session.ReadFrameAsync(ct);
+                ct.ThrowIfCancellationRequested();
                 var bitmap = DecodePng(data);
-                _pixelWidth = bitmap.PixelWidth;
-                _pixelHeight = bitmap.PixelHeight;
-                _inputWidth = session.RealWidth;
-                _inputHeight = session.RealHeight;
 
                 await Dispatcher.InvokeAsync(() =>
                 {
+                    if (_disposed || ct.IsCancellationRequested || !ReferenceEquals(_minicapSession, session))
+                        return;
+                    _pixelWidth = bitmap.PixelWidth;
+                    _pixelHeight = bitmap.PixelHeight;
+                    _inputWidth = session.RealWidth;
+                    _inputHeight = session.RealHeight;
                     LegacyImage.Source = bitmap;
                     Overlay.Visibility = Visibility.Collapsed;
                     var elapsed = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
@@ -266,17 +269,24 @@ public partial class MirrorSessionControl : UserControl, IDisposable
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
         }
+        catch (Exception) when (ct.IsCancellationRequested)
+        {
+            // Disposing a canceled socket may surface IOException rather than cancellation.
+        }
         catch (Exception ex)
         {
-            await Dispatcher.InvokeAsync(() =>
+            var shouldFallback = await Dispatcher.InvokeAsync(() =>
             {
+                if (_disposed || ct.IsCancellationRequested || !ReferenceEquals(_minicapSession, session))
+                    return false;
+                _minicapSession = null;
                 BackendText.Text = "ADB compatibility · minicap fallback";
                 StatusText.Text = $"minicap stream stopped; falling back to ADB screenshots: {ex.Message}";
+                return true;
             });
 
             try { session.Dispose(); } catch { }
-            _minicapSession = null;
-            if (!ct.IsCancellationRequested)
+            if (shouldFallback && !ct.IsCancellationRequested)
                 await LegacyRefreshLoopAsync(ct);
         }
     }
@@ -300,14 +310,17 @@ public partial class MirrorSessionControl : UserControl, IDisposable
             {
                 var started = Stopwatch.GetTimestamp();
                 var data = await _bridge.CaptureScreenshotBytesAsync(_device.Serial, ct);
+                ct.ThrowIfCancellationRequested();
                 var bitmap = DecodePng(data);
-                _pixelWidth = bitmap.PixelWidth;
-                _pixelHeight = bitmap.PixelHeight;
-                _inputWidth = _pixelWidth;
-                _inputHeight = _pixelHeight;
 
                 await Dispatcher.InvokeAsync(() =>
                 {
+                    if (_disposed || ct.IsCancellationRequested)
+                        return;
+                    _pixelWidth = bitmap.PixelWidth;
+                    _pixelHeight = bitmap.PixelHeight;
+                    _inputWidth = _pixelWidth;
+                    _inputHeight = _pixelHeight;
                     LegacyImage.Source = bitmap;
                     Overlay.Visibility = Visibility.Collapsed;
                     var elapsed = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
@@ -324,6 +337,8 @@ public partial class MirrorSessionControl : UserControl, IDisposable
                 failures++;
                 await Dispatcher.InvokeAsync(() =>
                 {
+                    if (_disposed || ct.IsCancellationRequested)
+                        return;
                     StatusText.Text = $"Compatibility capture failed ({failures}): {ex.Message}";
                     if (failures >= 2)
                         ShowOverlay("Waiting for Android 4.4 device", "The session will resume automatically after ADB connectivity returns.");
