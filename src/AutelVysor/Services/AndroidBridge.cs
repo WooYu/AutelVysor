@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
@@ -246,7 +247,7 @@ public sealed class AndroidBridge(string adbPath)
     public async Task<string> GetPackageDumpAsync(string serial, string packageName, CancellationToken ct = default)
     {
         var result = await RunAsync(["-s", serial, "shell", "dumpsys", "package", packageName], ct: ct);
-        EnsureSuccess(result, "Unable to read package information.", "Unable to find package", "not found", "error");
+        EnsureSuccess(result, "Unable to read package information.", "Unable to find package", "not found");
         return (result.Output + result.Error).Trim();
     }
 
