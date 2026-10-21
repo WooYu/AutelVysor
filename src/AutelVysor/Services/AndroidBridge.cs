@@ -10,6 +10,8 @@ namespace AutelVysor.Services;
 
 public sealed class AndroidBridge(string adbPath)
 {
+    public string ExecutablePath => adbPath;
+
     private static string ValueOf(IEnumerable<string> fields, string key)
     {
         var prefix = key + ":";
