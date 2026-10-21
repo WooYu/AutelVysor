@@ -15,6 +15,17 @@ Current source version: **0.10.2**
 
 scrcpy itself requires API 21+, therefore API 19/20 never attempts to start scrcpy.
 
+## Company ADB and PowerShell physical testing
+
+For company PCs that allow only an existing approved adb.exe and Windows PowerShell,
+run [scripts/run-company-adb-e2e.ps1](scripts/run-company-adb-e2e.ps1) directly.
+It does NOT require or download a GitHub Runner, scrcpy executable, emulator or
+Android fixture APK. It generates local HTML, JSON and CSV real-device reports.
+
+ADB backend test success is **not** equivalent to Windows UI/scrcpy validation.
+Features blocked by company executable policy are explicitly marked BLOCKED_POLICY.
+See [Chinese usage guide](docs/COMPANY_ADB_ONLY_TESTING.md).
+
 ## v0.10.2 keyboard and rotation fixes
 
 - **Focus keyboard** moves keyboard focus into the embedded scrcpy window, which is a separate Win32 process reparented into WPF.

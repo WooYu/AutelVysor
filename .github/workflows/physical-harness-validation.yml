@@ -4,7 +4,9 @@ on:
   pull_request:
     paths:
       - 'scripts/run-physical-*.ps1'
+      - 'scripts/run-company-adb-e2e.ps1'
       - 'tests/AndroidFixture/**'
+      - 'tests/CompanyAdbHarness/**'
       - '.github/workflows/physical-*.yml'
   workflow_dispatch:
 
@@ -21,7 +23,8 @@ jobs:
         run: |
           $files = @(
             '.\scripts\run-physical-device-tests.ps1',
-            '.\scripts\run-physical-gui-tests.ps1'
+            '.\scripts\run-physical-gui-tests.ps1',
+            '.\scripts\run-company-adb-e2e.ps1'
           )
           foreach ($file in $files) {
             $tokens = $null
@@ -32,11 +35,37 @@ jobs:
               [ref]$errors
             ) | Out-Null
             if ($errors.Count -gt 0) {
-              $errors | Format-Table -AutoSize | Out-String | Write-Host
+              foreach ($item in $errors) {
+                Write-Host ("PowerShell parse error: {0}:{1}:{2} | {3} | token {4}" -f $file,$item.Extent.StartLineNumber,$item.Extent.StartColumnNumber,$item.Message,$item.Extent.Text)
+              }
               throw "PowerShell parser rejected $file"
             }
             Write-Host "PASS PowerShell syntax: $file"
           }
+
+      - name: Smoke-test corporate PowerShell runner with mock ADB (NOT real devices)
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $env:AUTEL_FAKE_ADB_STATE = Join-Path $env:RUNNER_TEMP 'autel-fake-adb-state'
+          $out = Join-Path $env:RUNNER_TEMP 'autel-company-adb-report'
+          & .\scripts\run-company-adb-e2e.ps1 -AdbPath '.\tests\CompanyAdbHarness\fake-adb.ps1' -OutputRoot $out
+          if ($LASTEXITCODE -ne 0) { throw "Corporate harness self-test failed with exit $LASTEXITCODE." }
+          $report = Get-Content (Join-Path $out 'summary.json') -Raw | ConvertFrom-Json
+          if ([int]$report.Counts.FAIL -ne 0 -or [int]$report.Counts.PASS -lt 10) {
+            throw "Corporate harness result count invalid: $($report.Counts | Out-String)"
+          }
+          if ([int]$report.Counts.BLOCKED_POLICY -lt 10) {
+            throw "Corporate harness must not mark WPF/scrcpy as PASS in ADB-only mode."
+          }
+          if (-not (Test-Path (Join-Path $out 'report.html'))) { throw 'HTML report missing.' }
+          if (-not (Test-Path (Join-Path $out 'results.csv'))) { throw 'CSV report missing.' }
+          $cleanups = Get-Content (Join-Path $env:AUTEL_FAKE_ADB_STATE 'cleanups.txt')
+          if (-not (@($cleanups | Where-Object { $_ -match 'autel-vysor-' }).Count -ge 2)) {
+            throw 'Temporary remote file cleanup was not called.'
+          }
+          Write-Host 'PASS: Offline-only harness logic, report generation and cleanup.'
+          Write-Host 'NOT A REAL ANDROID DEVICE TEST.'
 
   build-android-fixture:
     runs-on: ubuntu-latest
