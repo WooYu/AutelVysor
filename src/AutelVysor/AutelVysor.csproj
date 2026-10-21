@@ -13,10 +13,10 @@
     <Description>Autel</Description>
     <Company>Autel</Company>
     <Copyright>Copyright © Autel</Copyright>
-    <Version>0.8.0</Version>
-    <AssemblyVersion>0.8.0.0</AssemblyVersion>
-    <FileVersion>0.8.0.0</FileVersion>
-    <InformationalVersion>0.8.0</InformationalVersion>
+    <Version>0.8.1</Version>
+    <AssemblyVersion>0.8.1.0</AssemblyVersion>
+    <FileVersion>0.8.1.0</FileVersion>
+    <InformationalVersion>0.8.1</InformationalVersion>
     <Platforms>x64</Platforms>
     <PlatformTarget>x64</PlatformTarget>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
