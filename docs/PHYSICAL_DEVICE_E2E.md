@@ -85,3 +85,5 @@ Only declare comprehensive real-device PASS after reviewing reports
 from EVERY required physical Android variant; cloud CI is insufficient.
 
 The CI validation workflow intentionally reports only script syntax and fixture APK build status; a green result must never be presented as proof of connected physical phones.
+
+CI validates script parsing and the disposable Android APK on hosted runners. Actual WPF and device behavior is exercised only on an explicitly registered self-hosted lab machine.
