@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.0
+
+- Android 5.0+ mirrors now turn the physical device screen off by default while keeping the PC mirror and controls active.
+- Added per-session clockwise display rotation in 90° increments for scrcpy-backed devices.
+- Added ADB app tools: load package names, force-stop, start, restart and clear application data.
+- Clear-app-data requires explicit confirmation.
+- Redesigned the connected-device list as compact cards and removed its horizontal scrollbar.
+- Android 4.4/4.4W keeps the physical display active for legacy capture compatibility.
+
+
 ## 0.6.0
 
 - Added optional DeviceFarmer minicap acceleration for Android 4.4/API 19 armeabi-v7a and x86.
