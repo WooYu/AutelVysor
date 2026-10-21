@@ -20,11 +20,20 @@
       <Setter Property="BorderBrush" Value="#334155"/>
       <Setter Property="CaretBrush" Value="White"/>
     </Style>
+    <Style TargetType="CheckBox">
+      <Setter Property="Foreground" Value="#E5E7EB"/>
+      <Setter Property="VerticalContentAlignment" Value="Center"/>
+    </Style>
     <Style TargetType="ComboBox">
       <Setter Property="Padding" Value="7"/>
       <Setter Property="Background" Value="#111827"/>
       <Setter Property="Foreground" Value="White"/>
       <Setter Property="BorderBrush" Value="#334155"/>
+    </Style>
+    <Style TargetType="ComboBoxItem">
+      <Setter Property="Background" Value="#111827"/>
+      <Setter Property="Foreground" Value="White"/>
+      <Setter Property="Padding" Value="7,5"/>
     </Style>
     <Style TargetType="TabItem">
       <Setter Property="Padding" Value="14,8"/>
@@ -182,13 +191,31 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
           </Grid.RowDefinitions>
-          <WrapPanel Grid.Row="0" Margin="0,0,0,10">
-            <Button Click="StartLiveLog_Click" Content="Start live"/>
-            <Button Click="StopLiveLog_Click" Content="Stop" Background="#475569"/>
-            <Button Click="SnapshotLog_Click" Content="Snapshot" Background="#475569"/>
-            <Button Click="ExportLog_Click" Content="Export logcat" Background="#475569"/>
-            <Button Click="ClearLogView_Click" Content="Clear view" Background="#475569"/>
-          </WrapPanel>
+          <StackPanel Grid.Row="0">
+            <WrapPanel Margin="0,0,0,8">
+              <TextBlock Margin="0,7,6,0" Foreground="#94A3B8" Text="Filter"/>
+              <TextBox x:Name="LogFilterBox" Width="220" Margin="0,0,10,7" ToolTip="Text, tag or message contains"/>
+              <TextBlock Margin="0,7,6,0" Foreground="#94A3B8" Text="Minimum level"/>
+              <ComboBox x:Name="LogLevelBox" Width="110" SelectedIndex="0" Margin="0,0,10,7">
+                <ComboBoxItem Content="All" Tag="*"/>
+                <ComboBoxItem Content="Verbose" Tag="V"/>
+                <ComboBoxItem Content="Debug" Tag="D"/>
+                <ComboBoxItem Content="Info" Tag="I"/>
+                <ComboBoxItem Content="Warn" Tag="W"/>
+                <ComboBoxItem Content="Error" Tag="E"/>
+                <ComboBoxItem Content="Fatal" Tag="F"/>
+              </ComboBox>
+              <CheckBox x:Name="OnlySelectedAppLogBox" Margin="0,7,14,7" Content="Selected app PID only"/>
+              <CheckBox x:Name="PauseLogBox" Margin="0,7,0,7" Content="Pause"/>
+            </WrapPanel>
+            <WrapPanel Margin="0,0,0,10">
+              <Button Click="StartLiveLog_Click" Content="Start live"/>
+              <Button Click="StopLiveLog_Click" Content="Stop" Background="#475569"/>
+              <Button Click="SnapshotLog_Click" Content="Snapshot" Background="#475569"/>
+              <Button Click="ExportLog_Click" Content="Export logcat" Background="#475569"/>
+              <Button Click="ClearLogView_Click" Content="Clear view" Background="#475569"/>
+            </WrapPanel>
+          </StackPanel>
           <TextBox Grid.Row="1" x:Name="LogTextBox"
                    IsReadOnly="True" AcceptsReturn="True"
                    VerticalScrollBarVisibility="Auto"
@@ -197,25 +224,116 @@
         </Grid>
       </TabItem>
 
+      <TabItem Header="Files">
+        <Grid Margin="12">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+          </Grid.RowDefinitions>
+          <Grid Grid.Row="0" Margin="0,0,0,10">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="Auto"/>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <Button Grid.Column="0" Click="RemoteUp_Click" Content="Up" Background="#475569"/>
+            <TextBox Grid.Column="1" x:Name="RemoteFilePathBox" Margin="0,0,7,7" Text="/sdcard/Download"/>
+            <Button Grid.Column="2" Click="RefreshRemoteFiles_Click" Content="Refresh"/>
+          </Grid>
+          <ListView Grid.Row="1"
+                    x:Name="RemoteFileList"
+                    SelectionMode="Extended"
+                    MouseDoubleClick="RemoteFileList_MouseDoubleClick"
+                    Background="#0F172A"
+                    Foreground="#E5E7EB"
+                    BorderBrush="#334155">
+            <ListView.View>
+              <GridView>
+                <GridViewColumn Header="Name" Width="420" DisplayMemberBinding="{Binding Name}"/>
+                <GridViewColumn Header="Type" Width="90" DisplayMemberBinding="{Binding Type}"/>
+                <GridViewColumn Header="Size" Width="110" DisplayMemberBinding="{Binding SizeText}"/>
+                <GridViewColumn Header="Modified" Width="160" DisplayMemberBinding="{Binding Modified}"/>
+              </GridView>
+            </ListView.View>
+          </ListView>
+          <Grid Grid.Row="2" Margin="0,10,0,0">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="Auto"/>
+              <ColumnDefinition Width="Auto"/>
+              <ColumnDefinition Width="Auto"/>
+              <ColumnDefinition Width="180"/>
+              <ColumnDefinition Width="Auto"/>
+              <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Button Grid.Column="0" Click="UploadRemoteFile_Click" Content="Upload"/>
+            <Button Grid.Column="1" Click="DownloadRemoteFile_Click" Content="Download" Background="#475569"/>
+            <Button Grid.Column="2" Click="DeleteRemoteFile_Click" Content="Delete" Background="#B45309"/>
+            <TextBox Grid.Column="3" x:Name="NewFolderNameBox" Margin="6,0,7,7" ToolTip="New folder name"/>
+            <Button Grid.Column="4" Click="CreateRemoteFolder_Click" Content="New folder" Background="#475569"/>
+            <TextBlock Grid.Column="5" Margin="10,7,0,0" Foreground="#64748B" Text="Double-click a folder to open it."/>
+          </Grid>
+        </Grid>
+      </TabItem>
+
+      <TabItem Header="Shell">
+        <Grid Margin="12">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+          </Grid.RowDefinitions>
+          <TextBox Grid.Row="0" x:Name="ShellOutputBox"
+                   IsReadOnly="True" AcceptsReturn="True"
+                   VerticalScrollBarVisibility="Auto"
+                   HorizontalScrollBarVisibility="Auto"
+                   FontFamily="Consolas" FontSize="12"/>
+          <Grid Grid.Row="1" Margin="0,10,0,0">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="Auto"/>
+              <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBox Grid.Column="0" x:Name="ShellCommandBox"
+                     KeyDown="ShellCommandBox_KeyDown"
+                     FontFamily="Consolas"
+                     ToolTip="Enter executes. Up/Down navigate command history."/>
+            <Button Grid.Column="1" Click="RunShell_Click" Content="Run"/>
+            <Button Grid.Column="2" Click="ClearShell_Click" Content="Clear" Background="#475569"/>
+          </Grid>
+        </Grid>
+      </TabItem>
+
       <TabItem Header="Device">
         <Grid Margin="12">
           <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
           </Grid.RowDefinitions>
-          <Border Grid.Row="0" Background="#0F172A" BorderBrush="#1E293B" BorderThickness="1" Padding="14">
-            <StackPanel>
-              <TextBlock FontSize="15" FontWeight="SemiBold" Text="Device"/>
-              <TextBlock x:Name="DeviceDetailText" Margin="0,8,0,0" Foreground="#CBD5E1" TextWrapping="Wrap"/>
-            </StackPanel>
+          <Border Grid.Row="0" Background="#0F172A" BorderBrush="#1E293B" BorderThickness="1" Padding="14" Margin="0,0,0,10">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+              </Grid.ColumnDefinitions>
+              <StackPanel>
+                <TextBlock FontSize="15" FontWeight="SemiBold" Text="Device"/>
+                <TextBlock x:Name="DeviceDetailText" Margin="0,8,0,0" Foreground="#CBD5E1" TextWrapping="Wrap"/>
+              </StackPanel>
+              <Button Grid.Column="1" Click="RefreshDeviceDetails_Click" Content="Refresh details" VerticalAlignment="Top"/>
+            </Grid>
           </Border>
-          <WrapPanel Grid.Row="1" Margin="0,14,0,0">
+          <TextBox Grid.Row="1" x:Name="DeviceDetailsTextBox"
+                   IsReadOnly="True" AcceptsReturn="True"
+                   VerticalScrollBarVisibility="Auto"
+                   HorizontalScrollBarVisibility="Auto"
+                   FontFamily="Consolas" FontSize="12"/>
+          <WrapPanel Grid.Row="2" Margin="0,12,0,0">
             <Button Click="RebootDevice_Click" Content="Reboot device" Background="#B45309"/>
             <Button Click="RestartAdb_Click" Content="Restart ADB server" Background="#B45309"/>
+            <TextBlock Margin="10,7,0,0" Foreground="#64748B" TextWrapping="Wrap"
+                       Text="Restarting ADB affects all connected devices and active mirror sessions."/>
           </WrapPanel>
-          <TextBlock Grid.Row="2" Margin="0,6,0,0" Foreground="#64748B" TextWrapping="Wrap"
-                     Text="Restarting ADB affects all connected Android devices and may temporarily interrupt every active mirror session. The main window monitor will reconnect when ADB becomes available again."/>
         </Grid>
       </TabItem>
     </TabControl>
