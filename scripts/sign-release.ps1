@@ -8,7 +8,7 @@ if (-not (Test-Path $FilePath)) { throw "Signing target missing: $FilePath" }
 if ([string]::IsNullOrWhiteSpace($env:AUTEL_SIGN_PFX_BASE64) -or
     [string]::IsNullOrWhiteSpace($env:AUTEL_SIGN_PFX_PASSWORD)) {
     Write-Host "Unsigned internal test build (trusted certificate not configured): $FilePath"
-    exit 0
+    return
 }
 
 $tool = Get-Command signtool.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -First 1
