@@ -32,6 +32,7 @@ public partial class MirrorSessionControl : UserControl, IDisposable
     private bool _disposed;
     private bool _forceLegacyFallback;
     private DateTime _nextModernRetryUtc;
+    private int _displayRotation;
 
     public MirrorSessionControl(
         AndroidBridge bridge,
@@ -152,7 +153,7 @@ public partial class MirrorSessionControl : UserControl, IDisposable
         ShowOverlay("Starting mirror…", $"{_device.DisplayName} · {_device.Serial}");
         StatusText.Text = "Starting scrcpy…";
 
-        var session = await _scrcpy.StartEmbeddedAsync(_device, _lifetime.Token);
+        var session = await _scrcpy.StartEmbeddedAsync(_device, _displayRotation, _lifetime.Token);
         if (_disposed)
         {
             session.Dispose();
@@ -172,7 +173,9 @@ public partial class MirrorSessionControl : UserControl, IDisposable
         }
         _nextModernRetryUtc = DateTime.MinValue;
         Overlay.Visibility = Visibility.Collapsed;
-        StatusText.Text = "Connected · embedded scrcpy mirror";
+        StatusText.Text = _settings.TurnScreenOffOnMirror
+            ? $"Connected · embedded scrcpy · device screen off · rotation {_displayRotation}°"
+            : $"Connected · embedded scrcpy · rotation {_displayRotation}°";
         BackendText.Text = "scrcpy · Android 5.0+";
     }
 
@@ -391,6 +394,26 @@ public partial class MirrorSessionControl : UserControl, IDisposable
     {
         try { await RestartAsync(); }
         catch (Exception ex) { StatusText.Text = ex.Message; }
+    }
+
+    private async void Rotate_Click(object sender, RoutedEventArgs e)
+    {
+        if (UsesLegacyBackend)
+        {
+            StatusText.Text = "Display rotation is available on Android 5.0+ scrcpy sessions. Android 4.4 follows the device orientation for capture compatibility.";
+            return;
+        }
+
+        _displayRotation = (_displayRotation + 90) % 360;
+        RotateButton.Content = _displayRotation == 0 ? "Rotate 90°" : $"Rotate · {_displayRotation}°";
+        try
+        {
+            await RestartAsync();
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = ex.Message;
+        }
     }
 
     private void LegacyImage_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
