@@ -35,7 +35,9 @@ jobs:
               [ref]$errors
             ) | Out-Null
             if ($errors.Count -gt 0) {
-              $errors | Format-Table -AutoSize | Out-String | Write-Host
+              foreach ($item in $errors) {
+                Write-Host ("PowerShell parse error: {0}:{1}:{2} | {3} | token {4}" -f $file,$item.Extent.StartLineNumber,$item.Extent.StartColumnNumber,$item.Message,$item.Extent.Text)
+              }
               throw "PowerShell parser rejected $file"
             }
             Write-Host "PASS PowerShell syntax: $file"
