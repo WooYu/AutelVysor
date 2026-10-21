@@ -1,6 +1,43 @@
 using System.Diagnostics;
+using System.Globalization;
+using System.Text;
 
 namespace AutelVysor.Services;
+
+/// <summary>Unmodified text streams and the process exit code; formatting is a UI concern.</summary>
+public sealed record CommandResult(int ExitCode, string Output, string Error)
+{
+    // ExitCode is always the actual host process status. Legacy ADB shell-v1
+    // does not propagate the remote status, so callers can require separate proof.
+    public bool RequiresRemoteExitCode { get; init; }
+    public int? RemoteExitCode { get; init; }
+    public int? EffectiveExitCode => ExitCode != 0 ? ExitCode : RequiresRemoteExitCode ? RemoteExitCode : ExitCode;
+    public bool Succeeded => ExitCode == 0 && (!RequiresRemoteExitCode || RemoteExitCode == 0);
+
+    public string FormatForDisplay(int maxStreamCharacters = int.MaxValue)
+    {
+        static string Stream(string value, int limit)
+            => value.Length == 0 ? "(empty)" : value.Length > limit ? value[..limit] + "\n[truncated]" : value;
+        if (maxStreamCharacters < 0) throw new ArgumentOutOfRangeException(nameof(maxStreamCharacters));
+        return "Exit code: " + (EffectiveExitCode?.ToString(CultureInfo.InvariantCulture) ?? "unavailable")
+            + (RequiresRemoteExitCode ? "\nADB exit code: " + ExitCode.ToString(CultureInfo.InvariantCulture)
+                + "\nRemote exit code: " + (RemoteExitCode?.ToString(CultureInfo.InvariantCulture) ?? "unavailable (could not be verified)") : "")
+            + "\nstdout:\n" + Stream(Output, maxStreamCharacters)
+            + "\nstderr:\n" + Stream(Error, maxStreamCharacters);
+    }
+
+    public void EnsureSuccess(string message = "ADB command failed.")
+    {
+        if (!Succeeded) throw new AdbCommandException(
+            RequiresRemoteExitCode && RemoteExitCode is null ? "Remote shell exit status could not be verified. " + message : message, this);
+    }
+}
+
+public sealed class AdbCommandException(string message, CommandResult result)
+    : InvalidOperationException(message + "\n" + result.FormatForDisplay())
+{
+    public CommandResult Result { get; } = result;
+}
 
 public static class ToolRunner
 {
@@ -86,6 +123,11 @@ public static class ToolRunner
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 RedirectStandardInput = redirectInput,
+                // adb emits UTF-8 regardless of the Windows console code page. This
+                // affects StreamReaders/Writers only; binary BaseStream is untouched.
+                StandardOutputEncoding = new UTF8Encoding(false),
+                StandardErrorEncoding = new UTF8Encoding(false),
+                StandardInputEncoding = redirectInput ? new UTF8Encoding(false) : null,
                 CreateNoWindow = true,
                 WorkingDirectory = workingDirectory ?? Path.GetDirectoryName(file) ?? AppContext.BaseDirectory
             }

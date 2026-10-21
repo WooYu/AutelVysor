@@ -18,6 +18,15 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
+      - name: Run encoding, diagnostics and DNS regressions
+        shell: powershell
+        run: dotnet run --project tests/CommandRegressionTests -c Release
+      - name: Run Unicode and IME recovery regressions
+        shell: powershell
+        run: dotnet run --project tests/UnicodeRegressionTests -c Release
+      - name: Verify signing failure paths
+        shell: powershell
+        run: .\scripts\tests\ReleaseSigning.Tests.ps1
       - name: Run shell and display telemetry regressions
         shell: powershell
         run: dotnet run --project tests/BridgeRegressionTests -c Release
@@ -49,12 +58,22 @@ jobs:
           if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
             choco install innosetup -y --no-progress
           }
-      - name: Build portable ZIP and installer
+      - name: Build portable ZIP and installer with explicit signing mode
         shell: powershell
         env:
           AUTEL_SIGN_PFX_BASE64: ${{ secrets.AUTEL_SIGN_PFX_BASE64 }}
           AUTEL_SIGN_PFX_PASSWORD: ${{ secrets.AUTEL_SIGN_PFX_PASSWORD }}
-        run: .\scripts\build-release.ps1 -SkipToolDownload
+          AUTEL_SIGN_CERT_THUMBPRINT: ${{ vars.AUTEL_SIGN_CERT_THUMBPRINT }}
+        run: |
+          $hasPfx = -not [string]::IsNullOrWhiteSpace($env:AUTEL_SIGN_PFX_BASE64)
+          $hasPassword = -not [string]::IsNullOrWhiteSpace($env:AUTEL_SIGN_PFX_PASSWORD)
+          Write-Host ("Trusted signing credential configured: " + ($hasPfx -and $hasPassword))
+          if ($hasPfx -ne $hasPassword) { throw 'Signing credential is only partially configured.' }
+          if ($hasPfx) {
+            .\scripts\build-release.ps1 -SkipToolDownload -RequireSigning
+          } else {
+            .\scripts\build-release.ps1 -SkipToolDownload -AllowUnsignedInternal
+          }
       - uses: actions/upload-artifact@v4
         with:
           name: AutelVysor-windows-x64
@@ -62,4 +81,7 @@ jobs:
           path: |
             dist/AutelVysor-v*-windows-x64.zip
             dist/AutelVysor-Setup.exe
+            dist/AutelVysor/AutelVysor.exe
+            dist/release-manifest.json
+            dist/SHA256SUMS.txt
 

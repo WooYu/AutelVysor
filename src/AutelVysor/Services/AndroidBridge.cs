@@ -437,6 +437,8 @@ public sealed class AndroidBridge(string adbPath)
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
+            StandardOutputEncoding = new UTF8Encoding(false),
+            StandardErrorEncoding = new UTF8Encoding(false),
             CreateNoWindow = true,
             WorkingDirectory = Path.GetDirectoryName(adbPath) ?? AppContext.BaseDirectory
         };
@@ -482,19 +484,38 @@ public sealed class AndroidBridge(string adbPath)
 
     public async Task<string> RunShellCommandAsync(string serial, string command, CancellationToken ct = default)
     {
+        var result = await RunShellCommandResultAsync(serial, command, ct);
+        result.EnsureSuccess("Shell command failed.");
+        // Keep raw success output for overview/property parsers and existing callers.
+        return (result.Output + (string.IsNullOrWhiteSpace(result.Error) ? string.Empty : "\n" + result.Error)).TrimEnd();
+    }
+
+    public async Task<CommandResult> RunShellCommandResultAsync(string serial, string command, CancellationToken ct = default)
+    {
         command = command.Trim();
         if (command.Length == 0)
             throw new InvalidOperationException("Enter an ADB shell command.");
         if (command.Length > 8192)
             throw new InvalidOperationException("The shell command is too long.");
 
-        // adb joins shell arguments before the device shell parses them. A single
-        // command preserves arguments, quotes and operators without a nested sh -c.
-        var result = await RunAsync(["-s", serial, "shell", command], ct: ct);
-        var combined = (result.Output + (string.IsNullOrWhiteSpace(result.Error) ? string.Empty : "\n" + result.Error)).TrimEnd();
-        if (result.ExitCode != 0)
-            throw new InvalidOperationException(string.IsNullOrWhiteSpace(combined) ? $"Shell command failed with exit code {result.ExitCode}." : combined);
-        return combined;
+        // shell-v1 (including Android 4.4) returns host exit 0 for remote failures.
+        // Capture the status in a parent shell after a subshell: `exit`, `exec`,
+        // redirects and a final comment in the user command cannot skip the marker.
+        // The single ADB argument avoids an additional round of shell quoting.
+        var marker = "__AUTEL_EXIT_" + Guid.NewGuid().ToString("N") + "__";
+        var wrapped = "(\n" + command + "\n)\n__autel_status=$?\nprintf '\\n" + marker + "%s\\n' \"$__autel_status\"";
+        var result = await RunAsync(["-s", serial, "shell", wrapped], ct: ct);
+        var suffix = Regex.Match(result.Output, "\\n" + marker + "(?<code>[0-9]{1,3})\\n\\z");
+        // Older adbd PTYs may translate the marker's LF to CRLF.
+        if (!suffix.Success)
+            suffix = Regex.Match(result.Output, "\\r\\n" + marker + "(?<code>[0-9]{1,3})\\r\\n\\z");
+        int? remoteCode = suffix.Success && int.TryParse(suffix.Groups["code"].Value, NumberStyles.None, CultureInfo.InvariantCulture, out var code)
+            && code <= 255 ? code : null;
+        return new CommandResult(result.ExitCode, remoteCode is not null ? result.Output[..suffix.Index] : result.Output, result.Error)
+        {
+            RequiresRemoteExitCode = true,
+            RemoteExitCode = remoteCode
+        };
     }
 
     public async Task<(int Width, int Height)> GetDisplaySizeAsync(string serial, CancellationToken ct = default)
@@ -695,7 +716,7 @@ public sealed class AndroidBridge(string adbPath)
         var combined = (result.Output + "\n" + result.Error).Trim();
         var failedByText = failureWords.Any(word => combined.Contains(word, StringComparison.OrdinalIgnoreCase));
         if (result.ExitCode != 0 || failedByText)
-            throw new InvalidOperationException(string.IsNullOrWhiteSpace(combined) ? fallback : combined);
+            throw new AdbCommandException(fallback, new CommandResult(result.ExitCode, result.Output, result.Error));
     }
 }
 

@@ -54,7 +54,7 @@ public partial class BatchOperationsWindow : Window
                 {
                     var result = await action(device, cts.Token);
                     if (!string.IsNullOrEmpty(result))
-                        Append(result.Length > 4000 ? result[..4000] + "\n[output truncated]" : result);
+                        Append(result);
                     pass++;
                     Append("[PASS]");
                 }
@@ -93,7 +93,11 @@ public partial class BatchOperationsWindow : Window
             return;
 
         await RunBatchAsync(async (device, ct) =>
-            await _bridge.RunShellCommandAsync(device.Serial, command, ct));
+        {
+            var result = await _bridge.RunShellCommandResultAsync(device.Serial, command, ct);
+            result.EnsureSuccess("Batch shell command failed.");
+            return result.FormatForDisplay(4000);
+        });
     }
 
     private async void InstallApk_Click(object sender, RoutedEventArgs e)

@@ -2,7 +2,7 @@
 
 ## Build gate
 
-1. Run `scripts/build-release.ps1` on Windows 10/11 x64.
+1. Run `scripts/build-release.ps1 -AllowUnsignedInternal` on Windows 10/11 x64.
 2. Verify `dist/AutelVysor/AutelVysor.exe` starts without a .NET runtime installation (self-contained publish).
 3. Verify Properties -> Details:
    - File description: `Autel`

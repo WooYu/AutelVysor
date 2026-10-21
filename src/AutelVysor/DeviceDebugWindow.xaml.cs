@@ -614,12 +614,13 @@ public partial class DeviceDebugWindow : Window
         StatusText.Text = "Running shell command…";
         try
         {
-            var output = await _bridge.RunShellCommandAsync(_device.Serial, command);
-            if (!string.IsNullOrWhiteSpace(output))
-                ShellOutputBox.AppendText(output + Environment.NewLine);
+            var result = await _bridge.RunShellCommandResultAsync(_device.Serial, command);
+            ShellOutputBox.AppendText(result.FormatForDisplay() + Environment.NewLine);
             ShellOutputBox.AppendText(Environment.NewLine);
             ShellOutputBox.ScrollToEnd();
-            StatusText.Text = "Shell command completed.";
+            StatusText.Text = result.Succeeded ? "Shell command completed (exit 0)."
+                : result.EffectiveExitCode is int exitCode ? $"Shell command failed (exit {exitCode})."
+                : "Remote shell exit status could not be verified.";
         }
         catch (Exception ex)
         {

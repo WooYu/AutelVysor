@@ -17,7 +17,7 @@ The current container does not provide `dotnet`, PowerShell (`pwsh`) or Wine, an
 The included GitHub Actions workflow or any Windows 10/11 x64 machine with .NET 8 can perform the real compile and release validation:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\build-release.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\build-release.ps1 -AllowUnsignedInternal
 ```
 
 A successful Windows build must produce:

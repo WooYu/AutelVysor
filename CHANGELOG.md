@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.10.4 (candidate; signed publication gated)
+
+- AV-006: explicitly decode redirected ADB text and live logcat as UTF-8, write BOM-free UTF-8 stdin, preserve binary streams.
+- Preserve separate stdout/stderr plus process and verified remote shell exit status; display command evidence in terminal/batch and classify unavailable status without false PASS.
+- Diagnose DNS with legacy properties and modern resolver/connectivity queries, retaining evidence and distinguishing empty configuration, permission denial, unsupported commands/services and query failure.
+- Add opt-in ADBKeyBoard installation/setup, durable original-IME recovery, receiver validation and actual focused-field Unicode verification. Add guided two-way clipboard acceptance with actual Android source readback and a fresh PC marker.
+- Require trusted valid timestamped application/installer signatures for final release; calculate package hashes after signing and reverify the signed ZIP executable and pinned manifest before publication.
+- Windows/Android physical Unicode and clipboard acceptance, and a real trusted signed build, are separate from simulated/negative regression checks. No self-signed substitute is used.
+
 ## 0.10.3
 
 - AV-001: send a complete command to adb shell instead of an unquoted nested sh -c, preserving arguments across shell, batch, device and network diagnostics; exit status coverage applies to modern shell_v2. Legacy adbd exit-status limitations remain.

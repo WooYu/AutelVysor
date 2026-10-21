@@ -15,6 +15,8 @@ public partial class MirrorSessionControl : UserControl, IDisposable
 {
     private readonly AndroidBridge _bridge;
     private readonly AdvancedAdbService _advanced;
+    private readonly AdbKeyboardService _keyboard;
+    private UnicodeSetupWindow? _unicodeWindow;
     private readonly ScrcpyService? _scrcpy;
     private readonly LegacyMinicapService? _minicap;
     private readonly AppSettings _settings;
@@ -50,6 +52,7 @@ public partial class MirrorSessionControl : UserControl, IDisposable
         InitializeComponent();
         _bridge = bridge;
         _advanced = new AdvancedAdbService(bridge.ExecutablePath);
+        _keyboard = new AdbKeyboardService(bridge.ExecutablePath);
         _scrcpy = scrcpy;
         _minicap = minicap;
         _settings = settings;
@@ -59,6 +62,7 @@ public partial class MirrorSessionControl : UserControl, IDisposable
         {
             Focus();
             await EnsureRunningAsync();
+            RefreshKeyboardRecovery();
         };
     }
 
@@ -533,8 +537,8 @@ public partial class MirrorSessionControl : UserControl, IDisposable
             {
                 // adb shell input text cannot reliably type CJK / Unicode.
                 // The helper IME is opt-in, and its absence is reported explicitly.
-                StatusText.Text = await _advanced.SendUnicodeViaAdbKeyboardAsync(
-                    _device.Serial, text, _lifetime.Token);
+                var result = await _keyboard.SendAsync(_device.Serial, text, _lifetime.Token);
+                StatusText.Text = result.Message;
             }
             else
             {
@@ -568,10 +572,25 @@ public partial class MirrorSessionControl : UserControl, IDisposable
     {
         try
         {
-            StatusText.Text = await _advanced.SendUnicodeViaAdbKeyboardAsync(_device.Serial, AndroidTextBox.Text, _lifetime.Token);
+            var result = await _keyboard.SendAsync(_device.Serial, AndroidTextBox.Text, _lifetime.Token);
+            StatusText.Text = result.Message;
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
         catch (Exception ex) { StatusText.Text = ex.Message; }
+    }
+
+    private void RefreshKeyboardRecovery()
+    {
+        ImeRecoveryText.Visibility = _keyboard.HasRecovery(_device.Serial) ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void UnicodeSetup_Click(object sender, RoutedEventArgs e)
+    {
+        if (_unicodeWindow is not null) { _unicodeWindow.Activate(); return; }
+        _unicodeWindow = new UnicodeSetupWindow(_keyboard, _device.Serial, AndroidTextBox.Text,
+            !UsesLegacyBackend && _scrcpySession is { HasExited: false }) { Owner = Window.GetWindow(this) };
+        _unicodeWindow.Closed += (_, _) => { _unicodeWindow = null; RefreshKeyboardRecovery(); };
+        _unicodeWindow.Show();
     }
 
     private async void AudioRoute_Click(object sender, RoutedEventArgs e)

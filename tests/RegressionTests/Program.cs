@@ -113,7 +113,7 @@ internal static class Program
         // real POSIX shell, rather than teaching a fake ADB the desired result.
         var commands = State("commands");
         Directory.CreateDirectory(commands);
-        File.WriteAllText(Path.Combine(commands, "dumpsys"), "#!/bin/sh\ncase \"$1\" in battery) echo BatteryStatus;; wifi) echo WifiStatus;; *) echo ALL_DUMPSYS;; esac\n");
+        File.WriteAllText(Path.Combine(commands, "dumpsys"), "#!/bin/sh\ncase \"$1\" in battery) echo BatteryStatus;; wifi) echo WifiStatus;; dnsresolver) echo ResolverStatus;; connectivity) echo ConnectivityStatus;; *) echo ALL_DUMPSYS;; esac\n");
         File.WriteAllText(Path.Combine(commands, "wm"), "#!/bin/sh\ncase \"$1\" in size) echo 'Physical size: 1080x2400';; density) echo 'Physical density: 420';; *) echo WM_HELP;; esac\n");
         var bridge = Bridge();
         var output = await bridge.RunShellCommandAsync("test-device", "printf '%s|%s' 'hello world' \"a'b\"");
