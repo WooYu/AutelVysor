@@ -1,0 +1,82 @@
+name: Publish v0.10.2 Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'release-trigger-v0.10.2.txt'
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download validated main build
+        uses: actions/download-artifact@v4
+        with:
+          name: AutelVysor-windows-x64
+          path: release-assets
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 39561439445
+
+      - name: Verify package layout and generate checksum list
+        shell: bash
+        run: |
+          set -euxo pipefail
+          test -f release-assets/AutelVysor-v0.10.2-windows-x64.zip
+          test -f release-assets/AutelVysor-Setup.exe
+          mv release-assets/AutelVysor-Setup.exe release-assets/AutelVysor-Setup-v0.10.2.exe
+          (cd release-assets && sha256sum AutelVysor-Setup-v0.10.2.exe AutelVysor-v0.10.2-windows-x64.zip > SHA256SUMS.txt)
+          cat release-assets/SHA256SUMS.txt
+
+      - name: Write accurate release notes
+        shell: bash
+        run: |
+          cat > RELEASE_NOTES.md <<'EOF'
+          ## Autel Vysor v0.10.2 (Pre-release)
+
+          This update addresses two issues reported against v0.10.1:
+          Switch orientation / Auto rotate not changing the Android display, and
+          inability to type using a Windows PC keyboard into embedded scrcpy.
+
+          - Restore Win32 keyboard focus to scrcpy's external SDL child window inside WPF.
+          - Add explicit Focus keyboard button; click an Android input field then type normally.
+          - Add Send text button to inject ASCII/VIN directly using ADB, even if SDL focus is unavailable.
+          - Improve scrcpy SDK text-event mode. Unicode uses clipboard paste or an explicitly installed/selected optional ADBKeyBoard IME.
+          - Reorder Android rotation commands: disable sensor rotation before applying WindowManager lock, synchronize settings and validate rotation policy.
+          - Auto rotate releases the WindowManager lock and re-enables sensor mode. Physical tilt may be required.
+          - Show when a foreground app or OEM policy refuses an orientation request.
+          - Add Windows regression checks for a real second Win32 process, native focus handoff, ADB input, rotation lock and auto policy.
+          - Add scripts/diagnose-connected-devices.ps1 to examine authorized USB/ADB devices on the user's Windows PC; optional -TestRotation exercises and restores rotation.
+
+          ### Verification
+          GitHub Windows Build run # (main) 39561439445: regression-tests PASS, WPF build PASS,
+          packaged EXE self-test PASS, Inno Setup installer PASS and portable ZIP PASS.
+          FileDescription: Autel; ProductName: Autel Vysor; FileVersion: 0.10.2.0.
+
+          ### Limitations
+          The cloud CI environment does not have access to users' physically USB-connected Android devices.
+          Real Android device keyboard behavior, OEM rotation policies, Android 4.4 compatibility and Bluetooth
+          routing must be confirmed locally. Some Android apps lock their own orientation and do not accept
+          rotation even after a successful ADB command. This build is UNSIGNED: a trusted Windows Authenticode
+          code-signing certificate has not been supplied. Therefore this is a PRE-RELEASE test build.
+          EOF
+
+      - name: Publish GitHub pre-release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euxo pipefail
+          gh release create v0.10.2 \
+            release-assets/AutelVysor-Setup-v0.10.2.exe \
+            release-assets/AutelVysor-v0.10.2-windows-x64.zip \
+            release-assets/SHA256SUMS.txt \
+            --repo "${GITHUB_REPOSITORY}" \
+            --target "63e49698ce95e7a80dbc951f86d82dd2742885a3" \
+            --title "Autel Vysor v0.10.2" \
+            --notes-file RELEASE_NOTES.md \
+            --prerelease
