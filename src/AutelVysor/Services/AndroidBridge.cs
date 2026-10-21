@@ -233,6 +233,15 @@ public sealed class AndroidBridge(string adbPath)
     public Task KeyEventAsync(string serial, int keyCode, CancellationToken ct = default)
         => ShellCheckedAsync(serial, ["input", "keyevent", keyCode.ToString(CultureInfo.InvariantCulture)], ct);
 
+    public async Task<int> GetCurrentRotationDegreesAsync(string serial, CancellationToken ct = default)
+    {
+        var result = await RunAsync(["-s", serial, "shell", "settings", "get", "system", "user_rotation"], ct: ct);
+        var text = result.Output.Trim();
+        return int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value)
+            ? Math.Clamp(value, 0, 3) * 90
+            : 0;
+    }
+
     public async Task<int> RotateDeviceClockwiseAsync(string serial, CancellationToken ct = default)
     {
         var currentResult = await RunAsync(["-s", serial, "shell", "settings", "get", "system", "user_rotation"], ct: ct);
