@@ -5,7 +5,7 @@
         Width="1180" Height="780" MinWidth="980" MinHeight="680"
         Background="#0B1120" Foreground="#F1F5F9">
   <Window.Resources>
-    <Style TargetType="Button">
+    <Style TargetType="Button" BasedOn="{StaticResource DarkButtonStyle}">
       <Setter Property="Padding" Value="11,7"/>
       <Setter Property="Margin" Value="0,0,7,7"/>
       <Setter Property="Background" Value="#2563EB"/>
@@ -24,18 +24,18 @@
       <Setter Property="Foreground" Value="#E5E7EB"/>
       <Setter Property="VerticalContentAlignment" Value="Center"/>
     </Style>
-    <Style TargetType="ComboBox">
+    <Style TargetType="ComboBox" BasedOn="{StaticResource DarkComboBoxStyle}">
       <Setter Property="Padding" Value="7"/>
       <Setter Property="Background" Value="#111827"/>
       <Setter Property="Foreground" Value="White"/>
       <Setter Property="BorderBrush" Value="#334155"/>
     </Style>
-    <Style TargetType="ComboBoxItem">
+    <Style TargetType="ComboBoxItem" BasedOn="{StaticResource DarkComboItemStyle}">
       <Setter Property="Background" Value="#111827"/>
       <Setter Property="Foreground" Value="White"/>
       <Setter Property="Padding" Value="7,5"/>
     </Style>
-    <Style TargetType="TabItem">
+    <Style TargetType="TabItem" BasedOn="{StaticResource DarkTabItemStyle}">
       <Setter Property="Padding" Value="14,8"/>
     </Style>
   </Window.Resources>

@@ -8,7 +8,7 @@
              PreviewKeyDown="Root_PreviewKeyDown"
              PreviewTextInput="Root_PreviewTextInput">
   <UserControl.Resources>
-    <Style TargetType="Button">
+    <Style TargetType="Button" BasedOn="{StaticResource DarkButtonStyle}">
       <Setter Property="Padding" Value="10,6"/>
       <Setter Property="Margin" Value="4,0"/>
       <Setter Property="Background" Value="#1F2937"/>
@@ -40,8 +40,8 @@
           <Button Click="Power_Click" Content="Power"/>
           <Button Click="FitView_Click" Content="Fit"/>
           <Button Click="ActualSize_Click" Content="1:1"/>
-          <Button x:Name="RotateButton" Click="Rotate_Click" Content="Rotate device"/>
-          <Button Click="AutoRotate_Click" Content="Auto rotate"/>
+          <Button x:Name="RotateButton" Click="Rotate_Click" Content="Switch orientation" ToolTip="Switch the real Android display between its two main orientations"/>
+          <Button x:Name="AutoRotateButton" Click="AutoRotate_Click" Content="Auto rotate"/>
           <Button Click="Restart_Click" Content="Restart"/>
         </WrapPanel>
       </DockPanel>

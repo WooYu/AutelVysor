@@ -5,7 +5,7 @@
         Background="#0B1120" Foreground="#F1F5F9"
         PreviewKeyDown="MainWindow_PreviewKeyDown">
   <Window.Resources>
-    <Style TargetType="Button">
+    <Style TargetType="Button" BasedOn="{StaticResource DarkButtonStyle}">
       <Setter Property="Padding" Value="11,7"/>
       <Setter Property="Margin" Value="0,0,7,7"/>
       <Setter Property="Background" Value="#2563EB"/>
@@ -28,7 +28,7 @@
       <Setter Property="Foreground" Value="#F8FAFC"/>
       <Setter Property="Margin" Value="0,5,0,0"/>
     </Style>
-    <Style TargetType="ComboBoxItem">
+    <Style TargetType="ComboBoxItem" BasedOn="{StaticResource DarkComboItemStyle}">
       <Setter Property="Foreground" Value="#F8FAFC"/>
       <Setter Property="Background" Value="#111827"/>
       <Setter Property="Padding" Value="8,6"/>
@@ -141,16 +141,12 @@
                    ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                    HorizontalContentAlignment="Stretch">
             <ListBox.ItemContainerStyle>
-              <Style TargetType="ListBoxItem">
+              <Style TargetType="ListBoxItem" BasedOn="{StaticResource DarkListItemStyle}">
                 <Setter Property="Padding" Value="0"/>
                 <Setter Property="Margin" Value="0,0,0,6"/>
                 <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
                 <Setter Property="Background" Value="Transparent"/>
-                <Style.Triggers>
-                  <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="#1D4ED8"/>
-                  </Trigger>
-                </Style.Triggers>
+
               </Style>
             </ListBox.ItemContainerStyle>
             <ListBox.ItemTemplate>
@@ -169,7 +165,7 @@
                       <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="14" TextTrimming="CharacterEllipsis"/>
                     </DockPanel>
                     <TextBlock Grid.Row="1" Margin="0,3,0,0" Text="{Binding Meta}" Foreground="#CBD5E1" FontSize="11" TextTrimming="CharacterEllipsis"/>
-                    <TextBlock Grid.Row="2" Margin="0,2,0,0" Text="{Binding Serial}" Foreground="#64748B" FontSize="10" TextTrimming="CharacterEllipsis"/>
+                    <TextBlock Grid.Row="2" Margin="0,2,0,0" Text="{Binding Serial}" Foreground="#A8B8CC" FontSize="11" TextTrimming="CharacterEllipsis"/>
                   </Grid>
                 </Border>
               </DataTemplate>

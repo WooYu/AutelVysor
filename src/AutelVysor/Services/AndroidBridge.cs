@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
@@ -12,6 +13,7 @@ public sealed class AndroidBridge(string adbPath)
 {
     public string ExecutablePath => adbPath;
 
+    private readonly ConcurrentDictionary<string, AndroidDevice> _metadataCache = new(StringComparer.OrdinalIgnoreCase);
     private static string ValueOf(IEnumerable<string> fields, string key)
     {
         var prefix = key + ":";
@@ -51,6 +53,10 @@ public sealed class AndroidBridge(string adbPath)
                 string.Join(' ', fields.Skip(2))));
         }
 
+        var online = devices.Where(x => x.IsOnline).Select(x => x.Serial).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var serial in _metadataCache.Keys.Where(x => !online.Contains(x)))
+            _metadataCache.TryRemove(serial, out _);
+
         var enriched = await Task.WhenAll(devices.Select(device =>
             device.IsOnline ? EnrichAsync(device, ct) : Task.FromResult(device)));
         return enriched;
@@ -58,6 +64,8 @@ public sealed class AndroidBridge(string adbPath)
 
     private async Task<AndroidDevice> EnrichAsync(AndroidDevice device, CancellationToken ct)
     {
+        if (_metadataCache.TryGetValue(device.Serial, out var cached) && cached.TransportId == device.TransportId)
+            return device with { ApiLevel = cached.ApiLevel, AndroidVersion = cached.AndroidVersion, Abi = cached.Abi };
         try
         {
             var sdkTask = GetPropAsync(device.Serial, "ro.build.version.sdk", ct);
@@ -66,12 +74,15 @@ public sealed class AndroidBridge(string adbPath)
             await Task.WhenAll(sdkTask, releaseTask, abiTask);
 
             _ = int.TryParse(sdkTask.Result, NumberStyles.Integer, CultureInfo.InvariantCulture, out var api);
-            return device with
+            var enriched = device with
             {
                 ApiLevel = api,
                 AndroidVersion = releaseTask.Result,
                 Abi = abiTask.Result
             };
+            if (api > 0 && !string.IsNullOrWhiteSpace(enriched.Abi) && !string.IsNullOrWhiteSpace(enriched.AndroidVersion))
+                _metadataCache[device.Serial] = enriched;
+            return enriched;
         }
         catch
         {
@@ -238,6 +249,11 @@ public sealed class AndroidBridge(string adbPath)
 
     public async Task<int> GetCurrentRotationDegreesAsync(string serial, CancellationToken ct = default)
     {
+        // user_rotation may be stale while sensor-based rotation is active.
+        var display = await RunAsync(["-s", serial, "shell", "dumpsys", "input"], ct: ct);
+        var match = Regex.Match(display.Output, @"SurfaceOrientation:\s*([0-3])\b");
+        if (display.ExitCode == 0 && match.Success)
+            return int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture) * 90;
         var result = await RunAsync(["-s", serial, "shell", "settings", "get", "system", "user_rotation"], ct: ct);
         var text = result.Output.Trim();
         return int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value)
@@ -245,14 +261,10 @@ public sealed class AndroidBridge(string adbPath)
             : 0;
     }
 
-    public async Task<int> RotateDeviceClockwiseAsync(string serial, CancellationToken ct = default)
+    public async Task<int> ToggleDeviceOrientationAsync(string serial, CancellationToken ct = default)
     {
-        var currentResult = await RunAsync(["-s", serial, "shell", "settings", "get", "system", "user_rotation"], ct: ct);
-        var currentText = currentResult.Output.Trim();
-        var current = int.TryParse(currentText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
-            ? Math.Clamp(parsed, 0, 3)
-            : 0;
-        var next = (current + 1) % 4;
+        var current = await GetCurrentRotationDegreesAsync(serial, ct);
+        var next = current is 90 or 270 ? 0 : 1;
 
         // Prefer WindowManager's user-rotation command on newer Android.
         // Command spelling differs across Android generations, so fall back to the
@@ -272,6 +284,9 @@ public sealed class AndroidBridge(string adbPath)
                        || wmText.Contains("Error", StringComparison.OrdinalIgnoreCase);
         }
 
+        if (!wmFailed)
+            return next * 90;
+
         // Keep Settings.System in sync and provide the compatibility path for
         // Android 4.4 / vendor builds without wm user-rotation.
         var accel = await RunAsync(["-s", serial, "shell", "settings", "put", "system", "accelerometer_rotation", "0"], ct: ct);
@@ -288,7 +303,9 @@ public sealed class AndroidBridge(string adbPath)
         EnsureSuccess(result, "Unable to enable Android auto-rotation.", "error", "failed");
 
         // Best effort on newer Android. Older versions do not expose this wm command.
-        _ = RunAsync(["-s", serial, "shell", "wm", "user-rotation", "free"], ct: CancellationToken.None);
+        var wm = await RunAsync(["-s", serial, "shell", "wm", "user-rotation", "free"], ct: ct);
+        if (wm.ExitCode != 0 || (wm.Output + wm.Error).Contains("Unknown", StringComparison.OrdinalIgnoreCase))
+            await RunAsync(["-s", serial, "shell", "wm", "set-user-rotation", "free"], ct: ct);
     }
 
     public Task InputTextAsync(string serial, string text, CancellationToken ct = default)

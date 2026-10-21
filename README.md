@@ -2,7 +2,7 @@
 
 Windows Android mirror/control client for **Android 4.4 (API 19) and newer**.
 
-Current source version: **0.10.0**.
+Current source version: **0.10.1**
 
 ## Compatibility
 
@@ -14,6 +14,16 @@ Current source version: **0.10.0**.
 | Android 11+ | ADB wireless pairing + scrcpy | Implemented |
 
 scrcpy itself requires API 21+, therefore API 19/20 never attempts to start scrcpy.
+
+## v0.10.1 integration
+
+- Merged the v0.9.1 rotation-cropping and UI-performance branch (PR #1) into the v0.10.x development line.
+- Embedded scrcpy child HWND is kept within its WPF host as the device rotates, using guarded, asynchronous resizing.
+- Device rotation uses a guarded portrait/landscape toggle rather than endlessly rotating the computer image; Fit view is restored.
+- Shared dark hover/focus/selection templates improve the device list, active/inactive tabs, editable dropdowns and debug controls.
+- Device polling reuses stable metadata and skips redundant list rebuilds; legacy capture/decode is moved away from the WPF UI thread.
+- New Windows regression checks cover repeated resize, orientation toggles, metadata cache invalidation and selection rendering.
+- Existing v0.10.0 unicode, batch, network, diagnostics, capture-management, update-check and optional signing features are retained.
 
 ## v0.10.0 additions
 
@@ -153,7 +163,7 @@ The build fails if the executable metadata does not contain:
 ```text
 FileDescription : Autel
 ProductName     : Autel Vysor
-FileVersion     : 0.10.0.0
+FileVersion     : 0.10.1.0
 ```
 
 ## Build portable ZIP and installer
@@ -165,7 +175,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build-release.ps1
 Expected artifacts:
 
 ```text
-dist\AutelVysor-v0.10.0-windows-x64.zip
+dist\AutelVysor-v0.10.1-windows-x64.zip
 dist\AutelVysor-Setup.exe           # when Inno Setup 6 is installed
 ```
 

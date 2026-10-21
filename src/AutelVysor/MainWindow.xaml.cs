@@ -175,27 +175,34 @@ public partial class MainWindow : Window
             if (!quiet)
                 StatusText.Text = "Scanning Android devices and reading OS versions…";
 
-            var selectedSerials = DeviceList.SelectedItems.Cast<DeviceItem>().Select(x => x.Device.Serial).ToHashSet(StringComparer.OrdinalIgnoreCase);
             var devices = await _bridge.ListDevicesAsync();
 
             if (AutoReconnectBox.IsChecked == true)
             {
                 var onlineSerials = devices.Where(x => x.IsOnline).Select(x => x.Serial).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                var reconnectAttempted = false;
                 foreach (var address in _knownWireless.Where(x => !onlineSerials.Contains(x)).ToArray())
                 {
                     if (_lastReconnectAttempt.TryGetValue(address, out var last) && DateTime.UtcNow - last < TimeSpan.FromSeconds(7))
                         continue;
                     _lastReconnectAttempt[address] = DateTime.UtcNow;
+                    reconnectAttempted = true;
                     try { await _bridge.ConnectAsync(address); } catch { }
                 }
-                devices = await _bridge.ListDevicesAsync();
+                if (reconnectAttempted)
+                    devices = await _bridge.ListDevicesAsync();
             }
 
+            if (!_devices.SequenceEqual(devices))
+            {
+                // Capture selection after awaiting ADB, so a click during the scan is preserved.
+                var selectedSerials = DeviceList.SelectedItems.Cast<DeviceItem>().Select(x => x.Device.Serial).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                var items = devices.Select(d => new DeviceItem(d)).ToArray();
+                DeviceList.ItemsSource = items;
+                foreach (var item in items.Where(x => selectedSerials.Contains(x.Device.Serial)))
+                    DeviceList.SelectedItems.Add(item);
+            }
             _devices = devices;
-            var items = devices.Select(d => new DeviceItem(d)).ToArray();
-            DeviceList.ItemsSource = items;
-            foreach (var item in items.Where(x => selectedSerials.Contains(x.Device.Serial)))
-                DeviceList.SelectedItems.Add(item);
 
             var map = devices.ToDictionary(x => x.Serial, StringComparer.OrdinalIgnoreCase);
             foreach (var (serial, session) in _sessions.ToArray())

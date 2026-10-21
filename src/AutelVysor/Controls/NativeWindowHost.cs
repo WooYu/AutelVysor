@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
+using System.Windows.Threading;
 
 namespace AutelVysor.Controls;
 
@@ -26,13 +27,18 @@ public sealed class NativeWindowHost : HwndHost
     private bool _fitChild = true;
     private int _actualChildWidth;
     private int _actualChildHeight;
+    private IntPtr _locationHook;
+    private readonly WinEventProc _locationCallback;
+    private bool _resizeQueued;
+
+    public NativeWindowHost() => _locationCallback = OnChildLocationChanged;
 
     public IntPtr ChildHandle => _childHwnd;
     public bool HasChild => _childHwnd != IntPtr.Zero;
 
     protected override HandleRef BuildWindowCore(HandleRef hwndParent)
     {
-        var style = WsChild | WsVisible | WsClipChildren | WsClipSiblings;
+        var style = WsChild | WsVisible | WsClipChildren | WsClipSiblings | 0x00000004U; // SS_BLACKRECT
         _hostHwnd = CreateWindowEx(
             0,
             "STATIC",
@@ -97,6 +103,12 @@ public sealed class NativeWindowHost : HwndHost
         if (previousParent == IntPtr.Zero && parentError != 0)
             throw new InvalidOperationException($"Unable to embed scrcpy window. Win32 error {parentError}.");
 
+        // SDL resizes its own HWND when the Android display orientation changes.
+        // WPF's layout may remain unchanged, so OnRenderSizeChanged alone cannot keep it fitted.
+        GetWindowThreadProcessId(childHwnd, out var processId);
+        _locationHook = SetWinEventHook(0x800B, 0x800B, IntPtr.Zero, _locationCallback, processId, 0, 0);
+        if (_locationHook == IntPtr.Zero)
+            throw new InvalidOperationException($"Unable to monitor mirror window size. Win32 error {Marshal.GetLastWin32Error()}.");
         ResizeChild();
         ShowWindow(childHwnd, 5); // SW_SHOW
     }
@@ -119,6 +131,11 @@ public sealed class NativeWindowHost : HwndHost
 
     public void DetachExternalWindow()
     {
+        if (_locationHook != IntPtr.Zero)
+        {
+            UnhookWinEvent(_locationHook);
+            _locationHook = IntPtr.Zero;
+        }
         if (_childHwnd == IntPtr.Zero)
             return;
 
@@ -149,17 +166,32 @@ public sealed class NativeWindowHost : HwndHost
 
         var hostWidth = Math.Max(1, rect.Right);
         var hostHeight = Math.Max(1, rect.Bottom);
-        if (_fitChild || _actualChildWidth <= 0 || _actualChildHeight <= 0)
-        {
-            MoveWindow(_childHwnd, 0, 0, hostWidth, hostHeight, true);
-            return;
-        }
+        var actualSize = !_fitChild && _actualChildWidth > 0 && _actualChildHeight > 0;
+        var width = actualSize ? _actualChildWidth : hostWidth;
+        var height = actualSize ? _actualChildHeight : hostHeight;
+        var x = actualSize ? (hostWidth - width) / 2 : 0;
+        var y = actualSize ? (hostHeight - height) / 2 : 0;
 
-        var width = Math.Max(1, _actualChildWidth);
-        var height = Math.Max(1, _actualChildHeight);
-        var x = (hostWidth - width) / 2;
-        var y = (hostHeight - height) / 2;
-        MoveWindow(_childHwnd, x, y, width, height, true);
+        if (GetWindowRect(_childHwnd, out var current))
+        {
+            MapWindowPoints(IntPtr.Zero, _hostHwnd, ref current, 2);
+            if (current.Left == x && current.Top == y && current.Right - current.Left == width && current.Bottom - current.Top == height)
+                return; // Avoid a resize event feedback loop.
+        }
+        // Never synchronously wait for the external renderer's window procedure on the UI thread.
+        SetWindowPos(_childHwnd, IntPtr.Zero, x, y, width, height, 0x4000 | 0x0010 | 0x0004);
+    }
+
+    private void OnChildLocationChanged(IntPtr hook, uint eventType, IntPtr hwnd, int objectId, int childId, uint thread, uint time)
+    {
+        if (hwnd != _childHwnd || objectId != 0 || childId != 0 || _resizeQueued || Dispatcher.HasShutdownStarted)
+            return;
+        _resizeQueued = true;
+        Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
+        {
+            _resizeQueued = false;
+            ResizeChild();
+        }));
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -208,7 +240,26 @@ public sealed class NativeWindowHost : HwndHost
 
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool MoveWindow(IntPtr hWnd, int x, int y, int width, int height, bool repaint);
+    private static extern bool SetWindowPos(IntPtr hWnd, IntPtr insertAfter, int x, int y, int width, int height, uint flags);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetWindowRect(IntPtr hwnd, out Rect rect);
+
+    [DllImport("user32.dll")]
+    private static extern int MapWindowPoints(IntPtr from, IntPtr to, ref Rect rect, uint points);
+
+    private delegate void WinEventProc(IntPtr hook, uint eventType, IntPtr hwnd, int objectId, int childId, uint thread, uint time);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern IntPtr SetWinEventHook(uint eventMin, uint eventMax, IntPtr module, WinEventProc callback, uint processId, uint threadId, uint flags);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool UnhookWinEvent(IntPtr hook);
+
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]

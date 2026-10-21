@@ -7,7 +7,7 @@
 3. Verify Properties -> Details:
    - File description: `Autel`
    - Product name: `Autel Vysor`
-   - File version: `0.6.0.0`
+   - File version: `0.10.1.0`
 4. Verify the installer Properties -> Details also reports file description `Autel`.
 
 ## Device matrix
@@ -77,3 +77,17 @@ For each device verify discovery, mirror, click, drag, keyboard, Home/Back/Recen
 - [ ] Screenshot and recording history opens and previews local files.
 - [ ] GitHub update checker links only to official repository releases; does not run unsigned installers.
 - [ ] CI signed build using real certificate: verify Authenticode on EXE + setup; unsigned build clearly labeled.
+
+
+## v0.10.1 integrated rotation and responsiveness regressions
+
+Run `dotnet run --project tests/RegressionTests/RegressionTests.csproj -c Release` on Windows.
+The automated checks exercise 12 consecutive native-window resize events, six orientation toggles,
+a mocked ADB process endpoint with metadata caching and reconnect invalidation, and dark selected styles.
+
+On physical devices: perform at least 20 natural/landscape orientation changes (including rapid clicks),
+check Fit / 1:1, resized windows, 100% / 150% / 200% DPI, and sensor auto-rotation.
+Verify the actual screen orientation changes and touch mapping remains correct.
+Confirm selected tabs, device rows, edit/dropdowns and buttons remain readable when focus moves to the mirror.
+Check multi-device performance and Android 4.4 capture, and confirm Bluetooth headset audio remains available.
+These physical-device checks are distinct from the Windows CI suite.

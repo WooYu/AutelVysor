@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.10.1
+
+- Integrated PR #1 (v0.9.1) into v0.10.x without losing the v0.10.0 device-debug, Unicode, batch-operation, networking, capture-management and update-check capabilities.
+- Fixed repeated real-device rotation cropping by tracking native child-window size/position changes and returning to Fit after rotation.
+- Rotation switches between natural and 90-degree device orientations, with a busy guard against rapid repeated clicks.
+- Unified dark UI selection/hover/focus styles for main and debug windows, including editable ComboBoxes.
+- Reduced device polling and UI rebuilding by caching Android metadata and updating device lists only when data changes.
+- Moved legacy capture/decode work away from the UI thread with session cancellation guards.
+- Added automated Windows regressions for 12 native resize cycles, 6 rotation toggles, metadata refresh on reconnect and inactive dark-theme selections.
+- Retained the optional trusted Authenticode signing pipeline; unsigned test builds remain explicitly marked.
+
+
 ## 0.10.0
 
 - Added a Unicode text helper to mirror tabs. scrcpy sessions can copy text to Windows clipboard and paste into Android; optional ADBKeyBoard IME enables Base64 Unicode input for legacy Android.

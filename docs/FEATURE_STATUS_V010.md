@@ -39,3 +39,13 @@ Windows CI: https://github.com/WooYu/AutelVysor/actions/runs/39552698115
 Run #45: Windows Build success. WPF compilation, CLI self-test, Inno Setup installer, ZIP and artifact upload passed.
 FileDescription=Autel, ProductName=Autel Vysor, FileVersion=0.10.0.0.
 This is not equivalent to physical Android/Windows GUI testing.
+
+## v0.10.1 integration
+
+PR #1 from feature/rotation-selection-performance is incorporated in the v0.10.1 branch:
+- Native embedded window crop/resize and controlled orientation toggles.
+- Shared dark WPF controls and device metadata-cache optimization.
+- Legacy capture/decode thread ownership and cancellation.
+- Windows regression suite and the screenshot artifact.
+
+Version 0.10.1 should be considered a pre-release until physical Android and Win10/Win11 GUI regression checks complete.
