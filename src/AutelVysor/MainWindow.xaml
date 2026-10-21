@@ -62,6 +62,7 @@
               <Button Click="Mirror_Click" Content="Open selected"/>
               <Button Click="OpenAll_Click" Content="Open all" Background="#334155"/>
               <Button Click="CloseSession_Click" Content="Close current tab" Background="#334155"/>
+              <Button Click="DeviceDebug_Click" Content="Device debug" Background="#475569"/>
             </WrapPanel>
           </StackPanel>
 
@@ -92,32 +93,6 @@
                 <CheckBox x:Name="ScreenOffBox" IsChecked="True" Margin="0,3,0,7" Content="Turn Android screen off while mirroring (default)"/>
                 <CheckBox x:Name="LegacyAccelerationBox" Margin="0,3,0,7" Content="Prefer Android 4.4 accelerated capture when available"/>
                 <Button Click="ApplyMirrorSettings_Click" Content="Apply &amp; restart mirrors" Background="#475569"/>
-              </StackPanel>
-            </Expander>
-
-            <Expander Header="ADB app tools">
-              <StackPanel Margin="0,8,0,0">
-                <TextBlock Foreground="#94A3B8" Margin="0,0,0,5" Text="Package name"/>
-                <ComboBox x:Name="PackageBox"
-                          IsEditable="True"
-                          IsTextSearchEnabled="True"
-                          StaysOpenOnEdit="True"
-                          Margin="0,0,7,7"
-                          Padding="6"
-                          Background="#111827"
-                          Foreground="White"/>
-                <DockPanel Margin="0,0,0,6">
-                  <TextBlock x:Name="PackageCountText" Foreground="#64748B" VerticalAlignment="Center" Text="Select a device, then load packages"/>
-                  <Button DockPanel.Dock="Right" Click="RefreshPackages_Click" Content="Load packages" Background="#475569"/>
-                </DockPanel>
-                <WrapPanel>
-                  <Button Click="ForceStopApp_Click" Content="Stop app" Background="#475569"/>
-                  <Button Click="StartApp_Click" Content="Start app" Background="#2563EB"/>
-                  <Button Click="RestartApp_Click" Content="Restart app" Background="#475569"/>
-                  <Button Click="ClearAppData_Click" Content="Clear data" Background="#B45309"/>
-                </WrapPanel>
-                <TextBlock Foreground="#64748B" FontSize="11" TextWrapping="Wrap"
-                           Text="Clear data removes accounts, settings, databases, files and cache. The APK remains installed."/>
               </StackPanel>
             </Expander>
 
