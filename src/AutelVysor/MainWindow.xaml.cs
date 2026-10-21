@@ -42,6 +42,10 @@ public partial class MainWindow : Window
     private readonly Dictionary<string, DateTime> _lastReconnectAttempt = new(StringComparer.OrdinalIgnoreCase);
     private IReadOnlyList<AndroidDevice> _devices = Array.Empty<AndroidDevice>();
     private bool _refreshing;
+    private bool _sidebarHidden;
+    private bool _isFullscreen;
+    private bool _sidebarHiddenBeforeFullscreen;
+    private WindowState _restoreWindowState = WindowState.Normal;
 
     private string Adb => Path.Combine(_tools, "adb.exe");
     private string Scrcpy => Path.Combine(_tools, "scrcpy.exe");
@@ -263,6 +267,65 @@ public partial class MainWindow : Window
         _sessions.Remove(match.Key);
         EmptyWorkspace.Visibility = _sessions.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         StatusText.Text = $"Closed mirror session for {match.Key}.";
+    }
+
+    private void SetSidebarHidden(bool hidden)
+    {
+        _sidebarHidden = hidden;
+        SidebarPanel.Visibility = hidden ? Visibility.Collapsed : Visibility.Visible;
+        SidebarSplitter.Visibility = hidden ? Visibility.Collapsed : Visibility.Visible;
+        SidebarColumn.Width = hidden ? new GridLength(0) : new GridLength(390);
+        SidebarSplitterColumn.Width = hidden ? new GridLength(0) : new GridLength(5);
+        SidebarToggleButton.Content = hidden ? "Show sidebar" : "Hide sidebar";
+    }
+
+    private void SidebarToggle_Click(object sender, RoutedEventArgs e)
+        => SetSidebarHidden(!_sidebarHidden);
+
+    private void Fullscreen_Click(object sender, RoutedEventArgs e)
+        => ToggleFullscreen();
+
+    private void ToggleFullscreen()
+    {
+        if (!_isFullscreen)
+        {
+            _restoreWindowState = WindowState == WindowState.Minimized ? WindowState.Normal : WindowState;
+            _sidebarHiddenBeforeFullscreen = _sidebarHidden;
+            SetSidebarHidden(true);
+            TopBar.Visibility = Visibility.Collapsed;
+            StatusBar.Visibility = Visibility.Collapsed;
+
+            WindowState = WindowState.Normal;
+            WindowStyle = WindowStyle.None;
+            ResizeMode = ResizeMode.NoResize;
+            WindowState = WindowState.Maximized;
+            _isFullscreen = true;
+        }
+        else
+        {
+            WindowState = WindowState.Normal;
+            WindowStyle = WindowStyle.SingleBorderWindow;
+            ResizeMode = ResizeMode.CanResize;
+            TopBar.Visibility = Visibility.Visible;
+            StatusBar.Visibility = Visibility.Visible;
+            SetSidebarHidden(_sidebarHiddenBeforeFullscreen);
+            WindowState = _restoreWindowState;
+            _isFullscreen = false;
+        }
+    }
+
+    private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.F11)
+        {
+            e.Handled = true;
+            ToggleFullscreen();
+        }
+        else if (e.Key == Key.Escape && _isFullscreen)
+        {
+            e.Handled = true;
+            ToggleFullscreen();
+        }
     }
 
     private async void Refresh_Click(object sender, RoutedEventArgs e) => await RefreshAsync();
