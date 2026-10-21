@@ -83,3 +83,5 @@ unredacted physical-device reports to public GitHub artifacts.
 
 Only declare comprehensive real-device PASS after reviewing reports
 from EVERY required physical Android variant; cloud CI is insufficient.
+
+The CI validation workflow intentionally reports only script syntax and fixture APK build status; a green result must never be presented as proof of connected physical phones.
