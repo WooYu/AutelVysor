@@ -372,9 +372,8 @@ public partial class DeviceDebugWindow : Window
     private string ApplyLogFilters(string text)
         => string.Join(
             Environment.NewLine,
-            text.Split('
-', StringSplitOptions.RemoveEmptyEntries)
-                .Select(line => line.TrimEnd(''))
+            text.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                .Select(line => line.TrimEnd('\r'))
                 .Where(ShouldShowLogLine));
 
     private async void ExportLog_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
