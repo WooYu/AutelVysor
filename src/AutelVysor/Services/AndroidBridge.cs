@@ -243,6 +243,47 @@ public sealed class AndroidBridge(string adbPath)
         return ShellCheckedAsync(serial, ["input", "text", safe], ct);
     }
 
+    public async Task<IReadOnlyList<string>> ListPackagesAsync(string serial, CancellationToken ct = default)
+    {
+        var result = await RunAsync(["-s", serial, "shell", "pm", "list", "packages"], ct: ct);
+        EnsureSuccess(result, "Unable to list Android packages.", "error", "failed");
+        return result.Output
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(line => line.StartsWith("package:", StringComparison.OrdinalIgnoreCase))
+            .Select(line => line["package:".Length..].Trim())
+            .Where(line => line.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(line => line, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    public Task ForceStopAppAsync(string serial, string packageName, CancellationToken ct = default)
+        => ShellCheckedAsync(serial, ["am", "force-stop", packageName], ct);
+
+    public async Task ClearAppDataAsync(string serial, string packageName, CancellationToken ct = default)
+    {
+        var result = await RunAsync(["-s", serial, "shell", "pm", "clear", packageName], ct: ct);
+        EnsureSuccess(result, "Unable to clear application data.", "failed", "error");
+        var combined = (result.Output + "\n" + result.Error).Trim();
+        if (!combined.Contains("Success", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException(string.IsNullOrWhiteSpace(combined) ? "Android did not confirm that application data was cleared." : combined);
+    }
+
+    public async Task StartAppAsync(string serial, string packageName, CancellationToken ct = default)
+    {
+        var result = await RunAsync(
+            ["-s", serial, "shell", "monkey", "-p", packageName, "-c", "android.intent.category.LAUNCHER", "1"],
+            ct: ct);
+        EnsureSuccess(result, "Unable to start application.", "No activities found", "aborted", "error", "failed");
+    }
+
+    public async Task RestartAppAsync(string serial, string packageName, CancellationToken ct = default)
+    {
+        await ForceStopAppAsync(serial, packageName, ct);
+        await Task.Delay(180, ct);
+        await StartAppAsync(serial, packageName, ct);
+    }
+
     private async Task ShellCheckedAsync(string serial, IEnumerable<string> shellArgs, CancellationToken ct)
     {
         var args = new List<string> { "-s", serial, "shell" };
