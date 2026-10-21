@@ -13,6 +13,7 @@ namespace AutelVysor.Controls;
 public partial class MirrorSessionControl : UserControl, IDisposable
 {
     private readonly AndroidBridge _bridge;
+    private readonly AdvancedAdbService _advanced;
     private readonly ScrcpyService? _scrcpy;
     private readonly LegacyMinicapService? _minicap;
     private readonly AppSettings _settings;
@@ -33,6 +34,9 @@ public partial class MirrorSessionControl : UserControl, IDisposable
     private bool _disposed;
     private bool _forceLegacyFallback;
     private DateTime _nextModernRetryUtc;
+    private DateTime _lastRotationCheckUtc;
+    private int _offlineChecks;
+    private int _restartFailures;
 
     public MirrorSessionControl(
         AndroidBridge bridge,
@@ -43,6 +47,7 @@ public partial class MirrorSessionControl : UserControl, IDisposable
     {
         InitializeComponent();
         _bridge = bridge;
+        _advanced = new AdvancedAdbService(bridge.ExecutablePath);
         _scrcpy = scrcpy;
         _minicap = minicap;
         _settings = settings;
@@ -66,16 +71,38 @@ public partial class MirrorSessionControl : UserControl, IDisposable
 
         if (current is null || !current.IsOnline)
         {
+            _offlineChecks++;
+            if (_offlineChecks == 1)
+            {
+                StatusText.Text = "Connection unstable · confirming ADB disconnect…";
+                return;
+            }
             StopModernSession();
             StopLegacySession();
-            ShowOverlay("Device disconnected", "Autel Vysor will keep this tab and try to resume when the same device is available again.");
+            ShowOverlay("Device disconnected", "Waiting for the same device to return. USB/ADB interruptions are retried automatically.");
             StatusText.Text = "Waiting for device…";
             return;
         }
 
+        if (_offlineChecks > 0)
+        {
+            _nextModernRetryUtc = DateTime.MinValue;
+            _restartFailures = 0;
+        }
+        _offlineChecks = 0;
         _device = current;
         UpdateHeader();
         await EnsureRunningAsync();
+        if (_lastRotationCheckUtc == DateTime.MinValue ||
+            DateTime.UtcNow - _lastRotationCheckUtc >= TimeSpan.FromSeconds(8))
+        {
+            _lastRotationCheckUtc = DateTime.UtcNow;
+            try { await RefreshRotationStateAsync(); }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                RotateStateText.Text = "Rotation: unavailable";
+            }
+        }
     }
 
     public async Task RestartAsync()
@@ -122,7 +149,9 @@ public partial class MirrorSessionControl : UserControl, IDisposable
         }
         catch (Exception ex)
         {
-            _nextModernRetryUtc = DateTime.UtcNow.AddSeconds(6);
+            _restartFailures = Math.Min(_restartFailures + 1, 6);
+            var retrySeconds = Math.Min(30, 1 << _restartFailures);
+            _nextModernRetryUtc = DateTime.UtcNow.AddSeconds(retrySeconds);
             if (_device.ApiLevel == 0)
             {
                 _forceLegacyFallback = true;
@@ -133,7 +162,7 @@ public partial class MirrorSessionControl : UserControl, IDisposable
             else
             {
                 ShowOverlay("Mirror unavailable", ex.Message);
-                StatusText.Text = ex.Message;
+                StatusText.Text = $"Mirror failed · retry in {Math.Min(30, 1 << _restartFailures)}s: {ex.Message}";
             }
         }
         finally
@@ -172,6 +201,7 @@ public partial class MirrorSessionControl : UserControl, IDisposable
             throw;
         }
         _nextModernRetryUtc = DateTime.MinValue;
+        _restartFailures = 0;
         Overlay.Visibility = Visibility.Collapsed;
         StatusText.Text = _settings.TurnScreenOffOnMirror
             ? "Connected · embedded scrcpy · device screen off"
@@ -186,7 +216,8 @@ public partial class MirrorSessionControl : UserControl, IDisposable
             if (_disposed)
                 return;
             try { ScrcpyHost.DetachExternalWindow(); } catch { }
-            StatusText.Text = "Mirror process stopped · waiting for automatic restart";
+            _nextModernRetryUtc = DateTime.UtcNow.AddSeconds(2);
+            StatusText.Text = "Mirror process stopped · reconnecting when ADB is available";
             ShowOverlay("Mirror stopped", "If the device is still connected, the monitor will restart this session automatically.");
         });
     }
@@ -359,6 +390,13 @@ public partial class MirrorSessionControl : UserControl, IDisposable
         var api = _device.ApiLevel > 0 ? _device.ApiLevel.ToString() : "?";
         DeviceMetaText.Text = $"{_device.Serial} · Android {Fallback(_device.AndroidVersion)} · API {api} · {Fallback(_device.Abi)} · {_device.Connection}";
         BackendText.Text = UsesLegacyBackend ? "ADB compatibility · API 19/20" : "scrcpy · API 21+";
+        AudioRouteText.Text = !_settings.EnableAudio || _device.ApiLevel < 30
+            ? "Audio: device"
+            : _settings.KeepDeviceAudio && _device.ApiLevel >= 33
+                ? "Audio: PC + device (configured)"
+                : _settings.KeepDeviceAudio
+                    ? "Audio: device/BT priority"
+                    : "Audio: PC priority";
     }
 
     private static string Fallback(string value) => string.IsNullOrWhiteSpace(value) ? "?" : value;
@@ -437,6 +475,49 @@ public partial class MirrorSessionControl : UserControl, IDisposable
         }
     }
 
+    private async Task RefreshRotationStateAsync()
+    {
+        var (rotation, automatic) = await _advanced.GetRotationStateAsync(_device.Serial, _lifetime.Token);
+        RotateStateText.Text = $"Rotation: {rotation}° · {(automatic ? "Auto" : "Locked")}";
+        RotateButton.Content = $"Rotate device · {rotation}°";
+    }
+
+    private void CopyAndroidText_Click(object sender, RoutedEventArgs e)
+    {
+        var text = AndroidTextBox.Text;
+        if (string.IsNullOrEmpty(text)) { StatusText.Text = "Enter text first."; return; }
+        try
+        {
+            Clipboard.SetText(text);
+            StatusText.Text = UsesLegacyBackend
+                ? "Text copied. Android 4.4 Unicode requires the optional ADBKeyBoard IME; use Send via ADB IME."
+                : "Unicode text copied. Focus an Android text field inside scrcpy and press Ctrl+V (clipboard sync must be enabled).";
+        }
+        catch (Exception ex) { StatusText.Text = $"Clipboard unavailable: {ex.Message}"; }
+    }
+
+    private async void SendUnicode_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            StatusText.Text = await _advanced.SendUnicodeViaAdbKeyboardAsync(_device.Serial, AndroidTextBox.Text, _lifetime.Token);
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
+        catch (Exception ex) { StatusText.Text = ex.Message; }
+    }
+
+    private async void AudioRoute_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var report = await _advanced.GetAudioRouteReportAsync(
+                _device, _settings.EnableAudio, _settings.KeepDeviceAudio, _lifetime.Token);
+            MessageBox.Show(report, "Audio routing diagnostics", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
+        catch (Exception ex) { StatusText.Text = ex.Message; }
+    }
+
     private async void Rotate_Click(object sender, RoutedEventArgs e)
     {
         try
@@ -445,6 +526,7 @@ public partial class MirrorSessionControl : UserControl, IDisposable
             RotateButton.Content = $"Rotate device · {degrees}°";
             StatusText.Text = $"Android device rotation locked to {degrees}°. The mirror follows the real device display.";
             _refreshRequested = true;
+            await RefreshRotationStateAsync();
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
         {
@@ -463,6 +545,7 @@ public partial class MirrorSessionControl : UserControl, IDisposable
             RotateButton.Content = "Rotate device";
             StatusText.Text = "Android auto-rotation enabled.";
             _refreshRequested = true;
+            await RefreshRotationStateAsync();
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
         {
