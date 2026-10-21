@@ -1,0 +1,89 @@
+name: Publish v0.8.0 Release
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'release-trigger-v0.8.0.txt'
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download verified Windows build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: AutelVysor-windows-x64
+          path: release-assets
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: 39539839739
+
+      - name: Inspect release assets
+        shell: bash
+        run: |
+          set -euxo pipefail
+          find release-assets -maxdepth 2 -type f -printf '%p %s bytes\n'
+          test -f release-assets/AutelVysor-v0.8.0-windows-x64.zip
+          test -f release-assets/AutelVysor-Setup.exe
+          mv release-assets/AutelVysor-Setup.exe release-assets/AutelVysor-Setup-v0.8.0.exe
+          sha256sum release-assets/AutelVysor-Setup-v0.8.0.exe release-assets/AutelVysor-v0.8.0-windows-x64.zip | tee release-assets/SHA256SUMS.txt
+
+      - name: Verify expected SHA-256
+        shell: bash
+        run: |
+          set -euxo pipefail
+          echo "f2aa9742d9ff1c113e93313a74241c3b9f2998691a3944a70acd85d8fa5a8319  release-assets/AutelVysor-Setup-v0.8.0.exe" | sha256sum -c -
+          echo "a22edd87127ae5eb730c7851aa9911ed8875415cc26488db315848bec571c922  release-assets/AutelVysor-v0.8.0-windows-x64.zip" | sha256sum -c -
+
+      - name: Write release notes
+        shell: bash
+        run: |
+          cat > RELEASE_NOTES.md <<'EOF'
+          ## Autel Vysor v0.8.0
+
+          Windows Android mirror/control and device-debug client for Windows 10/11 x64 and Android 4.4+.
+
+          ### Highlights
+          - Dedicated Device Debug window with App / Processes / Logs / Device tabs.
+          - App inspection: versionName, versionCode, PID, minSdk, targetSdk, install/update time, data directory.
+          - Permissions and full dumpsys package output.
+          - App actions: stop, start, restart, clear data, install APK and uninstall.
+          - Process list and selected-package PID.
+          - Live logcat, snapshot and exported logcat.
+          - Reboot Android device and restart Windows ADB server.
+          - Android 5.0+ physical display turns off by default during mirroring while PC display/control remains active.
+          - Per-session 90-degree display rotation.
+          - Android 4.4/API 19 minicap acceleration with automatic ADB screenshot fallback.
+          - Smooth / Standard / High mirror-quality presets.
+          - FileDescription: Autel
+          - ProductName: Autel Vysor
+          - FileVersion: 0.8.0.0
+
+          ### Downloads
+          - AutelVysor-Setup-v0.8.0.exe — installer
+          - AutelVysor-v0.8.0-windows-x64.zip — portable package
+          - SHA256SUMS.txt — checksums
+
+          ### Validation
+          Windows GitHub Actions build, packaged EXE self-test, metadata validation, ZIP creation and Inno Setup packaging passed. Physical Android device compatibility—especially Android 4.4 vendor ROMs—still requires device-specific validation, so this release is marked as a pre-release.
+          EOF
+
+      - name: Publish GitHub pre-release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euxo pipefail
+          gh release create v0.8.0 \
+            release-assets/AutelVysor-Setup-v0.8.0.exe \
+            release-assets/AutelVysor-v0.8.0-windows-x64.zip \
+            release-assets/SHA256SUMS.txt \
+            --repo "${GITHUB_REPOSITORY}" \
+            --target "807dcda671ff8f027a5e0725dfe49673f29695df" \
+            --title "Autel Vysor v0.8.0" \
+            --notes-file RELEASE_NOTES.md \
+            --prerelease
