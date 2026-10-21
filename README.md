@@ -2,7 +2,7 @@
 
 Windows Android mirror/control client for **Android 4.4 (API 19) and newer**.
 
-Current source version: **0.8.0**.
+Current source version: **0.8.1**.
 
 ## Compatibility
 
@@ -14,6 +14,14 @@ Current source version: **0.8.0**.
 | Android 11+ | ADB wireless pairing + scrcpy | Implemented |
 
 scrcpy itself requires API 21+, therefore API 19/20 never attempts to start scrcpy.
+
+## v0.8.1 fixes
+
+- Reworked the left sidebar into a readable dark theme with explicit CheckBox/ComboBox/Expander colors.
+- Made the lower Wi-Fi / mirror / file settings area vertically scrollable so Files / utilities is never clipped.
+- Changed Rotate from a scrcpy display-only transform to real Android device rotation through ADB; added Auto rotate.
+- Added "Keep phone / Bluetooth audio" behavior. Android 13+ uses scrcpy audio duplication so PC and device/Bluetooth can play simultaneously. Android 11/12 prioritize device/Bluetooth audio when this option is enabled.
+- Kept Android 5.0+ physical-screen-off behavior during mirroring.
 
 ## v0.8.0 additions
 
@@ -123,7 +131,7 @@ The build fails if the executable metadata does not contain:
 ```text
 FileDescription : Autel
 ProductName     : Autel Vysor
-FileVersion     : 0.8.0.0
+FileVersion     : 0.8.1.0
 ```
 
 ## Build portable ZIP and installer
@@ -135,7 +143,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build-release.ps1
 Expected artifacts:
 
 ```text
-dist\AutelVysor-v0.8.0-windows-x64.zip
+dist\AutelVysor-v0.8.1-windows-x64.zip
 dist\AutelVysor-Setup.exe           # when Inno Setup 6 is installed
 ```
 
@@ -168,7 +176,7 @@ API 20 remains on the conservative ADB fallback because the pinned upstream mini
 
 ## Current validation status
 
-The Windows x64 GitHub Actions release gate performs self-contained publish, executable self-test, metadata checks, portable ZIP and Inno Setup installer packaging. A green v0.8.0 run validates the packaged Windows build only; Windows 10/11 desktop hardware and Android 4.4+ physical devices still require the hardware matrix below before a Beta compatibility claim.
+The Windows x64 GitHub Actions release gate performs self-contained publish, executable self-test, metadata checks, portable ZIP and Inno Setup installer packaging. A green v0.8.1 run validates the packaged Windows build only; Windows 10/11 desktop hardware and Android 4.4+ physical devices still require the hardware matrix below before a Beta compatibility claim.
 
 ## Third-party components
 
