@@ -28,8 +28,9 @@ public sealed class ScrcpySession : IDisposable
         {
             if (!_process.HasExited)
             {
-                _process.CloseMainWindow();
-                if (!_process.WaitForExit(1200))
+                // Embedded SDL has no top-level main window to accept WM_CLOSE.
+                // Only allow a grace period if the close request was actually sent.
+                if (!_process.CloseMainWindow() || !_process.WaitForExit(1200))
                     _process.Kill(entireProcessTree: true);
             }
         }

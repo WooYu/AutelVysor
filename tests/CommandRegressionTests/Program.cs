@@ -29,6 +29,9 @@ internal static class Program
         {
         foreach (var (name, run) in new (string, Func<Task>)[]
         {
+            ("DuplexPipesCannotDeadlock", DuplexPipesCannotDeadlock),
+            ("CancellationDuringInputTerminatesChild", CancellationDuringInputTerminatesChild),
+            ("WindowlessMirrorStopSkipsGracePeriod", WindowlessMirrorStopSkipsGracePeriod),
             ("Utf8RawSubprocessBoundary", Utf8RawSubprocessBoundary),
             ("TextPipesDeclareUtf8", TextPipesDeclareUtf8),
             ("BinaryOutputRemainsByteExact", BinaryOutputRemainsByteExact),
@@ -62,6 +65,45 @@ internal static class Program
         }
         finally { Directory.Delete(fixture, true); }
         return failures == 0 ? 0 : 1;
+    }
+
+    private static async Task DuplexPipesCannotDeadlock()
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(4));
+        var result = await ToolRunner.RunAsync(Self, ["duplex"], new string('i', 1_048_576), ct: deadline.Token);
+        Check(result.ExitCode == 0 && result.Output == new string('o', 1_048_576) && result.Error == new string('e', 1_048_576),
+            "Large simultaneous stdin/stdout/stderr did not round-trip");
+    }
+
+    private static async Task CancellationDuringInputTerminatesChild()
+    {
+        var marker = Path.Combine(Environment.GetEnvironmentVariable("AUTEL_COMMAND_FIXTURE")!, "input-child.lock");
+        using var cts = new CancellationTokenSource();
+        var running = ToolRunner.RunAsync(Self, ["blocked-input", marker], new string('x', 4_194_304), ct: cts.Token);
+        try
+        {
+            var deadline = DateTime.UtcNow.AddSeconds(5);
+            while (!File.Exists(marker) && DateTime.UtcNow < deadline) await Task.Delay(10);
+            Check(File.Exists(marker), "Child did not reach the blocked input stage");
+            cts.Cancel();
+            try { await running.WaitAsync(TimeSpan.FromSeconds(3)); throw new Exception("Cancellation was ignored"); }
+            catch (OperationCanceledException) { }
+            // The fixture holds this file exclusively until its process exits.
+            using var unlocked = File.Open(marker, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+        }
+        finally { cts.Cancel(); }
+    }
+
+    private static async Task WindowlessMirrorStopSkipsGracePeriod()
+    {
+        using var process = ToolRunner.Launch(Self, ["windowless-wait"]);
+        using var session = new ScrcpySession(process, IntPtr.Zero);
+        await Task.Delay(150);
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        session.Stop();
+        Console.WriteLine($"Windowless mirror stop elapsed: {watch.Elapsed.TotalMilliseconds:F1} ms (fixture, not a device benchmark)");
+        Check(watch.Elapsed < TimeSpan.FromSeconds(1), "A mirror without a main window waited the 1.2s graceful-close timeout");
+        await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
     }
 
     private static async Task Utf8RawSubprocessBoundary()
@@ -287,6 +329,22 @@ internal static class Program
 
     private static async Task<int> Child(string[] args)
     {
+        if (args[0] is "duplex" or "blocked-input" or "windowless-wait")
+        {
+            // Safety watchdog prevents a deliberately broken parent from orphaning a test process.
+            _ = Task.Run(async () => { await Task.Delay(8000); Environment.Exit(77); });
+            if (args[0] == "windowless-wait") { await Task.Delay(Timeout.Infinite); return 0; }
+            if (args[0] == "blocked-input")
+            {
+                using var held = File.Open(args[1], FileMode.Create, FileAccess.ReadWrite, FileShare.None);
+                await Task.Delay(Timeout.Infinite);
+                return 0;
+            }
+            await Console.OpenStandardOutput().WriteAsync(Encoding.UTF8.GetBytes(new string('o', 1_048_576)));
+            await Console.OpenStandardError().WriteAsync(Encoding.UTF8.GetBytes(new string('e', 1_048_576)));
+            using var input = new StreamReader(Console.OpenStandardInput(), Encoding.UTF8);
+            return await input.ReadToEndAsync() == new string('i', 1_048_576) ? 0 : 9;
+        }
         if (args[0] == "fake-probe") return await Probe(args.Skip(1).ToArray());
         if (args[0] == "raw-text")
         {

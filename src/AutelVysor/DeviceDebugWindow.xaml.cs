@@ -14,6 +14,11 @@ namespace AutelVysor;
 public partial class DeviceDebugWindow : Window
 {
     private const int MaxLiveLogChars = 500_000;
+    private const int MaxLiveLogBatchChars = 32_768;
+    private const int MaxLiveLogLineChars = 16_000;
+    private static readonly Regex ThreadtimePattern = new(
+        @"^\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\.\d+\s+(?<pid>\d+)\s+(?<tid>\d+)\s+(?<level>[VDIWEFAS])\s+",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     private readonly AndroidBridge _bridge;
     private readonly AdvancedAdbService _advanced;
@@ -125,12 +130,8 @@ public partial class DeviceDebugWindow : Window
         var packageName = SelectedPackageName();
         StatusText.Text = $"Reading {packageName}…";
 
-        var infoTask = _bridge.GetAppInfoAsync(_device.Serial, packageName);
-        var permissionsTask = _bridge.GetAppPermissionsAsync(_device.Serial, packageName);
-        var dumpTask = _bridge.GetPackageDumpAsync(_device.Serial, packageName);
-        await Task.WhenAll(infoTask, permissionsTask, dumpTask);
-
-        var info = infoTask.Result;
+        var details = await _bridge.GetAppDetailsAsync(_device.Serial, packageName);
+        var info = details.Info;
         VersionText.Text = Empty(info.VersionName);
         VersionCodeText.Text = Empty(info.VersionCode);
         PidText.Text = string.IsNullOrWhiteSpace(info.Pid) ? "not running" : info.Pid;
@@ -140,8 +141,8 @@ public partial class DeviceDebugWindow : Window
         FirstInstallText.Text = Empty(info.FirstInstallTime);
         LastUpdateText.Text = Empty(info.LastUpdateTime);
         DataDirText.Text = Empty(info.DataDir);
-        PermissionsTextBox.Text = permissionsTask.Result;
-        PackageDumpTextBox.Text = dumpTask.Result;
+        PermissionsTextBox.Text = details.Permissions;
+        PackageDumpTextBox.Text = details.PackageDump;
         StatusText.Text = $"Loaded app details for {packageName}.";
     }
 
@@ -364,6 +365,9 @@ public partial class DeviceDebugWindow : Window
 
     private void EnqueueLogLine(string line)
     {
+        const string truncated = " [truncated]";
+        if (line.Length > MaxLiveLogLineChars)
+            line = line[..(MaxLiveLogLineChars - truncated.Length)] + truncated;
         _logQueue.Enqueue(line);
         while (_logQueue.Count > 20_000)
             _logQueue.TryDequeue(out _);
@@ -376,7 +380,10 @@ public partial class DeviceDebugWindow : Window
 
         var chunk = new StringBuilder();
         var count = 0;
-        while (count < 500 && _logQueue.TryDequeue(out var line))
+        // Reserve room for a worst-case line before dequeuing: no loss/requeue
+        // races with producer callbacks, and no giant text update on the UI thread.
+        while (count < 500 && chunk.Length <= MaxLiveLogBatchChars - MaxLiveLogLineChars - Environment.NewLine.Length
+            && _logQueue.TryDequeue(out var line))
         {
             if (ShouldShowLogLine(line))
                 chunk.AppendLine(line);
@@ -402,9 +409,7 @@ public partial class DeviceDebugWindow : Window
         if (filter.Length > 0 && !line.Contains(filter, StringComparison.OrdinalIgnoreCase))
             return false;
 
-        var match = Regex.Match(
-            line,
-            @"^d{2}-d{2}s+d{2}:d{2}:d{2}.d+s+(?<pid>d+)s+(?<tid>d+)s+(?<level>[VDIWEFAS])s+");
+        var match = ThreadtimePattern.Match(line);
 
         if (OnlySelectedAppLogBox.IsChecked == true)
         {
@@ -432,8 +437,9 @@ public partial class DeviceDebugWindow : Window
         }
 
         var selectedLevel = (LogLevelBox.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag?.ToString() ?? "*";
-        if (selectedLevel != "*" && match.Success)
+        if (selectedLevel != "*")
         {
+            if (!match.Success) return false;
             static int Rank(char level) => level switch
             {
                 'V' => 0,

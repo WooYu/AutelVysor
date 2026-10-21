@@ -50,18 +50,28 @@ public static class ToolRunner
     {
         using var p = Create(file, arguments, workingDirectory, redirectInput: standardInput is not null);
         p.Start();
-
-        if (standardInput is not null)
-        {
-            await p.StandardInput.WriteAsync(standardInput.AsMemory(), ct);
-            await p.StandardInput.FlushAsync(ct);
-            p.StandardInput.Close();
-        }
-
+        // A child may write before it reads stdin. Drain both output pipes first,
+        // otherwise two full pipe buffers can leave parent and child waiting forever.
         var stdout = p.StandardOutput.ReadToEndAsync(ct);
         var stderr = p.StandardError.ReadToEndAsync(ct);
-        await WaitAsync(p, ct);
-        return (p.ExitCode, await stdout, await stderr);
+        try
+        {
+            if (standardInput is not null)
+            {
+                await p.StandardInput.WriteAsync(standardInput.AsMemory(), ct);
+                await p.StandardInput.FlushAsync(ct);
+                p.StandardInput.Close();
+            }
+            await WaitAsync(p, ct);
+            return (p.ExitCode, await stdout, await stderr);
+        }
+        catch
+        {
+            // Cancellation can happen during stdin, before WaitAsync is reached.
+            await TerminateAsync(p);
+            try { await Task.WhenAll(stdout, stderr).WaitAsync(TimeSpan.FromSeconds(3)); } catch { }
+            throw;
+        }
     }
 
     public static async Task<(int ExitCode, byte[] Output, string Error)> RunBinaryAsync(
@@ -145,9 +155,18 @@ public static class ToolRunner
         }
         catch (OperationCanceledException)
         {
-            if (!p.HasExited)
-                p.Kill(entireProcessTree: true);
+            await TerminateAsync(p);
             throw;
         }
+    }
+
+    private static async Task TerminateAsync(Process process)
+    {
+        try
+        {
+            if (!process.HasExited) process.Kill(entireProcessTree: true);
+            await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(3));
+        }
+        catch { /* Retain the original command/cancellation failure if cleanup races exit. */ }
     }
 }

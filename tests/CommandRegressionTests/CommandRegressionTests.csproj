@@ -6,6 +6,7 @@
   <ItemGroup>
     <Compile Include="../../src/AutelVysor/Models/*.cs" Link="Models/%(Filename)%(Extension)" />
     <Compile Include="../../src/AutelVysor/Services/ToolRunner.cs" Link="ToolRunner.cs" />
+    <Compile Include="../../src/AutelVysor/Services/ScrcpySession.cs" Link="ScrcpySession.cs" />
     <Compile Include="../../src/AutelVysor/Services/AndroidBridge.cs" Link="AndroidBridge.cs" />
     <Compile Include="../../src/AutelVysor/Services/AdvancedAdbService.cs" Link="AdvancedAdbService.cs" />
     <Compile Include="../../src/AutelVysor/Services/DisplayRotationReader.cs" Link="DisplayRotationReader.cs" />

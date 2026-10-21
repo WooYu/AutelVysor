@@ -24,12 +24,21 @@ internal static class Program
         Directory.CreateDirectory(directory);
         Environment.SetEnvironmentVariable("AUTEL_TEST_ADB_STATE", directory);
         var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+        app.Resources.MergedDictionaries.Add(new ResourceDictionary
+        {
+            Source = new Uri("pack://application:,,,/AutelVysor;component/Theme.xaml")
+        });
         var failures = 0;
         app.Startup += async (_, _) =>
         {
             foreach (var (name, test) in new (string, Func<Task>)[]
             {
                 ("Device metadata is reused until disconnect", CachedMetadata),
+                ("Logcat combines PID tag text level and selected app filters", LogcatCombinedFilters),
+                ("Logcat rejects lower severity and unparsed lines under a level filter", LogcatMinimumSeverity),
+                ("Live log rendering has a bounded per-tick text budget", LogcatFlushBudget),
+                ("One oversized log line cannot monopolize a UI tick", LogcatOversizedLine),
+                ("App details reuse a single package snapshot", SharedPackageSnapshot),
                 ("Rotation alternates between two orientations", ToggleOrientation),
                 ("Auto-rotation releases WM lock and re-enables sensor", AutoRotation),
                 ("Shell arguments survive the real remote shell boundary", ShellBoundary),
@@ -53,6 +62,97 @@ internal static class Program
     }
 
     private static AndroidBridge Bridge() => new(Environment.ProcessPath!);
+
+    private static AutelVysor.DeviceDebugWindow DebugWindow() => new(Bridge(), new AndroidDevice("test-device", "device", "Test", "", "", "1", ""));
+    private static object? DebugCall(AutelVysor.DeviceDebugWindow window, string method, params object[] args)
+        => typeof(AutelVysor.DeviceDebugWindow).GetMethod(method, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(window, args);
+
+    private static Task LogcatCombinedFilters()
+    {
+        var window = DebugWindow();
+        try
+        {
+            ((TextBox)window.FindName("LogPidBox")).Text = "1234";
+            ((TextBox)window.FindName("LogTagBox")).Text = "MyTag";
+            ((TextBox)window.FindName("LogFilterBox")).Text = "中文";
+            ((ComboBox)window.FindName("LogLevelBox")).SelectedIndex = 4;
+            ((CheckBox)window.FindName("OnlySelectedAppLogBox")).IsChecked = true;
+            typeof(AutelVysor.DeviceDebugWindow).GetField("_selectedLogPid", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.SetValue(window, "1234");
+            bool Match(string line) => (bool)DebugCall(window, "ShouldShowLogLine", line)!;
+            const string line = "10-22 00:15:30.123  1234  5678 W MyTag   : 中文 message";
+            Check(Match(line), "A valid threadtime line failed combined filters");
+            Check(!Match(line.Replace("1234", "4321")), "Other app PID leaked through");
+            Check(!Match(line.Replace("MyTag", "Other")), "Other tag leaked through");
+            Check(!Match(line.Replace(" W ", " I ")), "Lower priority leaked through");
+            Check(!Match(line.Replace("中文", "English")), "Text filter was ignored");
+        }
+        finally { window.Close(); }
+        return Task.CompletedTask;
+    }
+
+    private static Task LogcatMinimumSeverity()
+    {
+        var window = DebugWindow();
+        try
+        {
+            ((ComboBox)window.FindName("LogLevelBox")).SelectedIndex = 5;
+            Check(!(bool)DebugCall(window, "ShouldShowLogLine", "10-22 00:15:30.123  1234  5678 D MyTag: debug")!, "Debug passed an Error filter");
+            Check(!(bool)DebugCall(window, "ShouldShowLogLine", "--------- beginning of main")!, "Unparsed text passed a structured level filter");
+            Check((bool)DebugCall(window, "ShouldShowLogLine", "10-22 00:15:30.123  1234  5678 F MyTag: fatal")!, "Fatal was excluded by Error");
+        }
+        finally { window.Close(); }
+        return Task.CompletedTask;
+    }
+
+    private static Task LogcatFlushBudget()
+    {
+        var window = DebugWindow();
+        try
+        {
+            for (var i = 0; i < 100; i++) DebugCall(window, "EnqueueLogLine", $"{i:D3}:" + new string('x', 4000));
+            DebugCall(window, "FlushLiveLog");
+            var output = (TextBox)window.FindName("LogTextBox");
+            Console.WriteLine($"Logcat first flush: {output.Text.Length} characters (100 queued 4K lines)");
+            Check(output.Text.Length > 0 && output.Text.Length <= 32_768, "A single UI tick appended more than 32K characters");
+            for (var i = 0; i < 100; i++) DebugCall(window, "FlushLiveLog");
+            Check(output.Text.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length == 100, "Batched log lines were lost or duplicated");
+            Check(output.Text.StartsWith("000:") && output.Text.Contains("099:"), "Log order changed");
+        }
+        finally { window.Close(); }
+        return Task.CompletedTask;
+    }
+
+    private static Task LogcatOversizedLine()
+    {
+        var window = DebugWindow();
+        try
+        {
+            DebugCall(window, "EnqueueLogLine", new string('x', 1_000_000));
+            DebugCall(window, "FlushLiveLog");
+            var text = ((TextBox)window.FindName("LogTextBox")).Text;
+            Check(text.Length <= 32_768 && text.Contains("[truncated]"), "Oversized line was not explicitly bounded");
+        }
+        finally { window.Close(); }
+        return Task.CompletedTask;
+    }
+
+    private static async Task SharedPackageSnapshot()
+    {
+        File.WriteAllText(State("calls"), "");
+        var window = DebugWindow();
+        try
+        {
+            ((ComboBox)window.FindName("PackageBox")).Text = "com.test.app";
+            await (Task)DebugCall(window, "RefreshSelectedAppAsync")!;
+            var calls = File.ReadAllLines(State("calls"));
+            Console.WriteLine($"App details: {calls.Length} ADB subprocesses; {calls.Count(line => line.Contains("dumpsys package com.test.app"))} package dump(s)");
+            Check(calls.Count(line => line.Contains("dumpsys package com.test.app")) == 1, "App refresh repeated dumpsys package instead of sharing its snapshot");
+            Check(((TextBlock)window.FindName("VersionText")).Text == "1.2.3", "App info did not use the snapshot");
+            Check(((TextBox)window.FindName("PermissionsTextBox")).Text.Contains("android.permission.CAMERA"), "Permission view lost shared data");
+            Check(((TextBox)window.FindName("PackageDumpTextBox")).Text.Contains("versionName=1.2.3"), "Raw package view differs from shared data");
+        }
+        finally { window.Close(); }
+    }
 
     private static async Task CachedMetadata()
     {
@@ -387,7 +487,9 @@ internal static class Program
         }
         else if (args.Contains("dumpsys"))
         {
-            if (File.Exists(State("modern-display")))
+            if (args.Contains("package"))
+                Console.WriteLine("  versionName=1.2.3\n  versionCode=12\n  android.permission.CAMERA: granted=true");
+            else if (File.Exists(State("modern-display")))
             {
                 var rotation = File.ReadAllText(State("modern-display"));
                 if (args.Contains("window") && rotation != "unknown")
@@ -396,6 +498,7 @@ internal static class Program
             }
             else Console.WriteLine("SurfaceOrientation: " + ReadRotation());
         }
+        else if (args.Contains("pidof")) Console.WriteLine("1234");
         else if (args.Contains("settings") && args.Contains("get"))
         {
             Console.WriteLine(args.Contains("accelerometer_rotation")
@@ -430,10 +533,6 @@ internal static class Program
 
     private static async Task DarkSelection()
     {
-        Application.Current.Resources.MergedDictionaries.Add(new ResourceDictionary
-        {
-            Source = new Uri("pack://application:,,,/AutelVysor;component/Theme.xaml")
-        });
         var window = new AutelVysor.MainWindow { Width = 1180, Height = 780, ShowInTaskbar = false };
         try
         {
