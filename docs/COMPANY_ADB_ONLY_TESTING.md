@@ -111,3 +111,7 @@ test-results/company-adb-YYYYMMDD-HHMMSS/
 本仓库 CI 的 `Physical harness validation (NO real devices)` 会使用 Windows PowerShell 语法解析器检查此脚本；CI 本身无权访问公司设备，**绿色 CI 不等于真机 PASS**。
 
 脚本目录内出现提示要修改执行策略、下载外部驱动或者启用管理员权限时，先由企业 IT 审批，而不是绕过策略。
+
+## CI 烟雾测试与真机测试的区别
+
+CI 使用 **PowerShell 编写的模拟 ADB** 测试脚本的执行逻辑、临时文件清理和 HTML/CSV/JSON 报告生成；所有结果仅证明脚本本身能运行，绝不是 Android 真机测试结果。只有公司电脑上使用公司现有 adb.exe 连接实体设备执行，才能产生真正的真机报告。
