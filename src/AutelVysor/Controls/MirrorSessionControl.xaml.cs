@@ -3,6 +3,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using AutelVysor.Models;
 using AutelVysor.Services;
@@ -393,6 +394,47 @@ public partial class MirrorSessionControl : UserControl, IDisposable
     {
         try { await RestartAsync(); }
         catch (Exception ex) { StatusText.Text = ex.Message; }
+    }
+
+    private void FitView_Click(object sender, RoutedEventArgs e)
+    {
+        if (UsesLegacyBackend)
+        {
+            LegacyImage.Stretch = Stretch.Uniform;
+            StatusText.Text = "View mode: Fit.";
+            return;
+        }
+
+        ScrcpyHost.SetFitMode();
+        StatusText.Text = "View mode: Fit.";
+    }
+
+    private async void ActualSize_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (UsesLegacyBackend)
+            {
+                LegacyImage.Stretch = Stretch.None;
+                StatusText.Text = "View mode: 1:1. Large Android displays may be cropped by the current window.";
+                return;
+            }
+
+            var (width, height) = await _bridge.GetDisplaySizeAsync(_device.Serial, _lifetime.Token);
+            var rotation = await _bridge.GetCurrentRotationDegreesAsync(_device.Serial, _lifetime.Token);
+            if (rotation is 90 or 270)
+                (width, height) = (height, width);
+
+            ScrcpyHost.SetActualSize(width, height);
+            StatusText.Text = $"View mode: 1:1 · {width}×{height}. Large displays may be cropped by the current window.";
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = ex.Message;
+        }
     }
 
     private async void Rotate_Click(object sender, RoutedEventArgs e)
