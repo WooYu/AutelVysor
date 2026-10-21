@@ -61,3 +61,19 @@ For each device verify discovery, mirror, click, drag, keyboard, Home/Back/Recen
 5. Verify Volume +/- toolbar actions on both legacy and scrcpy sessions.
 6. Choose **Copy diagnostics** and verify app version, OS, adb/scrcpy versions and device API/ABI are present.
 7. Force a test exception in a debug build and verify `%LOCALAPPDATA%\Autel\AutelVysor\AutelVysor.log` is created.
+
+## v0.10.0 functional acceptance
+
+- [ ] Android 4.4: installed/selected ADBKeyBoard IME inserts UTF-8 Chinese; if IME absent, show a clear instruction rather than claiming success.
+- [ ] Android 13+/16: scrcpy clipboard paste handles Chinese/VIN/URLs without changing device IME.
+- [ ] Physically rotate Android; rotation status updates within 8-12 seconds, and Auto/Locked is accurate.
+- [ ] Bluetooth headset audio + PC duplicated audio on Android 13+ using a real playback sample, not only dumpsys indicators.
+- [ ] Repeated USB disconnect/reconnect and ADB server restart recover without stale tabs or runaway scrcpy processes.
+- [ ] Device Debug App filter: all/user/system + package search; test grant/revoke/appops accepted and rejected operations.
+- [ ] Logcat Tag and PID filters match threadtime columns and pause limits in-memory queue size.
+- [ ] Network: compare IP/DNS/route/ping/port output to Android shell tools.
+- [ ] Bugreport export with timeout, user cancellation, and no silent upload.
+- [ ] Batch app install and shell command with multiple physical devices, one failed target, and cancellation.
+- [ ] Screenshot and recording history opens and previews local files.
+- [ ] GitHub update checker links only to official repository releases; does not run unsigned installers.
+- [ ] CI signed build using real certificate: verify Authenticode on EXE + setup; unsigned build clearly labeled.
