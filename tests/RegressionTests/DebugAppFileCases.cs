@@ -142,7 +142,7 @@ internal static partial class Program
             ((GridView)list.View).Columns.Add(new GridViewColumn { Header = "Name", DisplayMemberBinding = new System.Windows.Data.Binding("Name") });
             list.Items.Add(new RemoteFileEntry("file.txt", "/file.txt", false, 12, "today"));
             list.Measure(new Size(600, 300));
-            list.Arrange(new Rect(0, 0, 600, 300));
+            list.Arrange(new System.Windows.Rect(0, 0, 600, 300));
             list.UpdateLayout();
             list.SelectedIndex = 0;
             list.UpdateLayout();

@@ -185,15 +185,26 @@ public partial class DeviceDebugWindow
         _logSource = "Stopped live logcat"; return true;
     }
 
-    private async void SnapshotLog_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
+    private async void SnapshotLog_Click(object sender, RoutedEventArgs e)
     {
         if (!StopLiveLog()) return;
-        _logLoadCancellation?.Cancel(); var version = ++_logSourceVersion; ClearPendingLogs();
+        _logLoadCancellation?.Cancel();
+        using var cancellation = new CancellationTokenSource(); _logLoadCancellation = cancellation;
+        var version = ++_logSourceVersion; ClearPendingLogs(); SnapshotLogButton.IsEnabled = false;
         StatusText.Text = "Reading logcat snapshot…";
-        var text = await _bridge.GetLogcatSnapshotAsync(_device.Serial);
-        if (_windowClosed || version != _logSourceVersion) return;
-        SetLogSource(text, "Device snapshot"); StatusText.Text = "Snapshot loaded; change filters to reapply to retained records.";
-    });
+        try
+        {
+            var text = await _bridge.GetLogcatSnapshotAsync(_device.Serial, ct: cancellation.Token);
+            if (_windowClosed || version != _logSourceVersion) return;
+            SetLogSource(text, "Device snapshot"); StatusText.Text = "Snapshot loaded; change filters to reapply to retained records.";
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex) { if (!_windowClosed && version == _logSourceVersion) StatusText.Text = "Snapshot failed: " + ex.Message; }
+        finally
+        {
+            if (ReferenceEquals(_logLoadCancellation, cancellation)) { _logLoadCancellation = null; if (!_windowClosed) SnapshotLogButton.IsEnabled = _logcatProcess is null; }
+        }
+    }
 
     private async void ImportLog_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
     {

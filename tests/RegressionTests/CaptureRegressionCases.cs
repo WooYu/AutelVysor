@@ -75,7 +75,7 @@ internal static partial class Program
             Check(!((Button)window.FindName("PlayButton")).IsEnabled && !((Slider)window.FindName("SeekSlider")).IsEnabled, "Unopened video permits playback/seek");
             ((ListBox)window.FindName("CaptureList")).SelectedIndex = 1;
             Check(old!.Source is null && !ReferenceEquals(host.Content, old), "Switching video retained the old source");
-            var current = (MediaElement)host.Content;
+            var current = (MediaElement)host.Content!;
             CaptureCall(window, "VideoOpened", old);
             Check(!((Button)window.FindName("PlayButton")).IsEnabled, "Stale opened event enabled playback for an unopened selection");
             // Exercise UI state transitions directly, without asserting codec decode success.
@@ -95,12 +95,12 @@ internal static partial class Program
             Check(((TextBlock)window.FindName("PreviewHint")).Text.Contains("Open selected") && ((TextBlock)window.FindName("PreviewHint")).Text.Length < 800, "Media failure lacks bounded actionable fallback");
             Check(((Button)window.FindName("OpenButton")).IsEnabled && !((Button)window.FindName("PlayButton")).IsEnabled, "Failure disabled external fallback or enabled playback");
             SelectCapture(window, second);
-            var timeout = (MediaElement)host.Content;
+            var timeout = (MediaElement)host.Content!;
             typeof(AutelVysor.CaptureHistoryWindow).GetField("_loadingStarted", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(window, DateTime.UtcNow.AddSeconds(-20));
             CaptureCall(window, "PlaybackTick", window, EventArgs.Empty);
             Check(timeout.Source is null && ((TextBlock)window.FindName("PreviewHint")).Text.Contains("15 seconds"), "Stalled decoder was not bounded and released");
             SelectCapture(window, first);
-            var closing = (MediaElement)host.Content;
+            var closing = (MediaElement)host.Content!;
             window.Close();
             Check(closing.Source is null && host.Content is null, "Closing captures retained video source");
             using (File.Open(first, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) { }

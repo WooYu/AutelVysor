@@ -96,7 +96,7 @@ internal static partial class Program
 
     private static async Task MirrorActionFeedback()
     {
-        using var view = new AutelVysor.Controls.MirrorSessionControl(Bridge(), null, null, new AutelVysor.Services.AppSettings(), TestDevice());
+        using var view = new AutelVysor.Controls.MirrorSessionControl(Bridge(), null, null, new AppSettings(), TestDevice());
         object? Call(string method, params object[] args) => view.GetType().GetMethod(method, BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(view, args);
         Call("FocusMirror_Click", view, new RoutedEventArgs()); await Task.Delay(50);
         Check(((Button)view.FindName("FocusKeyboardButton")).Content.ToString() == "Focus failed", "Unattached keyboard focus was reported as successful/no feedback");
