@@ -198,6 +198,21 @@ public partial class DeviceDebugWindow : Window
             DataDirText.Text = Empty(info.DataDir);
             PermissionsTextBox.Text = details.Permissions;
             PackageDumpTextBox.Text = details.PackageDump;
+            AppStatusText.Text = $"Reading AppOps for {packageName}…";
+            try
+            {
+                var appOps = await _advanced.GetAppOpsAsync(_device.Serial, packageName, cancellation.Token);
+                if (!Current()) return;
+                AppOpsTextBox.Text = appOps;
+            }
+            catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { return; }
+            catch (Exception ex)
+            {
+                if (!Current()) return;
+                AppOpsTextBox.Text = $"AppOps unavailable: {ex.Message}";
+                AppStatusText.Text = $"Loaded app details for {packageName}; AppOps unavailable.";
+                return;
+            }
             AppStatusText.Text = $"Loaded app details for {packageName}.";
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }

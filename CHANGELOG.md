@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.7
+
+- Automatically refresh AppOps alongside typed package summaries and permissions, with cancellation and stale-response protection.
+- Preserve loaded summaries when Android denies AppOps access and show the diagnostic failure explicitly.
+- Add Windows regression coverage for automatic AppOps loading, package changes during loading, invalid input and permission failures.
+
 ## 0.10.6 (desktop usability candidate)
 
 - Move session/global controls to the left and maximize full-height Fit; fullscreen resets cropped zoom and provides mouse-accessible Tools/Exit recovery.

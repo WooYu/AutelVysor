@@ -49,6 +49,8 @@ internal static partial class Program
 
     private static async Task DebugAppLookup()
     {
+        File.WriteAllText(Path.Combine(State("commands"), "appops"),
+            "#!/bin/sh\ncase \"$2\" in com.test.opsSlow) touch debug-ops-started; sleep 1;; com.test.opsDenied) echo 'Permission denied' >&2; exit 1;; esac\necho \"$2 CAMERA: allow\"\n");
         var window = DebugFixtureWindow();
         try
         {
@@ -62,7 +64,10 @@ internal static partial class Program
             await DebugWaitUntil(() => status.Text.StartsWith("Loaded app details"));
             Check(((TextBlock)window.FindName("VersionText")).Text == "com.test.first", "Typed package did not automatically refresh its summary");
             Check(((TextBox)window.FindName("PermissionsTextBox")).Text.Contains("CAMERA"), "Typed package did not refresh permissions");
+            var appOps = (TextBox)window.FindName("AppOpsTextBox");
+            Check(appOps.Text.Contains("com.test.first CAMERA: allow"), "Typed package did not automatically refresh AppOps");
             package.Text = "invalid";
+            Check(appOps.Text.Length == 0, "Invalid input retained stale AppOps");
             Check(((TextBlock)window.FindName("VersionText")).Text == "—", "Invalid input retained stale summary");
             Check(((TextBox)window.FindName("PermissionsTextBox")).Text.Length == 0, "Invalid input retained stale permissions");
             Check((string)typeof(AutelVysor.DeviceDebugWindow).GetField("_selectedLogPid", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)! == "", "Invalid input retained selected-app PID");
@@ -75,6 +80,19 @@ internal static partial class Program
             await oldLookup;
             Check(((TextBlock)window.FindName("VersionText")).Text == "com.test.latest", "Old lookup overwrote the newest app");
             Check(((TextBlock)window.FindName("PidText")).Text == "222", "Old lookup overwrote selected PID");
+            Check(appOps.Text.Contains("com.test.latest CAMERA: allow"), "Old lookup overwrote AppOps");
+            File.Delete(State("debug-ops-started"));
+            package.Text = "com.test.opsSlow";
+            var oldAppOps = (Task)DebugCall(window, "LoadSelectedAppAsync", false)!;
+            await DebugWaitUntil(() => File.Exists(State("debug-ops-started")));
+            package.Text = "com.test.opsLatest";
+            await (Task)DebugCall(window, "LoadSelectedAppAsync", false)!;
+            await oldAppOps;
+            Check(appOps.Text.Contains("com.test.opsLatest CAMERA: allow"), "Slow AppOps response overwrote the newest package");
+            package.Text = "com.test.opsDenied";
+            await (Task)DebugCall(window, "LoadSelectedAppAsync", false)!;
+            Check(appOps.Text.Contains("AppOps unavailable"), "AppOps failure was not visible");
+            Check(((TextBlock)window.FindName("VersionText")).Text == "com.test.opsDenied", "AppOps failure discarded valid app summary");
             package.Text = "com.test.absent";
             await (Task)DebugCall(window, "LoadSelectedAppAsync", false)!;
             Check(status.Text.StartsWith("Unable to read"), "An absent package was reported as loaded");
