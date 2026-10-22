@@ -44,7 +44,7 @@
                    MinHeight="32" Padding="6,5" ToolTip="Enter up to 4000 characters; focus a phone field, then Paste text."/>
           <UniformGrid Columns="2">
             <Button x:Name="SendTextButton" Click="SendText_Click" Content="Paste text" ToolTip="Paste into the focused Android field; updates the PC clipboard."/>
-            <Button x:Name="FocusKeyboardButton" Click="FocusMirror_Click" Content="Focus keyboard" ToolTip="Move keyboard focus to the phone after selecting an Android input field"/>
+            <Button x:Name="FocusKeyboardButton" Focusable="False" Click="FocusMirror_Click" Content="Focus keyboard" ToolTip="Keyboard focus is automatic when the mirror opens. Click to restore it after using PC tools."/>
           </UniformGrid>
           <ComboBox x:Name="KeyboardModeBox" SelectedIndex="0" Margin="2,4" Style="{StaticResource DarkComboBoxStyle}" SelectionChanged="KeyboardModeChanged"
                     ToolTip="Auto uses hardware keyboard on Android 9+. Compatible uses SDK events; changing mode restarts this mirror.">

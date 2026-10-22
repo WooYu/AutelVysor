@@ -41,7 +41,9 @@ public partial class MirrorSessionControl : UserControl, IDisposable
     private DateTime _lastRotationCheckUtc;
     private int _offlineChecks;
     private int _restartFailures;
-    private bool _viewReady, _updatingView, _textSendBusy, _keyboardChanging, _focusBusy, _audioBusy;
+    private bool _viewReady, _updatingView, _textSendBusy, _keyboardChanging, _audioBusy;
+    private int _focusRequestVersion;
+    private Window? _focusWindow;
     private int _viewChangeVersion;
     private double _viewZoom = 1;
     private string _keyboardMode = "auto";
@@ -65,7 +67,13 @@ public partial class MirrorSessionControl : UserControl, IDisposable
         _viewReady = true;
         Loaded += async (_, _) =>
         {
-            Focus();
+            var owner = Window.GetWindow(this);
+            if (_focusWindow != owner)
+            {
+                if (_focusWindow is not null) _focusWindow.Activated -= FocusWindow_Activated;
+                _focusWindow = owner;
+                if (owner is not null) owner.Activated += FocusWindow_Activated;
+            }
             await EnsureRunningAsync();
             FocusKeyboardWhenReady();
             RefreshKeyboardRecovery();
@@ -88,14 +96,55 @@ public partial class MirrorSessionControl : UserControl, IDisposable
 
     public string Serial => _device.Serial;
 
-    public void FocusKeyboardWhenReady()
+    private void FocusWindow_Activated(object? sender, EventArgs e) => FocusKeyboardWhenReady();
+
+    public void FocusKeyboardWhenReady() => RequestKeyboardFocus(false);
+
+    private async void RequestKeyboardFocus(bool explicitRequest)
     {
-        Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(() =>
+        if (_disposed) return;
+        var request = ++_focusRequestVersion;
+        await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Input);
+        if (_disposed || request != _focusRequestVersion) return;
+        try
         {
-            if (_disposed || !IsVisible || Window.GetWindow(this)?.IsActive != true) return;
-            if (UsesLegacyBackend) Focus();
-            else if (_scrcpySession is not null) ScrcpyHost.FocusEmbeddedWindow();
-        }));
+            for (var attempt = 0; attempt < 10; attempt++)
+            {
+                if (_disposed || request != _focusRequestVersion) return;
+                if (!IsVisible || Window.GetWindow(this)?.IsActive != true)
+                {
+                    if (explicitRequest) FocusKeyboardButton.Content = "Focus failed";
+                    return;
+                }
+                // Do not take keys away from PC text entry, search, or mode selection.
+                if (!(explicitRequest && attempt == 0) && Keyboard.FocusedElement is
+                    (System.Windows.Controls.Primitives.TextBoxBase or ComboBox or PasswordBox)) return;
+                var focused = false;
+                if (UsesLegacyBackend) focused = Focus();
+                else if (ScrcpyHost.HasChild)
+                {
+                    if (!ScrcpyHost.HasKeyboardFocus) Keyboard.Focus(ScrcpyHost);
+                    focused = ScrcpyHost.FocusEmbeddedWindow();
+                }
+                if (focused)
+                {
+                    // Let WPF finish routing the click/layout before confirming native focus.
+                    await Task.Delay(40, _lifetime.Token);
+                    if (_disposed || request != _focusRequestVersion) return;
+                    if (!IsVisible || Window.GetWindow(this)?.IsActive != true) return;
+                    if (!(UsesLegacyBackend ? IsKeyboardFocusWithin : ScrcpyHost.HasKeyboardFocus)) continue;
+                    FocusKeyboardButton.Content = "Keyboard ready ✓";
+                    FocusKeyboardButton.Background = Brushes.DarkSlateBlue;
+                    if (explicitRequest) StatusText.Text = "Keyboard ready. Select a phone text field to type; PC-composed Chinese uses Paste text.";
+                    return;
+                }
+                await Task.Delay(40, _lifetime.Token);
+            }
+            FocusKeyboardButton.Content = "Retry keyboard focus";
+            FocusKeyboardButton.Background = Brushes.Maroon;
+            if (explicitRequest) StatusText.Text = "Keyboard focus unavailable. Check that the mirror is running and visible.";
+        }
+        catch (OperationCanceledException) { }
     }
     public AndroidDevice Device => _device;
     public bool UsesLegacyBackend => _forceLegacyFallback || _device.ApiLevel is >= 19 and < 21 || (_device.ApiLevel == 0 && _scrcpy is null);
@@ -649,23 +698,9 @@ public partial class MirrorSessionControl : UserControl, IDisposable
 
     private void FocusMirror_Click(object sender, RoutedEventArgs e)
     {
-        if (_disposed || _focusBusy) return;
-        _focusBusy = true; FocusKeyboardButton.IsEnabled = false; FocusKeyboardButton.Content = "Focusing…";
-        StatusText.Text = "Moving keyboard focus to the phone…";
-        Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(() =>
-        {
-            try
-            {
-                if (_disposed) return;
-                var focused = UsesLegacyBackend ? Focus() : ScrcpyHost.FocusEmbeddedWindow();
-                FocusKeyboardButton.Content = focused ? "Focus sent ✓" : "Focus failed";
-                FocusKeyboardButton.Background = focused ? Brushes.DarkSlateBlue : Brushes.Maroon;
-                StatusText.Text = focused
-                    ? "Keyboard focus transferred. Select an Android text field; PC-composed Chinese uses Paste text."
-                    : "Keyboard focus failed. Start/restart the mirror, then select the Android input field.";
-            }
-            finally { _focusBusy = false; if (!_disposed) FocusKeyboardButton.IsEnabled = true; }
-        }));
+        if (_disposed) return;
+        FocusKeyboardButton.Content = "Focusing…";
+        RequestKeyboardFocus(true);
     }
 
     private async void SendText_Click(object sender, RoutedEventArgs e)
@@ -1021,6 +1056,8 @@ public partial class MirrorSessionControl : UserControl, IDisposable
 
     public void Dispose()
     {
+        ++_focusRequestVersion;
+        if (_focusWindow is not null) _focusWindow.Activated -= FocusWindow_Activated;
         if (_disposed)
             return;
         _disposed = true;

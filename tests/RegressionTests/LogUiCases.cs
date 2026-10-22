@@ -98,7 +98,8 @@ internal static partial class Program
     {
         using var view = new AutelVysor.Controls.MirrorSessionControl(Bridge(), null, null, new AppSettings(), TestDevice());
         object? Call(string method, params object[] args) => view.GetType().GetMethod(method, BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(view, args);
-        Call("FocusMirror_Click", view, new RoutedEventArgs()); await Task.Delay(50);
+        Check(!((Button)view.FindName("FocusKeyboardButton")).Focusable, "Focus recovery button takes keyboard focus");
+        Call("FocusMirror_Click", view, new RoutedEventArgs()); await Task.Delay(100);
         Check(((Button)view.FindName("FocusKeyboardButton")).Content.ToString() == "Focus failed", "Unattached keyboard focus was reported as successful/no feedback");
         File.WriteAllText(State("sensor"), "1"); File.WriteAllText(State("rotation"), "0");
         await (Task)Call("RefreshRotationStateAsync")!;

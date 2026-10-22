@@ -465,7 +465,19 @@ internal static partial class Program
             var until = DateTime.UtcNow.AddSeconds(8);
             while (!host.HasChild && DateTime.UtcNow < until) await Task.Delay(50);
             Check(host.HasChild, "Fake scrcpy child did not attach");
-            window.Activate(); await Task.Delay(100);
+            window.Activate();
+            until = DateTime.UtcNow.AddSeconds(2);
+            while (!host.HasKeyboardFocus && DateTime.UtcNow < until) await Task.Delay(25);
+            Check(host.HasKeyboardFocus, "Opening/activating the mirror did not focus the keyboard automatically");
+            var editor = (TextBox)view.FindName("AndroidTextBox");
+            editor.Focus();
+            view.FocusKeyboardWhenReady();
+            await Task.Delay(150);
+            Check(editor.IsKeyboardFocusWithin, "Automatic mirror focus stole PC text entry");
+            typeof(MirrorSessionControl).GetMethod("FocusMirror_Click", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(view, [view, new RoutedEventArgs()]);
+            until = DateTime.UtcNow.AddSeconds(2);
+            while (!host.HasKeyboardFocus && DateTime.UtcNow < until) await Task.Delay(25);
+            Check(host.HasKeyboardFocus, "Explicit focus recovery did not leave the PC editor");
             const string expected = "这个是多么 café 😀 123";
             ((TextBox)view.FindName("AndroidTextBox")).Text = expected;
             typeof(MirrorSessionControl).GetMethod("SendText_Click", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(view, [view, new RoutedEventArgs()]);
@@ -632,6 +644,11 @@ internal static partial class Program
             window.Activate();
             await Task.Delay(100);
             Check(host.FocusEmbeddedWindow(), "Unable to give keyboard focus to the foreign SDL-style HWND");
+            Check(host.HasKeyboardFocus, "Native focus confirmation did not see the child");
+            var focusWatch = Stopwatch.StartNew();
+            for (var i = 0; i < 20; i++)
+                Check(host.FocusEmbeddedWindow(), "Repeated focus lost the child window");
+            Check(focusWatch.Elapsed < TimeSpan.FromSeconds(1), "Already-focused requests are slow");
             File.Delete(State("native-typed"));
             var keys = new[] { KeyInput(0x36, false), KeyInput(0x36, true), KeyInput(0x37, false), KeyInput(0x37, true) };
             Check(SendInput((uint)keys.Length, keys, Marshal.SizeOf<TestInput>()) == keys.Length, "Native digit injection failed");

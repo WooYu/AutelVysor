@@ -63,10 +63,23 @@ public sealed class NativeWindowHost : HwndHost
     /// Cross-process SDL HWNDs do not automatically participate in WPF keyboard
     /// navigation. Transfer Win32 input focus to the real scrcpy child HWND.
     /// </summary>
+    public bool HasKeyboardFocus
+    {
+        get
+        {
+            if (!HasChild) return false;
+            var info = new GuiThreadInfo { Size = Marshal.SizeOf<GuiThreadInfo>() };
+            return GetGUIThreadInfo(GetWindowThreadProcessId(_childHwnd, out _), ref info)
+                && info.Focus == _childHwnd;
+        }
+    }
+
     public bool FocusEmbeddedWindow()
     {
-        if (_childHwnd == IntPtr.Zero || !IsWindow(_childHwnd))
+        if (_childHwnd == IntPtr.Zero || !IsWindow(_childHwnd)
+            || !IsWindowVisible(_childHwnd) || GetAncestor(_hostHwnd, 2) != GetForegroundWindow())
             return false;
+        if (HasKeyboardFocus) return true;
 
         var targetThread = GetWindowThreadProcessId(_childHwnd, out _);
         var uiThread = GetCurrentThreadId();
@@ -75,7 +88,7 @@ public sealed class NativeWindowHost : HwndHost
         try
         {
             SetFocus(_childHwnd);
-            return GetFocus() == _childHwnd;
+            return HasKeyboardFocus;
         }
         finally
         {
@@ -88,7 +101,7 @@ public sealed class NativeWindowHost : HwndHost
     {
         base.OnGotKeyboardFocus(e);
         Dispatcher.BeginInvoke(DispatcherPriority.Input,
-            new Action(() => { if (HasChild) FocusEmbeddedWindow(); }));
+            new Action(() => { if (HasChild && IsKeyboardFocusWithin) FocusEmbeddedWindow(); }));
     }
 
     protected override IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -96,7 +109,7 @@ public sealed class NativeWindowHost : HwndHost
         // WM_SETFOCUS: WPF may focus the host HWND instead of the embedded SDL HWND.
         if (msg == 0x0007 && HasChild)
             Dispatcher.BeginInvoke(DispatcherPriority.Input,
-                new Action(() => { if (HasChild) FocusEmbeddedWindow(); }));
+                new Action(() => { if (HasChild && IsKeyboardFocusWithin) FocusEmbeddedWindow(); }));
         if (msg == 0x0005) QueueResizeChild(); // WM_SIZE: host client rect is now updated.
         return base.WndProc(hwnd, msg, wParam, lParam, ref handled);
     }
@@ -179,8 +192,6 @@ public sealed class NativeWindowHost : HwndHost
             throw new InvalidOperationException($"Unable to monitor mirror window size. Win32 error {Marshal.GetLastWin32Error()}.");
         ResizeChild();
         ShowWindow(childHwnd, 5); // SW_SHOW
-        Dispatcher.BeginInvoke(DispatcherPriority.Input,
-            new Action(() => { if (HasChild) FocusEmbeddedWindow(); }));
     }
 
     public void SetFitMode()
@@ -374,6 +385,18 @@ public sealed class NativeWindowHost : HwndHost
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern IntPtr SetFocus(IntPtr hWnd);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct GuiThreadInfo
+    {
+        public int Size;
+        public uint Flags;
+        public IntPtr Active, Focus, Capture, MenuOwner, MoveSize, Caret;
+        public Rect CaretRect;
+    }
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetGUIThreadInfo(uint thread, ref GuiThreadInfo info);
 
     [DllImport("user32.dll")]
     private static extern IntPtr GetFocus();
