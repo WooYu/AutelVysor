@@ -66,7 +66,8 @@ internal static partial class Program
                 ("Capture images preview on the right and release files", CapturePreviewLifecycle),
                 ("Capture video controls handle selection and codec failure", CaptureVideoLifecycle),
                 ("Left tools preserve full-height Fit and fullscreen recovery", LeftToolsLayout),
-                ("Dark selections remain readable without keyboard focus", DarkSelection)
+                ("Dark selections remain readable without keyboard focus", DarkSelection),
+                ("Test directory cleanup retries transient Windows locks", TestDirectoryCleanupRetries)
             })
             {
                 try { await test(); Console.WriteLine("PASS: " + name); }
@@ -75,7 +76,64 @@ internal static partial class Program
             app.Shutdown(failures == 0 ? 0 : 1);
         };
         try { return app.Run(); }
-        finally { Directory.Delete(directory, true); }
+        finally
+        {
+            DeleteTestDirectoryWithRetry(
+                directory,
+                Directory.Delete,
+                static duration => Thread.Sleep(duration),
+                maxAttempts: 20);
+        }
+    }
+
+    private static Task TestDirectoryCleanupRetries()
+    {
+        var attempts = 0;
+        var delays = 0;
+        var deleted = DeleteTestDirectoryWithRetry(
+            "fixture",
+            (_, _) =>
+            {
+                attempts++;
+                if (attempts < 3)
+                    throw new IOException("fixture lock");
+            },
+            _ => delays++,
+            maxAttempts: 3);
+
+        Check(deleted, "Transient directory locks should be retried successfully");
+        Check(attempts == 3, $"Expected 3 cleanup attempts, got {attempts}");
+        Check(delays == 2, $"Expected 2 retry delays, got {delays}");
+        return Task.CompletedTask;
+    }
+
+    private static bool DeleteTestDirectoryWithRetry(
+        string path,
+        Action<string, bool> delete,
+        Action<TimeSpan> delay,
+        int maxAttempts)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(maxAttempts, 1);
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            try
+            {
+                delete(path, true);
+                return true;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                if (attempt == maxAttempts)
+                {
+                    Console.Error.WriteLine($"WARNING: Could not remove test directory after {maxAttempts} attempts: {ex.Message}");
+                    return false;
+                }
+
+                delay(TimeSpan.FromMilliseconds(Math.Min(250, attempt * 25)));
+            }
+        }
+
+        return false;
     }
 
     private static AndroidBridge Bridge() => new(Environment.ProcessPath!);
