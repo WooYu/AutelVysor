@@ -1,6 +1,6 @@
 #define MyAppName "Autel Vysor"
 #ifndef MyAppVersion
-#define MyAppVersion "0.10.5"
+#define MyAppVersion "0.10.6"
 #endif
 #define MyAppPublisher "Autel"
 #define MyAppExeName "AutelVysor.exe"
@@ -18,6 +18,8 @@ OutputBaseFilename=AutelVysor-Setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
+SetupIconFile=..\src\AutelVysor\Assets\AutelVysor.ico
+UninstallDisplayIcon={app}\{#MyAppExeName}
 MinVersion=10.0
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible

@@ -1,6 +1,7 @@
 <Window x:Class="AutelVysor.CaptureHistoryWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Icon="pack://application:,,,/AutelVysor;component/Assets/AutelVysor.ico"
         Title="Autel Vysor · Captures" Width="950" Height="650" MinWidth="720" MinHeight="480"
         Background="#0B1120" Foreground="#F1F5F9">
   <Window.Resources>

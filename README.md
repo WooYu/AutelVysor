@@ -2,7 +2,7 @@
 
 Windows Android mirror/control client for **Android 4.4 (API 19) and newer**.
 
-Current source version: **0.10.5**
+Current source version: **0.10.6**
 
 ## Compatibility
 
@@ -25,6 +25,10 @@ Android fixture APK. It generates local HTML, JSON and CSV real-device reports.
 ADB backend test success is **not** equivalent to Windows UI/scrcpy validation.
 Features blocked by company executable policy are explicitly marked BLOCKED_POLICY.
 See [Chinese usage guide](docs/COMPANY_ADB_ONLY_TESTING.md).
+
+## v0.10.6 application icon candidate
+
+Includes a blue phone/display icon for the executable, windows, installer and shortcuts. See [icon asset details](docs/APP_ICON.md).
 
 ## v0.10.5 input / readability candidate
 
@@ -209,7 +213,7 @@ The build fails if the executable metadata does not contain:
 ```text
 FileDescription : Autel
 ProductName     : Autel Vysor
-FileVersion     : 0.10.5.0
+FileVersion     : 0.10.6.0
 ```
 
 ## Build portable ZIP and installer
@@ -221,7 +225,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build-release.ps1 -RequireSig
 Expected artifacts after a successfully signed build:
 
 ```text
-dist\AutelVysor-v0.10.5-windows-x64.zip
+dist\AutelVysor-v0.10.6-windows-x64.zip
 dist\AutelVysor-Setup.exe           # when Inno Setup 6 is installed
 ```
 
