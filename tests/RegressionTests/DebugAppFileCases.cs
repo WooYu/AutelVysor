@@ -52,7 +52,11 @@ internal static partial class Program
         var window = DebugFixtureWindow();
         try
         {
+            window.Show();
+            await DebugWaitUntil(() => ((TextBlock)window.FindName("StatusText")).Text.StartsWith("Device details refreshed"));
+            window.UpdateLayout();
             var package = (ComboBox)window.FindName("PackageBox");
+            Check(package.Template.FindName("PART_EditableTextBox", package) is TextBox, "Real editable package input was not created");
             var status = (TextBlock)window.FindName("AppStatusText");
             package.Text = "com.test.first";
             await DebugWaitUntil(() => status.Text.StartsWith("Loaded app details"));
