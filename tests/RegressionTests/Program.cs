@@ -39,6 +39,11 @@ internal static class Program
                 ("Live log rendering has a bounded per-tick text budget", LogcatFlushBudget),
                 ("One oversized log line cannot monopolize a UI tick", LogcatOversizedLine),
                 ("App details reuse a single package snapshot", SharedPackageSnapshot),
+                ("Modern auto keyboard selects hardware with SDK compatibility available", ModernKeyboardMode),
+                ("Native mirror zoom pans and restores fit after renderer resize", NativeZoomPan),
+                ("Long input errors do not shrink the mirror viewport", CompactMirrorStatus),
+                ("Modern toolbar pastes Chinese through native scrcpy shortcut without ADB IME", ModernToolbarPaste),
+                ("Clipboard paste refuses an unattached host", PasteRequiresAttachedHost),
                 ("Rotation alternates between two orientations", ToggleOrientation),
                 ("Auto-rotation releases WM lock and re-enables sensor", AutoRotation),
                 ("Shell arguments survive the real remote shell boundary", ShellBoundary),
@@ -256,6 +261,95 @@ internal static class Program
 
     private static AndroidDevice TestDevice() => new("test-device", "device", "Test", "", "", "", "", 34);
 
+    private static async Task ModernKeyboardMode()
+    {
+        File.Delete(State("native-hwnd"));
+        using var session = await new ScrcpyService(Environment.ProcessPath!, new AppSettings()).StartEmbeddedAsync(TestDevice());
+        var args = File.ReadAllLines(State("scrcpy-args"));
+        Check(args.Contains("--keyboard=uhid") && !args.Contains("--raw-key-events"), "Modern default keyboard still uses the limited SDK injection channel");
+    }
+
+    private static async Task NativeZoomPan()
+    {
+        var host = new NativeWindowHost();
+        var zoom = typeof(NativeWindowHost).GetMethod("SetZoom");
+        var pan = typeof(NativeWindowHost).GetMethod("SetPan");
+        Check(zoom is not null && pan is not null, "Mirror has no adjustable zoom/pan");
+        var window = new Window { Width = 700, Height = 500, Content = host, ShowInTaskbar = false };
+        var child = IntPtr.Zero;
+        try
+        {
+            window.Show();
+            await Task.Delay(100);
+            child = CreateWindowEx(0, "STATIC", "Zoom test", 0x90000000U, 0, 0, 200, 300, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+            host.AttachExternalWindow(child);
+            zoom!.Invoke(host, [2d]);
+            pan!.Invoke(host, [0d, 0d]);
+            await Task.Delay(100);
+            GetClientRect(host.Handle, out var available);
+            GetWindowRect(child, out var actual); MapWindowPoints(IntPtr.Zero, host.Handle, ref actual, 2);
+            Check(actual.Left == 0 && actual.Top == 0 && actual.Right == available.Right * 2 && actual.Bottom == available.Bottom * 2, "200% zoom/pan start geometry is wrong");
+            pan.Invoke(host, [1d, 1d]);
+            MoveWindow(child, 13, 17, 300, 400, true);
+            await Task.Delay(250);
+            GetWindowRect(child, out actual); MapWindowPoints(IntPtr.Zero, host.Handle, ref actual, 2);
+            Check(actual.Left == -available.Right && actual.Top == -available.Bottom, "Zoom/pan was lost after SDL resized itself");
+            host.SetFitMode(); await Task.Delay(100);
+            GetWindowRect(child, out actual); MapWindowPoints(IntPtr.Zero, host.Handle, ref actual, 2);
+            Check(actual.Left == 0 && actual.Top == 0 && actual.Right == available.Right && actual.Bottom == available.Bottom, "Fit did not reset zoom and pan");
+        }
+        finally { host.DetachExternalWindow(); if (child != IntPtr.Zero) DestroyWindow(child); window.Close(); }
+    }
+
+    private static async Task CompactMirrorStatus()
+    {
+        var view = new MirrorSessionControl(Bridge(), null, null, new AppSettings(), TestDevice());
+        var window = new Window { Width = 1180, Height = 780, Content = view, ShowInTaskbar = false };
+        try
+        {
+            window.Show(); await Task.Delay(100);
+            var status = (TextBlock)view.FindName("StatusText");
+            status.Text = string.Join('\n', Enumerable.Repeat("ADB command failed / stdout / stderr diagnostic detail", 10));
+            window.UpdateLayout();
+            Check(status.ActualHeight <= 24, "Multiline command diagnostics consumed the mirror viewport");
+        }
+        finally { view.Dispose(); window.Close(); }
+    }
+
+    private static async Task ModernToolbarPaste()
+    {
+        File.Delete(State("native-hwnd")); File.Delete(State("native-paste"));
+        var settings = new AppSettings();
+        var view = new MirrorSessionControl(Bridge(), new ScrcpyService(Environment.ProcessPath!, settings), null, settings, TestDevice());
+        var window = new Window { Width = 1180, Height = 780, Content = view, ShowInTaskbar = false };
+        try
+        {
+            window.Show();
+            var host = (NativeWindowHost)view.FindName("ScrcpyHost");
+            var until = DateTime.UtcNow.AddSeconds(8);
+            while (!host.HasChild && DateTime.UtcNow < until) await Task.Delay(50);
+            Check(host.HasChild, "Fake scrcpy child did not attach");
+            window.Activate(); await Task.Delay(100);
+            const string expected = "这个是多么 café 😀 123";
+            ((TextBox)view.FindName("AndroidTextBox")).Text = expected;
+            typeof(MirrorSessionControl).GetMethod("SendText_Click", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(view, [view, new RoutedEventArgs()]);
+            until = DateTime.UtcNow.AddSeconds(3);
+            while (!File.Exists(State("native-paste")) && DateTime.UtcNow < until) await Task.Delay(25);
+            Check(File.Exists(State("native-paste")) && File.ReadAllText(State("native-paste")) == expected,
+                "Chinese toolbar text did not reach native clipboard paste without ADBKeyBoard");
+        }
+        finally { view.Dispose(); window.Close(); }
+    }
+
+    private static Task PasteRequiresAttachedHost()
+    {
+        var method = typeof(NativeWindowHost).GetMethod("PasteClipboard");
+        Check(method is not null, "Native clipboard paste is unavailable");
+        using var host = new NativeWindowHost();
+        Check(!(bool)method!.Invoke(host, null)!, "Paste sent keys without an attached mirror");
+        return Task.CompletedTask;
+    }
+
     private static async Task EmbeddedKeyboard()
     {
         File.Delete(State("native-hwnd"));
@@ -393,6 +487,12 @@ internal static class Program
             window.Activate();
             await Task.Delay(100);
             Check(host.FocusEmbeddedWindow(), "Unable to give keyboard focus to the foreign SDL-style HWND");
+            File.Delete(State("native-typed"));
+            var keys = new[] { KeyInput(0x36, false), KeyInput(0x36, true), KeyInput(0x37, false), KeyInput(0x37, true) };
+            Check(SendInput((uint)keys.Length, keys, Marshal.SizeOf<TestInput>()) == keys.Length, "Native digit injection failed");
+            var until = DateTime.UtcNow.AddSeconds(3);
+            while ((!File.Exists(State("native-typed")) || File.ReadAllText(State("native-typed")) != "67") && DateTime.UtcNow < until) await Task.Delay(25);
+            Check(File.Exists(State("native-typed")) && File.ReadAllText(State("native-typed")) == "67", "Focus did not deliver real keyboard characters to the foreign HWND");
         }
         finally
         {
@@ -405,6 +505,12 @@ internal static class Program
 
     private delegate IntPtr WindowProcedure(IntPtr hwnd, uint message, IntPtr wParam, IntPtr lParam);
     private static WindowProcedure? _childProcedure;
+    private static string _nativeTyped = "";
+    private static void PublishNativeText(string name, string text)
+    {
+        File.WriteAllText(State(name + ".tmp"), text);
+        File.Move(State(name + ".tmp"), State(name), overwrite: true);
+    }
     [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW")]
     private static extern IntPtr SetProcedure(IntPtr hwnd, int index, WindowProcedure callback);
     [DllImport("user32.dll")]
@@ -420,6 +526,13 @@ internal static class Program
         var previous = IntPtr.Zero;
         _childProcedure = (window, message, wParam, lParam) =>
         {
+            if (message == 0x0102 && !char.IsControl((char)wParam.ToInt32()))
+            {
+                _nativeTyped += (char)wParam.ToInt32();
+                PublishNativeText("native-typed", _nativeTyped);
+            }
+            if ((message == 0x0100 || message == 0x0104) && wParam.ToInt32() == 0x56 && (GetKeyState(0x12) & 0x8000) != 0)
+                PublishNativeText("native-paste", Clipboard.GetText());
             if (message == 0x0010) // WM_CLOSE: simulate scrcpy flushing MP4
             {
                 File.WriteAllText(State("record-finalized"), "closed normally");
@@ -579,6 +692,16 @@ internal static class Program
     }
 
     private static string ReadRotation() => File.Exists(State("rotation")) ? File.ReadAllText(State("rotation")) : "0";
+    [StructLayout(LayoutKind.Explicit, Size = 40)]
+    private struct TestInput
+    {
+        [FieldOffset(0)] public uint Type;
+        [FieldOffset(8)] public ushort Key;
+        [FieldOffset(12)] public uint Flags;
+    }
+    private static TestInput KeyInput(ushort key, bool up) => new() { Type = 1, Key = key, Flags = up ? 2u : 0u };
+    [DllImport("user32.dll")] private static extern uint SendInput(uint count, [In] TestInput[] inputs, int size);
+    [DllImport("user32.dll")] private static extern short GetKeyState(int key);
     private static void Check(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
     [StructLayout(LayoutKind.Sequential)] private struct Rect { public int Left, Top, Right, Bottom; }
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern IntPtr CreateWindowEx(int ex, string cls, string title, uint style, int x, int y, int width, int height, IntPtr parent, IntPtr menu, IntPtr instance, IntPtr param);
