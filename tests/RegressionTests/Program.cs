@@ -55,6 +55,7 @@ internal static class Program
                 ("ASCII text is injected via the actual ADB process boundary", AsciiText),
                 ("Embedded child returns to fit after repeated self-resizing", NativeResize),
                 ("Keyboard focus reaches an external native-window process", CrossProcessFocus),
+                ("Left tools preserve full-height Fit and fullscreen recovery", LeftToolsLayout),
                 ("Dark selections remain readable without keyboard focus", DarkSelection)
             })
             {
@@ -716,6 +717,54 @@ internal static class Program
         }
         return 0;
     }
+
+    private static async Task LeftToolsLayout()
+    {
+        var window = new AutelVysor.MainWindow { Width = 1180, Height = 780, ShowInTaskbar = false };
+        using var first = new MirrorSessionControl(Bridge(), null, null, new AppSettings(), TestDevice());
+        using var second = new MirrorSessionControl(Bridge(), null, null, new AppSettings(), TestDevice() with { Serial = "other-device" });
+        try
+        {
+            var tabs = (TabControl)window.FindName("SessionTabs");
+            var tab1 = new TabItem { Header = "Phone one", Content = first };
+            var tab2 = new TabItem { Header = "Phone two", Content = second };
+            tabs.Items.Add(tab1); tabs.Items.Add(tab2); tabs.SelectedItem = tab1;
+            ((FrameworkElement)window.FindName("EmptyWorkspace")).Visibility = Visibility.Collapsed;
+            window.Show(); await Task.Delay(100); window.UpdateLayout();
+            var tools = window.FindName("SessionToolsHost") as ContentControl;
+            Check(tools is not null && ReferenceEquals(tools.Content, first.FindName("SessionTools")),
+                "Active device controls are not hosted in the left sidebar");
+            var viewport = (FrameworkElement)first.FindName("MirrorViewport");
+            Check(viewport.ActualHeight >= first.ActualHeight - 2, "A top/bottom toolbar still consumes mirror height");
+            var left = ((FrameworkElement)tools!).TransformToAncestor(window).Transform(new Point());
+            var picture = viewport.TransformToAncestor(window).Transform(new Point());
+            Check(left.X < picture.X, "Device controls are not left of the mirror");
+            ((TextBox)first.FindName("AndroidTextBox")).Text = "first phone";
+            tabs.SelectedItem = tab2; window.UpdateLayout();
+            Check(ReferenceEquals(tools!.Content, second.FindName("SessionTools")), "Switching tabs retained the previous device's controls");
+            tabs.SelectedItem = tab1; window.UpdateLayout();
+            Check(((TextBox)first.FindName("AndroidTextBox")).Text == "first phone", "Switching tabs lost device input state");
+            typeof(MirrorSessionControl).GetMethod("ApplyZoom", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(first, [2d]);
+            DebugCallMain(window, "ToggleFullscreen"); await Task.Delay(100); window.UpdateLayout();
+            Check(((ComboBox)first.FindName("ZoomBox")).SelectedIndex == 0, "Fullscreen retained a cropped zoom instead of Fit");
+            Check(viewport.ActualHeight >= window.ActualHeight - 4, "Fullscreen does not give the mirror the available height");
+            Check(((FrameworkElement)window.FindName("SidebarRecoveryRail")).IsVisible, "Hidden tools have no mouse-accessible recovery control");
+            DebugCallMain(window, "SidebarToggle_Click", window, new RoutedEventArgs()); window.UpdateLayout();
+            Check(((FrameworkElement)window.FindName("SidebarPanel")).IsVisible, "Tools cannot be opened while the native mirror has focus");
+            DebugCallMain(window, "ToggleFullscreen"); window.UpdateLayout();
+            Check(window.WindowStyle == WindowStyle.SingleBorderWindow && ((FrameworkElement)window.FindName("SidebarPanel")).IsVisible,
+                "Exiting fullscreen did not restore the window/sidebar");
+            var folder = Path.GetFullPath("test-results"); Directory.CreateDirectory(folder);
+            var bitmap = new RenderTargetBitmap((int)window.ActualWidth, (int)window.ActualHeight, 96, 96, PixelFormats.Pbgra32);
+            bitmap.Render(window);
+            var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
+            using var image = File.Create(Path.Combine(folder, "left-tools.png")); encoder.Save(image);
+        }
+        finally { window.Close(); }
+    }
+
+    private static object? DebugCallMain(AutelVysor.MainWindow window, string method, params object[] args)
+        => typeof(AutelVysor.MainWindow).GetMethod(method, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(window, args);
 
     private static async Task DarkSelection()
     {
