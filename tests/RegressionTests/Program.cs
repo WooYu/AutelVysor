@@ -76,7 +76,14 @@ internal static partial class Program
             app.Shutdown(failures == 0 ? 0 : 1);
         };
         try { return app.Run(); }
-        finally { Directory.Delete(directory, true); }
+        finally
+        {
+            DeleteTestDirectoryWithRetry(
+                directory,
+                Directory.Delete,
+                static duration => Thread.Sleep(duration),
+                maxAttempts: 20);
+        }
     }
 
     private static Task TestDirectoryCleanupRetries()
@@ -106,15 +113,27 @@ internal static partial class Program
         Action<TimeSpan> delay,
         int maxAttempts)
     {
-        try
+        ArgumentOutOfRangeException.ThrowIfLessThan(maxAttempts, 1);
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
         {
-            delete(path, true);
-            return true;
+            try
+            {
+                delete(path, true);
+                return true;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                if (attempt == maxAttempts)
+                {
+                    Console.Error.WriteLine($"WARNING: Could not remove test directory after {maxAttempts} attempts: {ex.Message}");
+                    return false;
+                }
+
+                delay(TimeSpan.FromMilliseconds(Math.Min(250, attempt * 25)));
+            }
         }
-        catch (IOException)
-        {
-            return false;
-        }
+
+        return false;
     }
 
     private static AndroidBridge Bridge() => new(Environment.ProcessPath!);
