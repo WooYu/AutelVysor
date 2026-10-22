@@ -47,6 +47,7 @@ internal static class Program
                 ("Rotation alternates between two orientations", ToggleOrientation),
                 ("Auto-rotation releases WM lock and re-enables sensor", AutoRotation),
                 ("Shell arguments survive the real remote shell boundary", ShellBoundary),
+                ("Rotation resets zoom and supersedes a pending 1:1 view", RotationResetsZoom),
                 ("Rotation reads default display instead of stale user setting", ActualDisplayRotation),
                 ("Embedded keyboard avoids SDL text-event dependency", EmbeddedKeyboard),
                 ("Recording rejects duplicates and finalizes on stop", RecordingLifecycle),
@@ -236,6 +237,41 @@ internal static class Program
         var overview = await bridge.GetDeviceOverviewAsync("test-device");
         Check(overview.Contains("BatteryStatus") && overview.Contains("Physical size: 1080x2400") && !overview.Contains("ALL_DUMPSYS"),
             "Device overview dropped display/battery arguments");
+    }
+
+    private static async Task RotationResetsZoom()
+    {
+        const System.Reflection.BindingFlags flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+        object? Call(MirrorSessionControl view, string method, params object[] args)
+            => typeof(MirrorSessionControl).GetMethod(method, flags)!.Invoke(view, args);
+        void AssertFit(MirrorSessionControl view)
+        {
+            Check(((ComboBox)view.FindName("ZoomBox")).SelectedIndex == 0, "Rotation left the zoom selector out of Fit");
+            Check(((System.Windows.Controls.Primitives.ScrollBar)view.FindName("PanHorizontal")).Visibility == Visibility.Collapsed,
+                "Rotation left cropped-view pan controls visible");
+            Check(((Image)view.FindName("LegacyImage")).RenderTransform.Value.M11 == 1,
+                "Rotation left the legacy image magnified");
+        }
+        var wm = Path.Combine(State("commands"), "wm");
+        var original = File.ReadAllText(wm);
+        try
+        {
+            foreach (var device in new[] { TestDevice(), TestDevice() with { ApiLevel = 19 } })
+            {
+                using var view = new MirrorSessionControl(Bridge(), null, null, new AppSettings(), device);
+                Call(view, "ApplyZoom", 2d);
+                await (Task)Call(view, "ChangeOrientationAsync", true)!;
+                AssertFit(view);
+            }
+            // Hold the first display-size query so rotation can return to Fit while 1:1 is pending.
+            File.WriteAllText(wm, "#!/bin/sh\nsleep 0.5\n" + original.Replace("#!/bin/sh\n", ""));
+            using var modern = new MirrorSessionControl(Bridge(), null, null, new AppSettings(), TestDevice());
+            var actualSize = (Task)Call(modern, "SetActualSizeAsync")!;
+            var rotation = (Task)Call(modern, "ChangeOrientationAsync", true)!;
+            await Task.WhenAll(actualSize, rotation);
+            AssertFit(modern);
+        }
+        finally { File.WriteAllText(wm, original); }
     }
 
     private static async Task ActualDisplayRotation()
