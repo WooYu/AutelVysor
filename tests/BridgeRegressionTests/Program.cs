@@ -105,7 +105,7 @@ internal static class Program
         }
         if (args.Contains("getprop")) { Console.WriteLine("test-property"); return 0; }
         var shell = OperatingSystem.IsWindows()
-            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Git", "bin", "bash.exe") : "/bin/sh";
+            ? (Environment.GetEnvironmentVariable("AUTEL_TEST_SHELL") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Git", "bin", "bash.exe")) : "/bin/sh";
         var result = ToolRunner.RunAsync(shell, ["-c", "export PATH=\"$PWD/commands:$PATH\"; " + command], workingDirectory: StateDirectory).GetAwaiter().GetResult();
         Console.Write(result.Output); Console.Error.Write(result.Error);
         return result.ExitCode;

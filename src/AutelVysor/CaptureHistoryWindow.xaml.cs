@@ -74,6 +74,8 @@ public partial class CaptureHistoryWindow : Window
         var extension = System.IO.Path.GetExtension(path).ToLowerInvariant();
         if (extension is not (".png" or ".jpg" or ".jpeg"))
         {
+            VideoControls.Visibility = SeekSlider.Visibility = Visibility.Visible;
+            ImageScroll.Visibility = Visibility.Collapsed;
             var video = new MediaElement
             {
                 LoadedBehavior = MediaState.Manual,
@@ -100,10 +102,12 @@ public partial class CaptureHistoryWindow : Window
             image.BeginInit();
             image.UriSource = new Uri(path, UriKind.Absolute);
             image.CacheOption = BitmapCacheOption.OnLoad;
-            image.DecodePixelWidth = 1000;
             image.EndInit();
             image.Freeze();
             PreviewImage.Source = image;
+            ImageControls.Visibility = Visibility.Visible;
+            ImageDetails.Text = $"{image.PixelWidth} × {image.PixelHeight} px";
+            FitImage_Click(this, new RoutedEventArgs());
             PreviewHint.Visibility = Visibility.Collapsed;
         }
         catch (Exception ex) { PreviewHint.Text = "Image preview failed. Use Open selected. " + BoundedMessage(ex); }
@@ -111,6 +115,8 @@ public partial class CaptureHistoryWindow : Window
 
     private void ResetPreview()
     {
+        if (VideoControls is not null) VideoControls.Visibility = SeekSlider.Visibility = ImageControls.Visibility = Visibility.Collapsed;
+        ImageScroll.Visibility = Visibility.Visible;
         _playbackTimer.Stop();
         var previous = _video;
         _video = null; // Ignore queued media events from the previous selection.
@@ -130,6 +136,22 @@ public partial class CaptureHistoryWindow : Window
         PlaybackTime.Text = "00:00 / --:--";
         PreviewHint.Text = "Select a screenshot or recording to preview.";
         PreviewHint.Visibility = Visibility.Visible;
+    }
+
+    private void FitImage_Click(object sender, RoutedEventArgs e)
+    {
+        PreviewImage.Width = PreviewImage.Height = double.NaN;
+        PreviewImage.Stretch = System.Windows.Media.Stretch.Uniform;
+        ImageScroll.HorizontalScrollBarVisibility = ImageScroll.VerticalScrollBarVisibility = ScrollBarVisibility.Disabled;
+    }
+
+    private void ActualImage_Click(object sender, RoutedEventArgs e)
+    {
+        if (PreviewImage.Source is not BitmapSource image) return;
+        PreviewImage.Width = image.PixelWidth;
+        PreviewImage.Height = image.PixelHeight;
+        PreviewImage.Stretch = System.Windows.Media.Stretch.Fill;
+        ImageScroll.HorizontalScrollBarVisibility = ImageScroll.VerticalScrollBarVisibility = ScrollBarVisibility.Auto;
     }
 
     private void VideoOpened(MediaElement video)

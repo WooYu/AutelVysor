@@ -41,6 +41,12 @@ internal static partial class Program
             var image = (Image)window.FindName("PreviewImage");
             Check(image.Source is not null, "Image capture did not preview");
             Check(!((Button)window.FindName("PlayButton")).IsEnabled, "Image enabled video playback");
+            Check(((WrapPanel)window.FindName("VideoControls")).Visibility == Visibility.Collapsed, "Image shows video controls");
+            Check(((Slider)window.FindName("SeekSlider")).Visibility == Visibility.Collapsed, "Image shows video seek slider");
+            Check(((WrapPanel)window.FindName("ImageControls")).Visibility == Visibility.Visible, "Image controls missing");
+            CaptureCall(window, "ActualImage_Click", window, new RoutedEventArgs());
+            Check(image.Width == 120 && image.Height == 200, "Actual size is not source pixel dimensions");
+            CaptureCall(window, "FitImage_Click", window, new RoutedEventArgs());
             var list = (ListBox)window.FindName("CaptureList");
             var surface = (Border)((ListBoxItem)list.ItemContainerGenerator.ContainerFromIndex(0)).Template.FindName("Surface", (ListBoxItem)list.ItemContainerGenerator.ContainerFromIndex(0));
             Check(((SolidColorBrush)surface.Background).Color == (Color)ColorConverter.ConvertFromString("#173454"), "Capture selection became unreadable");

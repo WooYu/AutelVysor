@@ -190,7 +190,7 @@ internal static class Program
         })
         {
             var shellPath = OperatingSystem.IsWindows()
-                ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Git", "bin", "bash.exe") : "/bin/sh";
+                ? (Environment.GetEnvironmentVariable("AUTEL_TEST_SHELL") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Git", "bin", "bash.exe")) : "/bin/sh";
             var direct = await ToolRunner.RunAsync(shellPath, ["-c", command]);
             var result = await bridge.RunShellCommandResultAsync("legacy-host-zero", command);
             Check(result.Output == direct.Output && result.Error == direct.Error, "Status capture changed raw streams for " + command);
@@ -389,7 +389,7 @@ internal static class Program
         // shell-v1 reports host exit 0 even when the remote command fails.
         Environment.SetEnvironmentVariable("AUTEL_COMMAND_DEVICE", serial);
         var shellPath = OperatingSystem.IsWindows()
-            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Git", "bin", "bash.exe") : "/bin/sh";
+            ? (Environment.GetEnvironmentVariable("AUTEL_TEST_SHELL") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Git", "bin", "bash.exe")) : "/bin/sh";
         var result = await ToolRunner.RunAsync(shellPath,
             ["-c", "export PATH=\"$PWD/commands:$PATH\"; " + command],
             workingDirectory: Environment.GetEnvironmentVariable("AUTEL_COMMAND_FIXTURE"));

@@ -44,6 +44,7 @@ public partial class MainWindow : Window
     private IReadOnlyList<AndroidDevice> _devices = Array.Empty<AndroidDevice>();
     private bool _refreshing;
     private bool _recordingStopBusy;
+    private int _recordingGeneration;
     private bool _closeAfterRecordings;
     private bool _sidebarHidden;
     private bool _isFullscreen;
@@ -207,6 +208,8 @@ public partial class MainWindow : Window
                 DeviceList.ItemsSource = items;
                 foreach (var item in items.Where(x => selectedSerials.Contains(x.Device.Serial)))
                     DeviceList.SelectedItems.Add(item);
+                if (DeviceList.SelectedItems.Count == 0)
+                    DeviceList.SelectedItem = items.FirstOrDefault(x => x.Device.IsOnline && (x.Device.ApiLevel == 0 || x.Device.ApiLevel >= 19));
             }
             _devices = devices;
 
@@ -255,6 +258,7 @@ public partial class MainWindow : Window
         if (_sessions.TryGetValue(device.Serial, out var existing))
         {
             SessionTabs.SelectedItem = existing.Tab;
+            existing.View.FocusKeyboardWhenReady();
             return;
         }
 
@@ -296,6 +300,7 @@ public partial class MainWindow : Window
         if (SessionTabs.SelectedItem is TabItem { Content: MirrorSessionControl view })
         {
             SessionToolsHost.Content = view.DetachToolsForSidebar();
+            view.FocusKeyboardWhenReady();
             if (_isFullscreen || _sidebarHidden) view.FitToWindow();
         }
         _syncingSessionList = true;
@@ -585,18 +590,36 @@ public partial class MainWindow : Window
     {
         try
         {
-            var device = SelectedOne();
+            var device = CaptureDevice();
             if (device.ApiLevel is >= 19 and < 21)
                 throw new InvalidOperationException("Continuous MP4 recording is not available in the Android 4.4 compatibility backend yet. Screenshot capture is supported.");
 
             Require(Scrcpy);
             var path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), $"autel-{DateTime.Now:yyyyMMdd-HHmmss}-{Guid.NewGuid():N}.mp4");
-            _scrcpy.StartRecording(device, path);
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            var process = _scrcpy.StartRecording(device, path);
+            var generation = _recordingGeneration;
+            process.EnableRaisingEvents = true;
+            process.Exited += (_, _) => Dispatcher.InvokeAsync(() =>
+            {
+                if (_recordingStopBusy || generation != _recordingGeneration) return;
+                RecordButton.Content = "Recording ended · check file";
+                CaptureStatusText.Text = $"Recorder exited. Use Stop recordings to verify/finalize: {path}";
+            });
+            RecordButton.Content = "● Recording";
+            RecordButton.Background = System.Windows.Media.Brushes.Firebrick;
+            CaptureStatusText.Text = $"Recording {device.DisplayName} → {path}";
             StopRecordingsButton.IsEnabled = true;
             StatusText.Text = $"Recording started: {path}. Use Stop recordings to finalize the MP4.";
+            if (process.HasExited)
+            {
+                RecordButton.Content = "Recording ended · check file";
+                CaptureStatusText.Text = $"Recorder exited during startup. Use Stop recordings to verify: {path}";
+            }
         }
         catch (Exception ex)
         {
+            CaptureStatusText.Text = ex.Message;
             StatusText.Text = ex.Message;
             MessageBox.Show(ex.Message, "Autel Vysor", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
@@ -605,6 +628,9 @@ public partial class MainWindow : Window
     private async Task StopOwnedRecordingsAsync()
     {
         _recordingStopBusy = true;
+        _recordingGeneration++;
+        StopRecordingsButton.Content = "Finalizing…";
+        CaptureStatusText.Text = "Finalizing MP4 files…";
         RecordButton.IsEnabled = false;
         StopRecordingsButton.IsEnabled = false;
         StatusText.Text = "Stopping recordings and finalizing MP4 files…";
@@ -612,12 +638,17 @@ public partial class MainWindow : Window
         {
             await _scrcpy.StopRecordingsAsync();
             StatusText.Text = "Recordings stopped and files finalized. Open Captures to view them.";
+            CaptureStatusText.Text = StatusText.Text;
         }
+        catch (Exception ex) { CaptureStatusText.Text = ex.Message; throw; }
         finally
         {
             _recordingStopBusy = false;
             RecordButton.IsEnabled = true;
             StopRecordingsButton.IsEnabled = _scrcpy.HasRecordings;
+            StopRecordingsButton.Content = "Stop recordings";
+            RecordButton.Content = _scrcpy.HasRecordings ? "● Recording" : "Record MP4";
+            RecordButton.Background = _scrcpy.HasRecordings ? System.Windows.Media.Brushes.Firebrick : System.Windows.Media.Brushes.SlateGray;
         }
     }
 
@@ -678,14 +709,37 @@ public partial class MainWindow : Window
         StatusText.Text = $"Mirror settings applied · {_settings.MirrorQuality} · screen {(_settings.TurnScreenOffOnMirror ? "off" : "on")} · audio {(_settings.EnableAudio ? "on" : "off")} · device/Bluetooth {(_settings.KeepDeviceAudio ? "kept" : "PC priority")} · clipboard {(_settings.ClipboardSync ? "on" : "off")}.";
     });
 
-    private async void Screenshot_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
+    private async void Screenshot_Click(object sender, RoutedEventArgs e)
     {
-        Require(Adb);
-        var device = SelectedOne();
-        var path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), $"autel-{DateTime.Now:yyyyMMdd-HHmmss}.png");
-        await _bridge.CaptureScreenshotAsync(device.Serial, path);
-        StatusText.Text = $"Saved: {path}";
-    });
+        if (!ScreenshotButton.IsEnabled) return;
+        ScreenshotButton.IsEnabled = false;
+        ScreenshotButton.Content = "Capturing…";
+        CaptureStatusText.Text = "Taking screenshot…";
+        try
+        {
+            Require(Adb);
+            var device = CaptureDevice();
+            var path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), $"autel-{DateTime.Now:yyyyMMdd-HHmmss}-{Guid.NewGuid():N}.png");
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            await _bridge.CaptureScreenshotAsync(device.Serial, path);
+            if (!File.Exists(path) || new FileInfo(path).Length == 0) throw new IOException("Screenshot file is empty or missing.");
+            ScreenshotButton.Content = "Screenshot saved ✓";
+            CaptureStatusText.Text = StatusText.Text = $"Saved screenshot: {path}. Open Captures to preview.";
+        }
+        catch (Exception ex)
+        {
+            ScreenshotButton.Content = "Screenshot failed · retry";
+            CaptureStatusText.Text = StatusText.Text = ex.Message;
+        }
+        finally { ScreenshotButton.IsEnabled = true; }
+    }
+
+    private AndroidDevice CaptureDevice()
+    {
+        var device = SessionTabs.SelectedItem is TabItem { Content: MirrorSessionControl view } ? view.Device : SelectedOne();
+        ValidateDevice(device);
+        return device;
+    }
     private async void Diagnostics_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
     {
         var report = new StringBuilder();

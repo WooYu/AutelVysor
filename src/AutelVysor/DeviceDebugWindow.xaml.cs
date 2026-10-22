@@ -18,6 +18,14 @@ public partial class DeviceDebugWindow : Window
     private readonly ShellFavoritesService _favoritesService = new();
     private readonly List<string> _favorites = [];
     private IReadOnlyList<string> _allPackages = Array.Empty<string>();
+    private readonly Dictionary<string, string> _appNames = new(StringComparer.OrdinalIgnoreCase);
+    private readonly CancellationTokenSource _debugLifetime = new();
+    private CancellationTokenSource? _packageLoadCancellation;
+    private long _packageLoadVersion;
+    private bool _filteringPackages;
+    private bool _shellBusy;
+    private bool _debugActionBusy;
+    private readonly AppNameService _appNamesService;
     private readonly AndroidDevice _device;
     private readonly ConcurrentQueue<QueuedLogLine> _logQueue = new();
     private readonly DispatcherTimer _logFlushTimer;
@@ -38,6 +46,7 @@ public partial class DeviceDebugWindow : Window
     {
         InitializeComponent();
         _bridge = bridge;
+        _appNamesService = new AppNameService(bridge);
         _advanced = new AdvancedAdbService(bridge.ExecutablePath);
         _device = device;
         PackageBox.AddHandler(System.Windows.Controls.TextBox.TextChangedEvent,
@@ -73,6 +82,8 @@ public partial class DeviceDebugWindow : Window
         Closed += (_, _) =>
         {
             _windowClosed = true;
+            _debugLifetime.Cancel();
+            _packageLoadCancellation?.Cancel();
             _logLoadCancellation?.Cancel();
             _appLookupVersion++;
             _fileLookupVersion++;
@@ -86,6 +97,12 @@ public partial class DeviceDebugWindow : Window
 
     private async Task Guard(Func<Task> action, bool showDialog = true)
     {
+        if (_windowClosed || _debugActionBusy) return;
+        _debugActionBusy = true;
+        DebugBusyText.Visibility = Visibility.Visible;
+        var actionButton = Keyboard.FocusedElement as System.Windows.Controls.Button;
+        if (actionButton is not null && Window.GetWindow(actionButton) != this) actionButton = null;
+        if (actionButton is not null) actionButton.IsEnabled = false;
         try
         {
             await action();
@@ -93,8 +110,14 @@ public partial class DeviceDebugWindow : Window
         catch (Exception ex)
         {
             StatusText.Text = ex.Message;
-            if (showDialog)
+            if (showDialog && !_windowClosed)
                 MessageBox.Show(this, ex.Message, "Device debug", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            _debugActionBusy = false;
+            DebugBusyText.Visibility = Visibility.Collapsed;
+            if (actionButton is not null) actionButton.IsEnabled = true;
         }
     }
 
@@ -108,12 +131,69 @@ public partial class DeviceDebugWindow : Window
 
     private async Task LoadPackagesAsync()
     {
+        _packageLoadCancellation?.Cancel();
+        var cancellation = CancellationTokenSource.CreateLinkedTokenSource(_debugLifetime.Token);
+        _packageLoadCancellation = cancellation;
+        var version = ++_packageLoadVersion;
         var previous = PackageBox.Text.Trim();
         StatusText.Text = "Loading installed packages…";
         var category = (AppCategoryBox.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Content?.ToString() ?? "All";
-        _allPackages = await _advanced.ListPackagesAsync(_device.Serial, category);
-        ApplyPackageFilter(previous);
-        StatusText.Text = $"Loaded {_allPackages.Count} {category.ToLowerInvariant()} package(s).";
+        var indexingStarted = false;
+        try
+        {
+            var packages = await _advanced.ListPackagesAsync(_device.Serial, category, cancellation.Token);
+            if (_windowClosed || version != _packageLoadVersion) return;
+            _allPackages = packages;
+            ApplyPackageFilter(previous);
+            StatusText.Text = $"Loaded {_allPackages.Count} {category.ToLowerInvariant()} package(s).";
+            indexingStarted = true;
+            _ = LoadAppNamesAsync(packages, version, cancellation);
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
+        finally
+        {
+            if (!indexingStarted)
+            {
+                if (ReferenceEquals(_packageLoadCancellation, cancellation)) _packageLoadCancellation = null;
+                cancellation.Dispose();
+            }
+        }
+    }
+
+    private async Task LoadAppNamesAsync(IReadOnlyList<string> packages, long version, CancellationTokenSource cancellation)
+    {
+        var found = 0;
+        try
+        {
+            for (var i = 0; i < packages.Count; i++)
+            {
+                cancellation.Token.ThrowIfCancellationRequested();
+                try
+                {
+                    var name = await _appNamesService.ReadAsync(_device.Serial, packages[i], cancellation.Token);
+                    if (_windowClosed || version != _packageLoadVersion) return;
+                    if (!string.IsNullOrWhiteSpace(name)) { _appNames[packages[i]] = name; found++; }
+                }
+                catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { throw; }
+                catch (OperationCanceledException) { /* Skip timed out name lookups; continue indexing other apps. */ }
+                catch (Exception) { /* Package may disappear, be unreadable or use split resources. Keep package search available. */ }
+                if (_windowClosed || version != _packageLoadVersion) return;
+                PackageResultsText.Text = $"Reading app names {i + 1}/{packages.Count} · {found} names available";
+                if (i % 5 == 0 || i == packages.Count - 1) ApplyPackageFilter();
+            }
+            PackageResultsText.Text = $"{packages.Count} apps · {found} names loaded. Apps without readable labels remain searchable by package.";
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
+        finally
+        {
+            if (ReferenceEquals(_packageLoadCancellation, cancellation)) _packageLoadCancellation = null;
+            cancellation.Dispose();
+        }
+    }
+
+    private sealed record AppChoice(string Package, string Name)
+    {
+        public string Title => string.IsNullOrWhiteSpace(Name) ? Package : $"{Name}  ·  {Package}";
     }
 
     private void ApplyPackageFilter(string? previouslySelected = null)
@@ -121,18 +201,35 @@ public partial class DeviceDebugWindow : Window
         var selection = previouslySelected ?? PackageBox.Text.Trim();
         var search = PackageSearchBox.Text.Trim();
         var filtered = _allPackages
-            .Where(name => search.Length == 0 || name.Contains(search, StringComparison.OrdinalIgnoreCase))
+            .Where(name => search.Length == 0 || name.Contains(search, StringComparison.OrdinalIgnoreCase)
+                || (_appNames.TryGetValue(name, out var label) && label.Contains(search, StringComparison.OrdinalIgnoreCase)))
             .ToArray();
+        _filteringPackages = true;
+        try
+        {
         PackageBox.ItemsSource = filtered;
         if (!string.IsNullOrWhiteSpace(selection))
             PackageBox.Text = selection;
+        AppSearchResults.ItemsSource = filtered.Select(p => new AppChoice(p, _appNames.GetValueOrDefault(p, ""))).ToArray();
+        AppSearchResults.Visibility = search.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        SearchMatchText.Text = search.Length > 0 ? $"{filtered.Length} matching app(s). Select a result below." : "Search by app name or package";
+        }
+        finally { _filteringPackages = false; }
+    }
+
+    private void AppSearchResultSelected(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (!_filteringPackages && AppSearchResults.SelectedItem is AppChoice app) PackageBox.Text = app.Package;
     }
 
     private async void AppFilterChanged(object sender, RoutedEventArgs e)
     {
         if (!IsLoaded) return;
         if (ReferenceEquals(sender, AppCategoryBox))
-            await Guard(LoadPackagesAsync, showDialog: false);
+        {
+            try { await LoadPackagesAsync(); }
+            catch (Exception ex) { if (!_windowClosed) PackageResultsText.Text = ex.Message; }
+        }
         else
             ApplyPackageFilter();
     }
@@ -152,7 +249,9 @@ public partial class DeviceDebugWindow : Window
     }
 
     private async void PackageInputChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
-        => await LoadSelectedAppAsync(debounce: true);
+    {
+        if (!_filteringPackages && !_windowClosed) await LoadSelectedAppAsync(debounce: true);
+    }
 
     private Task RefreshSelectedAppAsync() => LoadSelectedAppAsync(debounce: false);
 
@@ -411,22 +510,36 @@ public partial class DeviceDebugWindow : Window
     {
         if (RemoteOpenButton is null) return;
         var selected = RemoteFileList.SelectedItems.Cast<RemoteFileEntry>().ToArray();
-        var ready = !_filesBusy && _filesLoaded && NormalizeBrowserPath(RemoteFilePathBox.Text) == _loadedRemotePath;
+        var ready = !_filesBusy && !_fileOperationBusy && _filesLoaded && NormalizeBrowserPath(RemoteFilePathBox.Text) == _loadedRemotePath;
         RemoteOpenButton.IsEnabled = ready && selected.Length == 1 && selected[0].IsDirectory;
-        RemoteDownloadButton.IsEnabled = ready && selected.Length == 1 && !selected[0].IsDirectory;
+        RemoteDownloadButton.IsEnabled = ready && selected.Length > 0;
         RemoteDeleteButton.IsEnabled = ready && selected.Length > 0;
+        RemoteRenameButton.IsEnabled = ready && selected.Length == 1;
         RemoteUploadButton.IsEnabled = RemoteNewFolderButton.IsEnabled = ready;
         RemoteUpButton.IsEnabled = !_filesBusy && NormalizeBrowserPath(RemoteFilePathBox.Text) != "/";
         RemoteRootButton.IsEnabled = RemoteRefreshButton.IsEnabled = !_filesBusy;
-        RemoteFileList.IsEnabled = !_filesBusy;
+        RemoteFileList.IsEnabled = !_filesBusy && !_fileOperationBusy;
+        RemoteFilePathBox.IsReadOnly = _fileOperationBusy;
+        RemoteBackButton.IsEnabled = !_filesBusy && !_fileOperationBusy && _remoteHistoryIndex > 0;
+        RemoteForwardButton.IsEnabled = !_filesBusy && !_fileOperationBusy && _remoteHistoryIndex + 1 < _remoteHistory.Count;
+        RemoteUpButton.IsEnabled &= !_fileOperationBusy;
+        RemoteRootButton.IsEnabled = RemoteRefreshButton.IsEnabled = !_filesBusy && !_fileOperationBusy;
     }
 
-    private void RemoteSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e) => UpdateRemoteFileActions();
+    private void RemoteSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        UpdateRemoteFileActions();
+        if (_filesLoaded && !_filesBusy && FileStatusText is not null)
+            FileStatusText.Text = $"{RemoteFileList.Items.Count} item(s) · {RemoteFileList.SelectedItems.Count} selected · {_loadedRemotePath}";
+    }
     private void RemotePathChanged(object sender, System.Windows.Controls.TextChangedEventArgs e) => UpdateRemoteFileActions();
 
     private async Task RefreshRemoteFilesAsync()
     {
         var path = NormalizeBrowserPath(RemoteFilePathBox.Text);
+        var selectedPaths = _filesLoaded && path == _loadedRemotePath
+            ? RemoteFileList.SelectedItems.Cast<RemoteFileEntry>().Select(x => x.FullPath).ToHashSet()
+            : [];
         var version = ++_fileLookupVersion;
         _filesBusy = true;
         _filesLoaded = false;
@@ -436,17 +549,20 @@ public partial class DeviceDebugWindow : Window
         FileStatusText.Text = $"Reading {path}…";
         try
         {
-            var entries = await _bridge.ListRemoteFilesAsync(_device.Serial, path);
+            var entries = await _bridge.ListRemoteFilesAsync(_device.Serial, path, _debugLifetime.Token);
             if (_windowClosed || version != _fileLookupVersion) return;
             if (NormalizeBrowserPath(RemoteFilePathBox.Text) != path)
             {
                 FileStatusText.Text = "Path changed. Press Enter or Refresh to load it.";
                 return;
             }
-            RemoteFileList.ItemsSource = entries;
+            _remoteEntries = entries;
             _loadedRemotePath = path;
             _filesLoaded = true;
-            FileStatusText.Text = $"{entries.Count} item(s) in {path}.";
+            RememberRemotePath(path);
+            ApplyRemoteFilter();
+            foreach (var entry in RemoteFileList.Items.Cast<RemoteFileEntry>().Where(x => selectedPaths.Contains(x.FullPath)))
+                RemoteFileList.SelectedItems.Add(entry);
         }
         catch (Exception ex)
         {
@@ -474,6 +590,7 @@ public partial class DeviceDebugWindow : Window
 
     private async void RemotePath_KeyDown(object sender, KeyEventArgs e)
     {
+        if (_fileOperationBusy || _filesBusy) return;
         if (e.Key != Key.Enter) return;
         e.Handled = true;
         await RefreshRemoteFilesAsync();
@@ -497,8 +614,8 @@ public partial class DeviceDebugWindow : Window
 
     private async Task GuardRemoteFileOperation(Func<Task> action)
     {
-        if (_filesBusy) return;
-        _filesBusy = true;
+        if (_filesBusy || _fileOperationBusy || !_filesLoaded || NormalizeBrowserPath(RemoteFilePathBox.Text) != _loadedRemotePath) return;
+        _fileOperationBusy = true;
         UpdateRemoteFileActions();
         FileStatusText.Text = "Running file operation…";
         try
@@ -511,7 +628,7 @@ public partial class DeviceDebugWindow : Window
             FileStatusText.Text = $"File operation failed: {ex.Message}";
             StatusText.Text = ex.Message;
         }
-        finally { _filesBusy = false; UpdateRemoteFileActions(); }
+        finally { _fileOperationBusy = false; UpdateRemoteFileActions(); }
     }
 
     private async void UploadRemoteFile_Click(object sender, RoutedEventArgs e) => await GuardRemoteFileOperation(async () =>
@@ -528,50 +645,79 @@ public partial class DeviceDebugWindow : Window
         }
 
         var remoteDir = RemoteFilePathBox.Text.Trim().TrimEnd('/');
+        var uploaded = 0;
         foreach (var file in dialog.FileNames)
         {
             var remote = (remoteDir.Length == 0 ? "/" : remoteDir + "/") + System.IO.Path.GetFileName(file);
             StatusText.Text = $"Uploading {System.IO.Path.GetFileName(file)}…";
-            await _bridge.PushAsync(_device.Serial, file, remote);
+            if (_remoteEntries.Any(x => x.Name == System.IO.Path.GetFileName(file)) &&
+                MessageBox.Show(this, $"Replace {remote}?", "Confirm overwrite", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes)
+                continue;
+            FileStatusText.Text = StatusText.Text;
+            await _bridge.PushAsync(_device.Serial, file, remote, _debugLifetime.Token);
+            uploaded++;
         }
         await RefreshRemoteFilesAsync();
+        ReportFileResult($"Uploaded {uploaded} of {dialog.FileNames.Length} file(s).");
     });
 
     private async void DownloadRemoteFile_Click(object sender, RoutedEventArgs e) => await GuardRemoteFileOperation(async () =>
     {
-        if (RemoteFileList.SelectedItem is not RemoteFileEntry entry)
+        var entries = RemoteFileList.SelectedItems.Cast<RemoteFileEntry>().ToArray();
+        if (entries.Length == 0)
             throw new InvalidOperationException("Select a file to download.");
-        if (entry.IsDirectory)
-            throw new InvalidOperationException("Folder download is not enabled yet. Open the folder and download files individually.");
+        if (entries.Length == 1 && !entries[0].IsDirectory)
+        {
+            var entry = entries[0];
+            var dialog = new SaveFileDialog
+            {
+                Title = $"Download {entry.Name}",
+                FileName = entry.Name,
+                Filter = "All files (*.*)|*.*"
+            };
+            if (dialog.ShowDialog(this) != true)
+            {
+                FileStatusText.Text = "Download cancelled.";
+                return;
+            }
 
-        var dialog = new SaveFileDialog
-        {
-            Title = $"Download {entry.Name}",
-            FileName = entry.Name,
-            Filter = "All files (*.*)|*.*"
-        };
-        if (dialog.ShowDialog(this) != true)
-        {
-            FileStatusText.Text = "Download cancelled.";
+            FileStatusText.Text = StatusText.Text = $"Downloading {entry.Name}…";
+            await _bridge.PullAsync(_device.Serial, entry.FullPath, dialog.FileName, _debugLifetime.Token);
+            StatusText.Text = $"Saved to {dialog.FileName}";
+            FileStatusText.Text = StatusText.Text;
             return;
         }
 
-        StatusText.Text = $"Downloading {entry.Name}…";
-        await _bridge.PullAsync(_device.Serial, entry.FullPath, dialog.FileName);
-        StatusText.Text = $"Saved to {dialog.FileName}";
+        var folder = new OpenFolderDialog { Title = "Download selected files / folders to…" };
+        if (folder.ShowDialog(this) != true) { FileStatusText.Text = "Download cancelled."; return; }
+        var saved = 0;
+        foreach (var entry in entries)
+        {
+            if (entry.Name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || entry.Name is "." or "..")
+                throw new IOException($"Cannot save this Android filename on Windows: {entry.Name}");
+            var destination = Path.Combine(folder.FolderName, entry.Name);
+            if ((File.Exists(destination) || Directory.Exists(destination)) &&
+                MessageBox.Show(this, $"Replace or merge {destination}?", "Confirm download overwrite", MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes) continue;
+            FileStatusText.Text = $"Downloading {entry.Name} ({saved + 1}/{entries.Length})…";
+            await _bridge.PullAsync(_device.Serial, entry.FullPath, destination, _debugLifetime.Token);
+            saved++;
+        }
+        FileStatusText.Text = StatusText.Text = $"Downloaded {saved} of {entries.Length} selected item(s) to {folder.FolderName}.";
     });
 
     private async void CreateRemoteFolder_Click(object sender, RoutedEventArgs e) => await GuardRemoteFileOperation(async () =>
     {
         var name = NewFolderNameBox.Text.Trim();
-        if (string.IsNullOrWhiteSpace(name) || name.Length > 80 || name.IndexOfAny(['/', '\\', ':', '*', '?', '"', '<', '>', '|']) >= 0)
-            throw new InvalidOperationException("Enter a valid folder name.");
+        ValidateRemoteName(name);
+        if (_remoteEntries.Any(x => x.Name == name)) throw new IOException("An item with that name already exists.");
 
         var parent = RemoteFilePathBox.Text.Trim().TrimEnd('/');
         var path = (parent.Length == 0 ? "/" : parent + "/") + name;
-        await _bridge.CreateRemoteDirectoryAsync(_device.Serial, path);
+        await _bridge.CreateRemoteDirectoryAsync(_device.Serial, path, _debugLifetime.Token);
         NewFolderNameBox.Clear();
         await RefreshRemoteFilesAsync();
+        ReportFileResult($"Created folder: {name}");
     });
 
     private async void DeleteRemoteFile_Click(object sender, RoutedEventArgs e) => await GuardRemoteFileOperation(async () =>
@@ -582,7 +728,7 @@ public partial class DeviceDebugWindow : Window
 
         var answer = MessageBox.Show(
             this,
-            $"Delete {entries.Length} selected item(s) from Android?\n\nThis action cannot be undone.",
+            $"Delete {entries.Length} selected item(s) from Android?\n\n{string.Join("\n", entries.Take(12).Select(x => x.FullPath))}\n\nThis action cannot be undone.",
             "Confirm remote delete",
             MessageBoxButton.YesNo,
             MessageBoxImage.Warning,
@@ -593,13 +739,24 @@ public partial class DeviceDebugWindow : Window
             return;
         }
 
-        foreach (var entry in entries)
-            await _bridge.DeleteRemotePathAsync(_device.Serial, entry.FullPath);
-        await RefreshRemoteFilesAsync();
+        var deleted = 0;
+        try
+        {
+            foreach (var entry in entries)
+            {
+                FileStatusText.Text = $"Deleting {entry.Name} ({deleted + 1}/{entries.Length})…";
+                await _bridge.DeleteRemotePathAsync(_device.Serial, entry.FullPath, _debugLifetime.Token);
+                deleted++;
+            }
+        }
+        catch (Exception ex) { throw new IOException($"Deleted {deleted} of {entries.Length} item(s). {ex.Message}", ex); }
+        finally { await RefreshRemoteFilesAsync(); }
+        ReportFileResult($"Deleted {deleted} item(s).");
     });
 
     private async Task ExecuteShellCommandAsync()
     {
+        if (_shellBusy || _windowClosed) return;
         var command = ShellCommandBox.Text.Trim();
         if (command.Length == 0)
             return;
@@ -613,9 +770,11 @@ public partial class DeviceDebugWindow : Window
         ShellOutputBox.AppendText($"$ {command}{Environment.NewLine}");
         ShellCommandBox.Clear();
         StatusText.Text = "Running shell command…";
+        _shellBusy = true;
+        RunShellButton.IsEnabled = false;
         try
         {
-            var result = await _bridge.RunShellCommandResultAsync(_device.Serial, command);
+            var result = await _bridge.RunShellCommandResultAsync(_device.Serial, command, _debugLifetime.Token);
             ShellOutputBox.AppendText(result.FormatForDisplay() + Environment.NewLine);
             ShellOutputBox.AppendText(Environment.NewLine);
             ShellOutputBox.ScrollToEnd();
@@ -629,6 +788,7 @@ public partial class DeviceDebugWindow : Window
             ShellOutputBox.ScrollToEnd();
             StatusText.Text = ex.Message;
         }
+        finally { _shellBusy = false; RunShellButton.IsEnabled = true; }
     }
 
     private async void RunShell_Click(object sender, RoutedEventArgs e)

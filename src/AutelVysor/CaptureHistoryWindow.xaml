@@ -56,20 +56,27 @@
         </Grid.RowDefinitions>
         <Border Background="Black">
           <Grid>
-            <Image x:Name="PreviewImage" Stretch="Uniform"/>
+            <ScrollViewer x:Name="ImageScroll" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Disabled">
+              <Image x:Name="PreviewImage" Stretch="Uniform"/>
+            </ScrollViewer>
             <ContentControl x:Name="VideoHost" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"/>
             <TextBlock x:Name="PreviewHint" Text="Select a screenshot or recording to preview."
                        Foreground="#CBD5E1" Margin="20" MaxWidth="520" VerticalAlignment="Center"
                        HorizontalAlignment="Center" TextWrapping="Wrap"/>
           </Grid>
         </Border>
-        <Slider Grid.Row="1" x:Name="SeekSlider" Minimum="0" Maximum="1" IsEnabled="False"
+        <Slider Grid.Row="1" x:Name="SeekSlider" Visibility="Collapsed" Minimum="0" Maximum="1" IsEnabled="False"
                 Margin="0,10,0,8" ValueChanged="SeekChanged" ToolTip="Seek recording"/>
-        <WrapPanel Grid.Row="2">
+        <WrapPanel Grid.Row="2" x:Name="VideoControls" Visibility="Collapsed">
           <Button x:Name="PlayButton" Content="Play" Click="Play_Click" IsEnabled="False"/>
           <Button x:Name="PauseButton" Content="Pause" Click="Pause_Click" IsEnabled="False"/>
           <Button x:Name="StopButton" Content="Stop" Click="Stop_Click" IsEnabled="False"/>
           <TextBlock x:Name="PlaybackTime" Foreground="#CBD5E1" VerticalAlignment="Center" Margin="0,0,0,7" Text="00:00 / --:--"/>
+        </WrapPanel>
+        <WrapPanel Grid.Row="2" x:Name="ImageControls" Visibility="Collapsed">
+          <Button Content="Fit image" Click="FitImage_Click"/>
+          <Button Content="Actual size" Click="ActualImage_Click"/>
+          <TextBlock x:Name="ImageDetails" Foreground="#CBD5E1" VerticalAlignment="Center"/>
         </WrapPanel>
       </Grid>
     </Grid>

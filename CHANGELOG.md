@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.10.8
+
+- Select the first online supported device on startup and rediscovery; automatically focus the active mirror keyboard after startup and tab activation.
+- Show screenshot capture/saved/error states, recording/finalization status and saved paths; target captures at the active mirror.
+- Separate screenshot Fit/Actual size controls from video playback controls.
+- Add file history, storage shortcuts, filtering, sorting, context actions, rename, folder/batch download and keyboard shortcuts; preserve selection on refresh.
+- Preserve quoted Android paths and remote exit diagnostics, prevent rename overwrite, and guard overlapping file/shell/debug operations.
+- Search application names and package identifiers with visible results, background APK label indexing, cancellation and session caching.
+- Add usability regression and visual checks. Two native SendInput checks remain unverified in the local Windows session and also fail on the unmodified baseline; physical input/recording acceptance remains pending.
+
 ## 0.10.7
 
 - Automatically refresh AppOps alongside typed package summaries and permissions, with cancellation and stale-response protection.

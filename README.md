@@ -2,7 +2,18 @@
 
 Windows Android mirror/control client for **Android 4.4 (API 19) and newer**.
 
-Current source version: **0.10.6**
+Current source version: **0.10.8**
+
+## Desktop interaction improvements
+
+- Startup and rediscovery select the first online supported device while preserving an existing selection. Mirror startup and tab activation automatically focus the keyboard when the application is active.
+- Screenshot buttons show capture/saved/failure states; recordings show a red recording state, unexpected exits and finalization results. Capture actions use the active mirror device when one is open. The saved path stays visible beside the capture tools.
+- Captures shows image-only Fit/Actual size controls for screenshots; video playback controls appear only for recordings.
+- Device Debug Files adds Back/Forward, storage/Downloads/DCIM shortcuts, name filter, sort order, context actions, rename and folder/multiple-item download. Enter opens folders, Backspace goes up, Alt+Left/Right navigates history, F5 refreshes, F2 fills the rename field, and Delete asks for confirmation. Refresh preserves selected items in the same directory.
+- App search matches both package identifiers and readable APK application labels, with selectable results and a match count. Names load in the background with progress and are reused during the current application session. Unreadable or split-only labels fall back to package search; no Android helper is installed.
+- Debug operations show a busy indicator; repeated actions and concurrent shell submissions are guarded. Closing the window cancels name indexing, file operations and shell commands. File shell paths preserve spaces, apostrophes and Unicode, and operation errors retain Android exit diagnostics.
+
+See [validation details and remaining device checks](docs/USABILITY_FIXES.md).
 
 ## Compatibility
 
@@ -86,7 +97,7 @@ Uses left-side controls and full-height Fit/fullscreen, right-side capture playb
 - Optional startup/interactive GitHub Release checks. The application **never silently downloads or executes installer binaries**.
 - Optional trusted Authenticode signing infrastructure, documented in docs/SIGNING.md.
 
-**Limitations:** Android app *display names* are not reliably available via stock ADB package-list output, so the search currently uses package identifiers. AppOps and permission changes may be denied by Android or vendor restrictions. True Bluetooth audio route verification, Android 4.4 Unicode IME compatibility, and physical USB/Wi-Fi recovery still require hardware validation. Automatic installation of unsigned updates is intentionally not enabled.
+**Limitations:** Stock ADB package lists do not include display names. Name search uses background APK label indexing; labels supplied only by split APKs, overlays or inaccessible resources may be unavailable. AppOps and permission changes may be denied by Android or vendor restrictions. True Bluetooth audio route verification, Android 4.4 Unicode IME compatibility, and physical USB/Wi-Fi recovery still require hardware validation. Automatic installation of unsigned updates is intentionally not enabled.
 
 ## v0.9.0 additions
 

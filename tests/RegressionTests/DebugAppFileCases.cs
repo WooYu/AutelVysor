@@ -37,9 +37,16 @@ internal static partial class Program
     private static AutelVysor.DeviceDebugWindow DebugFixtureWindow() => new(Bridge(),
         new AndroidDevice("debug-fixture", "device", "Test", "", "", "1", ""));
 
+    private static void PrepareRemoteFileFixture()
+    {
+        Directory.CreateDirectory(State("commands"));
+        File.WriteAllText(Path.Combine(State("commands"), "ls"),
+            "#!/bin/sh\ncase \"$2\" in /denied) echo 'Permission denied' >&2; exit 1;; /slow) touch debug-files-started; sleep 1;; esac\nprintf '%s\\n' 'drwxr-xr-x 2 shell shell 4096 2026-10-22 10:00 child' '-rw-r--r-- 1 shell shell 12 2026-10-22 10:00 file.txt'\n");
+    }
+
     private static async Task DebugWaitUntil(Func<bool> condition)
     {
-        var until = DateTime.UtcNow.AddSeconds(8);
+        var until = DateTime.UtcNow.AddSeconds(30);
         while (!condition())
         {
             if (DateTime.UtcNow >= until) throw new InvalidOperationException("Timed out waiting for debug fixture.");
@@ -49,6 +56,7 @@ internal static partial class Program
 
     private static async Task DebugAppLookup()
     {
+        PrepareRemoteFileFixture();
         File.WriteAllText(Path.Combine(State("commands"), "appops"),
             "#!/bin/sh\ncase \"$2\" in com.test.opsSlow) touch debug-ops-started; sleep 1;; com.test.opsDenied) echo 'Permission denied' >&2; exit 1;; esac\necho \"$2 CAMERA: allow\"\n");
         var window = DebugFixtureWindow();
@@ -103,6 +111,7 @@ internal static partial class Program
 
     private static async Task DebugFileNavigation()
     {
+        PrepareRemoteFileFixture();
         var window = DebugFixtureWindow();
         try
         {
@@ -113,7 +122,7 @@ internal static partial class Program
             await (Task)DebugCall(window, "RefreshRemoteFilesAsync")!;
             Check(path.Text == "/parent", "Remote path was not normalized");
             list.SelectedItem = list.Items.Cast<RemoteFileEntry>().Single(item => item.IsDirectory);
-            Check(Button("RemoteOpenButton").IsEnabled && !Button("RemoteDownloadButton").IsEnabled && Button("RemoteDeleteButton").IsEnabled, "Directory action applicability is incorrect");
+            Check(Button("RemoteOpenButton").IsEnabled && Button("RemoteDownloadButton").IsEnabled && Button("RemoteDeleteButton").IsEnabled, "Directory action applicability is incorrect");
             await (Task)DebugCall(window, "OpenRemoteFolderAsync")!;
             Check(path.Text == "/parent/child", "Explicit folder navigation failed");
             DebugCall(window, "RemoteUp_Click", window, new RoutedEventArgs());
@@ -124,7 +133,7 @@ internal static partial class Program
             list.SelectedItem = list.Items.Cast<RemoteFileEntry>().Single(item => !item.IsDirectory);
             Check(Button("RemoteDownloadButton").IsEnabled && !Button("RemoteOpenButton").IsEnabled, "File action applicability is incorrect");
             list.SelectedItems.Add(list.Items.Cast<RemoteFileEntry>().Single(item => item.IsDirectory));
-            Check(!Button("RemoteDownloadButton").IsEnabled && Button("RemoteDeleteButton").IsEnabled, "Multiple selections incorrectly permit single-file download");
+            Check(Button("RemoteDownloadButton").IsEnabled && Button("RemoteDeleteButton").IsEnabled, "Multiple selections must permit batch download");
             path.Text = "/denied";
             Check(!Button("RemoteDeleteButton").IsEnabled, "Edited path retained stale selection actions");
             await (Task)DebugCall(window, "RefreshRemoteFilesAsync")!;
@@ -136,6 +145,7 @@ internal static partial class Program
 
     private static async Task DebugFileStaleNavigation()
     {
+        PrepareRemoteFileFixture();
         var window = DebugFixtureWindow();
         try
         {

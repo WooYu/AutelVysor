@@ -17,6 +17,11 @@ internal static partial class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        if (args.Length == 2 && args[0] == "--inspect-apk")
+        {
+            Console.WriteLine(ReadApkLabel(args[1]));
+            return 0;
+        }
         if (args.Length > 0)
             return args[0] == "--native-child" ? NativeChildProcess() : FakeAdb(args);
 
@@ -34,6 +39,7 @@ internal static partial class Program
             foreach (var (name, test) in new (string, Func<Task>)[]
             {
                 ("Device metadata is reused until disconnect", CachedMetadata),
+                ("Startup selects the first online device and reconnect selects again", DefaultDeviceSelection),
                 ("Logcat combines PID tag text level and selected app filters", LogcatCombinedFilters),
                 ("Logcat rejects lower severity and unparsed lines under a level filter", LogcatMinimumSeverity),
                 ("Live log rendering has a bounded per-tick text budget", LogcatFlushBudget),
@@ -56,6 +62,9 @@ internal static partial class Program
                 ("Embedded child returns to fit after repeated self-resizing", NativeResize),
                 ("Keyboard focus reaches an external native-window process", CrossProcessFocus),
                 ("Typed app summaries ignore stale replies", DebugAppLookup),
+                ("Application labels decode and search results are directly selectable", AppLabelSearch),
+                ("Remote history and filter preserve directory context", RemoteHistoryAndFilter),
+                ("File shell paths preserve spaces and punctuation", RemoteFileShellBoundary),
                 ("File navigation opens folders and parent/root paths", DebugFileNavigation),
                 ("File browser rejects stale navigation replies", DebugFileStaleNavigation),
                 ("File selection remains visible in dark UI", DebugFileSelectionContrast),
@@ -70,6 +79,8 @@ internal static partial class Program
                 ("Test directory cleanup retries transient Windows locks", TestDirectoryCleanupRetries)
             })
             {
+                var filter = Environment.GetEnvironmentVariable("AUTEL_TEST_FILTER");
+                if (!string.IsNullOrWhiteSpace(filter) && !filter.Split('|').Any(part => name.Contains(part, StringComparison.OrdinalIgnoreCase))) continue;
                 try { await test(); Console.WriteLine("PASS: " + name); }
                 catch (Exception ex) { failures++; Console.WriteLine("FAIL: " + name + "\n" + ex); }
             }
@@ -710,7 +721,7 @@ internal static partial class Program
         if (shellIndex >= 0 && args.Length > shellIndex + 1 &&
             (args[shellIndex + 1] == "sh" || args.Length == shellIndex + 2))
         {
-            var bash = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Git", "bin", "bash.exe");
+            var bash = (Environment.GetEnvironmentVariable("AUTEL_TEST_SHELL") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Git", "bin", "bash.exe"));
             var result = ToolRunner.RunAsync(bash, ["-c", "export PATH=\"$PWD/commands:$PATH\"; " + string.Join(" ", args.Skip(shellIndex + 1))], workingDirectory: StateDirectory).GetAwaiter().GetResult();
             Console.Write(result.Output);
             Console.Error.Write(result.Error);
@@ -728,6 +739,7 @@ internal static partial class Program
         if (args[0] == "devices")
         {
             Console.WriteLine("List of devices attached");
+            if (File.Exists(State("offline-first"))) Console.WriteLine("not-authorized unauthorized model:Offline");
             if (!File.Exists(State("offline"))) Console.WriteLine("test-device device product:test model:Test device:test transport_id:1");
         }
         else if (args.Contains("getprop"))

@@ -200,12 +200,13 @@
             <Expander Header="Files / utilities">
               <StackPanel Margin="0,8,0,0">
                 <WrapPanel>
-                  <Button Click="Screenshot_Click" Content="Screenshot"/>
+                  <Button x:Name="ScreenshotButton" Click="Screenshot_Click" Content="Screenshot"/>
                   <Button x:Name="RecordButton" Click="Record_Click" Content="Record MP4"/>
                   <Button x:Name="StopRecordingsButton" Click="StopRecordings_Click" Content="Stop recordings" IsEnabled="False"/>
                   <Button Click="Install_Click" Content="Install APK"/>
                   <Button Click="Push_Click" Content="Send file"/>
                 </WrapPanel>
+                <TextBlock x:Name="CaptureStatusText" Text="Ready to capture. Saved files appear in Captures." Foreground="#93C5FD" TextWrapping="Wrap" Margin="0,4,0,8"/>
                 <TextBox x:Name="RemotePathBox" Text="/sdcard/Download/example.txt"/>
                 <WrapPanel>
                   <Button Click="Pull_Click" Content="Pull file" Background="#475569"/>

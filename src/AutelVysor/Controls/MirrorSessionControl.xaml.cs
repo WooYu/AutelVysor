@@ -67,6 +67,7 @@ public partial class MirrorSessionControl : UserControl, IDisposable
         {
             Focus();
             await EnsureRunningAsync();
+            FocusKeyboardWhenReady();
             RefreshKeyboardRecovery();
         };
     }
@@ -86,6 +87,16 @@ public partial class MirrorSessionControl : UserControl, IDisposable
     }
 
     public string Serial => _device.Serial;
+
+    public void FocusKeyboardWhenReady()
+    {
+        Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(() =>
+        {
+            if (_disposed || !IsVisible || Window.GetWindow(this)?.IsActive != true) return;
+            if (UsesLegacyBackend) Focus();
+            else if (_scrcpySession is not null) ScrcpyHost.FocusEmbeddedWindow();
+        }));
+    }
     public AndroidDevice Device => _device;
     public bool UsesLegacyBackend => _forceLegacyFallback || _device.ApiLevel is >= 19 and < 21 || (_device.ApiLevel == 0 && _scrcpy is null);
 
@@ -232,6 +243,7 @@ public partial class MirrorSessionControl : UserControl, IDisposable
             ? "Connected · embedded scrcpy · device screen off"
             : "Connected · embedded scrcpy";
         BackendText.Text = "scrcpy · Android 5.0+";
+        FocusKeyboardWhenReady();
     }
 
     private void ScrcpySessionOnExited(object? sender, EventArgs e)

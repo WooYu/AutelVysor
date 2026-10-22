@@ -6,3 +6,4 @@ src/AutelVysor/tools/
 .vs/
 
 *_wpftmp.csproj
+test-results/

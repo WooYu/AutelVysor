@@ -554,8 +554,8 @@ public sealed class AndroidBridge(string adbPath)
     public async Task<IReadOnlyList<RemoteFileEntry>> ListRemoteFilesAsync(string serial, string remoteDirectory, CancellationToken ct = default)
     {
         remoteDirectory = NormalizeRemotePath(remoteDirectory);
-        var result = await RunAsync(["-s", serial, "shell", "ls", "-la", remoteDirectory], ct: ct);
-        EnsureSuccess(result, "Unable to list remote directory.", "No such file or directory", "Permission denied");
+        var result = await RunShellCommandResultAsync(serial, "ls -la " + QuoteRemotePath(remoteDirectory), ct);
+        result.EnsureSuccess("Unable to list remote directory.");
 
         var entries = new List<RemoteFileEntry>();
         foreach (var raw in result.Output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
@@ -598,8 +598,8 @@ public sealed class AndroidBridge(string adbPath)
     public async Task CreateRemoteDirectoryAsync(string serial, string remotePath, CancellationToken ct = default)
     {
         remotePath = NormalizeRemotePath(remotePath);
-        var result = await RunAsync(["-s", serial, "shell", "mkdir", "-p", remotePath], ct: ct);
-        EnsureSuccess(result, "Unable to create remote directory.", "Permission denied", "Read-only file system");
+        var result = await RunShellCommandResultAsync(serial, "mkdir -p " + QuoteRemotePath(remotePath), ct);
+        result.EnsureSuccess("Unable to create remote directory.");
     }
 
     public async Task DeleteRemotePathAsync(string serial, string remotePath, CancellationToken ct = default)
@@ -608,9 +608,22 @@ public sealed class AndroidBridge(string adbPath)
         if (remotePath is "/" or "/sdcard" or "/storage" or "/storage/emulated" or "/storage/emulated/0")
             throw new InvalidOperationException("Refusing to delete a protected root storage path.");
 
-        var result = await RunAsync(["-s", serial, "shell", "rm", "-rf", remotePath], ct: ct);
-        EnsureSuccess(result, "Unable to delete remote path.", "Permission denied", "Read-only file system");
+        var result = await RunShellCommandResultAsync(serial, "rm -rf " + QuoteRemotePath(remotePath), ct);
+        result.EnsureSuccess("Unable to delete remote path.");
     }
+
+    public async Task RenameRemotePathAsync(string serial, string source, string destination, CancellationToken ct = default)
+    {
+        source = NormalizeRemotePath(source);
+        destination = NormalizeRemotePath(destination);
+        if (source == "/" || source == destination) throw new InvalidOperationException("Select a different destination name.");
+        // Refuse overwrite, including dangling symlinks. All paths are quoted as shell data.
+        var command = $"if [ -e {QuoteRemotePath(destination)} ] || [ -L {QuoteRemotePath(destination)} ]; then echo 'Destination already exists' >&2; exit 1; fi\nmv {QuoteRemotePath(source)} {QuoteRemotePath(destination)}";
+        var result = await RunShellCommandResultAsync(serial, command, ct);
+        result.EnsureSuccess("Unable to rename remote item.");
+    }
+
+    private static string QuoteRemotePath(string path) => "'" + path.Replace("'", "'\\''", StringComparison.Ordinal) + "'";
 
     public async Task<string> GetDeviceOverviewAsync(string serial, CancellationToken ct = default)
     {
@@ -668,13 +681,16 @@ public sealed class AndroidBridge(string adbPath)
     private static string NormalizeRemotePath(string remotePath)
     {
         remotePath = remotePath.Trim().Replace('\\', '/');
+        if (remotePath.IndexOfAny(['\r', '\n', '\0']) >= 0)
+            throw new InvalidOperationException("Remote paths cannot contain control characters.");
         if (!remotePath.StartsWith("/", StringComparison.Ordinal))
             throw new InvalidOperationException("Remote paths must be absolute Android paths.");
         while (remotePath.Contains("//", StringComparison.Ordinal))
             remotePath = remotePath.Replace("//", "/", StringComparison.Ordinal);
         if (remotePath.Contains("/../", StringComparison.Ordinal) || remotePath.EndsWith("/..", StringComparison.Ordinal))
             throw new InvalidOperationException("Parent path traversal is not allowed.");
-        return remotePath.Length > 1 ? remotePath.TrimEnd('/') : remotePath;
+        var segments = remotePath.Split('/', StringSplitOptions.RemoveEmptyEntries).Where(x => x != ".");
+        return "/" + string.Join("/", segments);
     }
 
     public async Task<IReadOnlyList<string>> ListPackagesAsync(string serial, CancellationToken ct = default)

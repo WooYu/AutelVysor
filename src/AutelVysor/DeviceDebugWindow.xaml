@@ -57,6 +57,7 @@
         <StackPanel>
           <TextBlock x:Name="DeviceNameText" FontSize="22" FontWeight="Bold"/>
           <TextBlock x:Name="DeviceMetaText" Margin="0,4,0,0" Foreground="#94A3B8"/>
+          <TextBlock x:Name="DebugBusyText" Text="Working… please wait" Visibility="Collapsed" Foreground="#93C5FD" Margin="0,4,0,0"/>
         </StackPanel>
         <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
           <Button Click="RefreshPackages_Click" Content="Refresh packages" Background="#475569"/>
@@ -65,7 +66,7 @@
       </Grid>
     </Border>
 
-    <TabControl Grid.Row="1" Margin="12" Background="#0B1120" BorderBrush="#1E293B">
+    <TabControl x:Name="DebugTabs" Grid.Row="1" Margin="12" Background="#0B1120" BorderBrush="#1E293B">
       <TabItem Header="App">
         <Grid Margin="12">
           <Grid.RowDefinitions>
@@ -88,8 +89,15 @@
                   <ComboBoxItem Content="System"/>
                 </ComboBox>
                 <TextBox x:Name="PackageSearchBox" Width="255" Margin="8,0,0,0"
-                         TextChanged="AppFilterChanged" ToolTip="Search installed package names"/>
+                         TextChanged="AppFilterChanged" ToolTip="Search by application name or package"/>
               </WrapPanel>
+              <TextBlock x:Name="SearchMatchText" Text="Search by app name or package" Foreground="#93C5FD"/>
+              <ListBox x:Name="AppSearchResults" MaxHeight="115" Visibility="Collapsed" SelectionChanged="AppSearchResultSelected"
+                       Background="#0F172A" Foreground="#E5E7EB" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <ListBox.ItemContainerStyle><Style TargetType="ListBoxItem" BasedOn="{StaticResource DarkListItemStyle}"><Setter Property="Padding" Value="8,6"/></Style></ListBox.ItemContainerStyle>
+                <ListBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Title}" TextWrapping="Wrap"/></DataTemplate></ListBox.ItemTemplate>
+              </ListBox>
+              <TextBlock x:Name="PackageResultsText" Foreground="#94A3B8" TextWrapping="Wrap"/>
               <TextBlock Foreground="#94A3B8" Margin="0,0,0,5" Text="Package name"/>
               <ComboBox x:Name="PackageBox"
                         IsEditable="True"
@@ -285,7 +293,20 @@
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
           </Grid.RowDefinitions>
-          <Grid Grid.Row="0" Margin="0,0,0,10">
+          <StackPanel Grid.Row="0" Margin="0,0,0,10">
+          <WrapPanel>
+            <Button x:Name="RemoteBackButton" Content="← Back" Click="RemoteBack_Click" IsEnabled="False"/>
+            <Button x:Name="RemoteForwardButton" Content="Forward →" Click="RemoteForward_Click" IsEnabled="False"/>
+            <Button Content="Internal storage" Tag="/sdcard" Click="RemoteLocation_Click"/>
+            <Button Content="Downloads" Tag="/sdcard/Download" Click="RemoteLocation_Click"/>
+            <Button Content="DCIM" Tag="/sdcard/DCIM" Click="RemoteLocation_Click"/>
+            <TextBox x:Name="RemoteSearchBox" Width="190" TextChanged="RemoteFilterChanged" ToolTip="Filter this folder by name"/>
+            <ComboBox x:Name="RemoteSortBox" SelectedIndex="0" SelectionChanged="RemoteSortChanged" Width="145" Margin="8,0,0,7">
+              <ComboBoxItem Content="Name A–Z"/><ComboBoxItem Content="Name Z–A"/>
+              <ComboBoxItem Content="Largest first"/><ComboBoxItem Content="Newest first"/>
+            </ComboBox>
+          </WrapPanel>
+          <Grid>
             <Grid.ColumnDefinitions>
               <ColumnDefinition Width="Auto"/>
               <ColumnDefinition Width="*"/>
@@ -298,13 +319,24 @@
             <TextBox Grid.Column="1" x:Name="RemoteFilePathBox" KeyDown="RemotePath_KeyDown" TextChanged="RemotePathChanged" Margin="0,0,7,7" Text="/sdcard/Download"/>
             <Button x:Name="RemoteRefreshButton" Grid.Column="2" Click="RefreshRemoteFiles_Click" Content="Refresh"/>
           </Grid>
+          </StackPanel>
           <ListView Grid.Row="1"
                     x:Name="RemoteFileList" SelectionChanged="RemoteSelectionChanged"
+                    KeyDown="RemoteFiles_KeyDown" ContextMenuOpening="RemoteContextMenuOpening"
                     SelectionMode="Extended"
                     MouseDoubleClick="RemoteFileList_MouseDoubleClick"
                     Background="#0F172A"
                     Foreground="#E5E7EB"
                     BorderBrush="#334155">
+            <ListView.Resources>
+              <Style TargetType="GridViewColumnHeader">
+                <Setter Property="Background" Value="#1E293B"/>
+                <Setter Property="Foreground" Value="#E5E7EB"/>
+                <Setter Property="BorderBrush" Value="#334155"/>
+                <Setter Property="Padding" Value="8,6"/>
+              </Style>
+            </ListView.Resources>
+            <ListView.ContextMenu><ContextMenu/></ListView.ContextMenu>
             <ListView.ItemContainerStyle>
               <Style TargetType="ListViewItem">
                 <Setter Property="Foreground" Value="#E5E7EB"/>
@@ -350,11 +382,17 @@
               <ColumnDefinition Width="Auto"/>
               <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
-            <Button x:Name="RemoteUploadButton" Grid.Column="0" Click="UploadRemoteFile_Click" Content="Upload"/>
-            <Button x:Name="RemoteDownloadButton" Grid.Column="1" Click="DownloadRemoteFile_Click" Content="Download" Background="#475569"/>
-            <Button x:Name="RemoteDeleteButton" Grid.Column="2" Click="DeleteRemoteFile_Click" Content="Delete" Background="#B45309"/>
-            <TextBox Grid.Column="3" x:Name="NewFolderNameBox" Margin="6,0,7,7" ToolTip="New folder name"/>
-            <Button x:Name="RemoteNewFolderButton" Grid.Column="4" Click="CreateRemoteFolder_Click" Content="New folder" Background="#475569"/>
+            <Button x:Name="RemoteUploadButton" Grid.Column="0" VerticalAlignment="Top" Click="UploadRemoteFile_Click" Content="Upload"/>
+            <Button x:Name="RemoteDownloadButton" Grid.Column="1" VerticalAlignment="Top" Click="DownloadRemoteFile_Click" Content="Download" Background="#475569"/>
+            <Button x:Name="RemoteDeleteButton" Grid.Column="2" VerticalAlignment="Top" Click="DeleteRemoteFile_Click" Content="Delete" Background="#B45309"/>
+            <StackPanel Grid.Column="3" Margin="6,0,7,7">
+              <TextBlock Text="New / renamed item name" Foreground="#94A3B8" Margin="0,0,0,5"/>
+              <TextBox x:Name="NewFolderNameBox" ToolTip="Name for New folder or Rename selected (F2)"/>
+            </StackPanel>
+            <StackPanel Grid.Column="4">
+              <Button x:Name="RemoteNewFolderButton" Click="CreateRemoteFolder_Click" Content="New folder" Background="#475569"/>
+              <Button x:Name="RemoteRenameButton" Click="RenameRemoteFile_Click" Content="Rename selected" Background="#475569" ToolTip="Use the name field to enter a new name"/>
+            </StackPanel>
             <StackPanel Grid.Column="5" Margin="10,0,0,0">
               <Button x:Name="RemoteOpenButton" Click="RemoteOpen_Click" Content="Open folder" HorizontalAlignment="Left"/>
               <TextBlock x:Name="FileStatusText" TextWrapping="Wrap" Foreground="#93C5FD"/>
@@ -390,7 +428,7 @@
                      KeyDown="ShellCommandBox_KeyDown"
                      FontFamily="Consolas"
                      ToolTip="Enter executes. Up/Down navigate command history."/>
-            <Button Grid.Column="1" Click="RunShell_Click" Content="Run"/>
+            <Button x:Name="RunShellButton" Grid.Column="1" Click="RunShell_Click" Content="Run"/>
             <Button Grid.Column="2" Click="ClearShell_Click" Content="Clear" Background="#475569"/>
           </Grid>
         </Grid>
@@ -450,7 +488,7 @@
     </TabControl>
 
     <Border Grid.Row="2" Background="#0F172A" BorderBrush="#1E293B" BorderThickness="0,1,0,0" Padding="12,8">
-      <TextBlock x:Name="StatusText" Foreground="#94A3B8" Text="Ready"/>
+      <TextBlock x:Name="StatusText" Foreground="#94A3B8" Text="Ready" TextWrapping="Wrap" MaxHeight="64" TextTrimming="CharacterEllipsis" ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
     </Border>
   </Grid>
 </Window>
