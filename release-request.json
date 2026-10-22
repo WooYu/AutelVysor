@@ -1,21 +1,22 @@
 {
-  "tag_name": "v0.10.3",
-  "name": "Autel Vysor v0.10.3",
-  "source_commit": "66e8b09619d81ce9b7b6bb4cc5d6d1b1e5b747c3",
-  "source_run_id": 39591858155,
-  "artifact_id": 12341334222,
+  "tag_name": "v0.10.8",
+  "name": "Autel Vysor v0.10.8",
+  "source_commit": "4e182ee534bae434b45ac6cf03f039ab08e463ff",
+  "source_run_id": 39816806481,
+  "artifact_id": 12442099234,
+  "manifest_sha256": "240bccea20caa94b2671ea89eba916d868e0ed672985fd9af869bf617278d729",
   "files": [
     {
-      "source": "AutelVysor-v0.10.3-windows-x64.zip",
-      "name": "AutelVysor-v0.10.3-windows-x64.zip",
-      "sha256": "5f2d7ed2b7e4ffe619665deec2dafd15e30dfdd2d0ebf7d4005c2f93f5a5017e"
+      "source": "AutelVysor-v0.10.8-windows-x64.zip",
+      "name": "AutelVysor-v0.10.8-windows-x64.zip",
+      "sha256": "087d511efd98188792e5e6fe6fcc8eed8c28b9ca8a1dcaaacadfe69aa733febc"
     },
     {
       "source": "AutelVysor-Setup.exe",
-      "name": "AutelVysor-v0.10.3-Setup.exe",
-      "sha256": "626daeb3c9360306881f4cc46aa9248a8f7bd339576502da97b617a8d62c26e6"
+      "name": "AutelVysor-v0.10.8-Setup.exe",
+      "sha256": "1084d1e255d6f7044c1c91abfb9fade7b9a6f00b49695b10cabf09f3371f80d0"
     }
   ],
-  "notes": "## 修复内容\n\n- 修复 ADB Shell 参数丢失，覆盖设备详情、网络诊断和批量命令。\n- 调整 scrcpy 键盘输入路径，处理普通数字/字母丢失。\n- 旋转状态读取实际默认显示器角度，避免 Auto 显示上次锁定角度。\n- 增加录屏停止、防重复启动和退出清理；清理失败时继续跟踪进程。\n\n## 下载与验证\n\n- Windows x64：ZIP 为免安装版，Setup.exe 为安装版。\n- FileDescription：Autel；FileVersion：0.10.3.0。\n- 已通过 3 项 Bridge + 12 项 Windows 自动回归、自包含 EXE 自检及安装包构建。\n- 本版使用 main 合并提交 66e8b09619d81ce9b7b6bb4cc5d6d1b1e5b747c3 的已验证构建产物。\n- 构建记录：https://github.com/WooYu/AutelVysor/actions/runs/39591858155\n- SHA256SUMS.txt 用于核对下载文件完整性。\n\n## 当前限制\n\n当前包未进行可信数字签名。真机 18 项功能尚未全部验收，中文/双向剪贴板、音频、物理旋转、USB 恢复及真实 MP4 播放完整性仍待补测。旧 adbd 无法可靠传回远端 Shell 退出码。\n\n完整整改说明：https://github.com/WooYu/AutelVysor/blob/v0.10.3/docs/V0103_REPORT_FOLLOWUP.md\n",
-  "request_revision": 2
+  "notes": "## 本次更新\n\n- 启动默认选中首个在线设备，镜像启动与标签切换后自动获取键盘焦点。\n- 截图和录屏增加进行中、成功、失败、停止保存及输出路径反馈；捕获当前镜像设备。\n- 图片预览使用独立的适应窗口/原尺寸控件，不再显示视频播放按钮。\n- 文件管理增加前进/后退、常用目录、筛选排序、右键菜单、重命名、文件夹/批量下载和快捷键；刷新保留选择。\n- App 搜索支持应用名称和包名，直接展示匹配结果；应用名称在后台逐步加载。\n- 修复特殊字符文件路径、重复提交、异步结果覆盖和部分操作错误反馈。\n\n## 下载\n\n- Windows x64 安装版：AutelVysor-v0.10.8-Setup.exe\n- Windows x64 免安装版：AutelVysor-v0.10.8-windows-x64.zip\n- 本版包含运行时及官方镜像工具链。\n\n## 验证\n\n- GitHub Windows 全部回归测试通过，自包含程序自检与安装包构建通过。\n- 发布包已核对 SHA-256、来源提交、版本和 ZIP 中可执行文件的一致性。\n- 来源提交：4e182ee534bae434b45ac6cf03f039ab08e463ff\n- 构建记录：https://github.com/WooYu/AutelVysor/actions/runs/39816806481\n\n## 当前限制\n\n- 本版未进行可信数字签名，Windows 可能显示未知发布者。\n- 实际手机键盘/中文输入法、真实录屏完整性与 USB 恢复仍需真机验收；模拟测试通过不等于这些项目已全部验收。\n- 应用名称逐步加载；无法读取或仅存在于拆分 APK/覆盖资源中的名称仍可通过包名搜索。\n\n详细说明：https://github.com/WooYu/AutelVysor/blob/v0.10.8/docs/USABILITY_FIXES.md",
+  "request_revision": 3
 }
