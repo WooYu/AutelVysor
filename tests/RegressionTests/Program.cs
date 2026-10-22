@@ -100,6 +100,23 @@ internal static partial class Program
         return Task.CompletedTask;
     }
 
+    private static bool DeleteTestDirectoryWithRetry(
+        string path,
+        Action<string, bool> delete,
+        Action<TimeSpan> delay,
+        int maxAttempts)
+    {
+        try
+        {
+            delete(path, true);
+            return true;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+    }
+
     private static AndroidBridge Bridge() => new(Environment.ProcessPath!);
 
     private static AutelVysor.DeviceDebugWindow DebugWindow() => new(Bridge(), new AndroidDevice("test-device", "device", "Test", "", "", "1", ""));
