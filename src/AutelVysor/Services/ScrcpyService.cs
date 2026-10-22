@@ -32,10 +32,10 @@ public sealed class ScrcpyService(string scrcpyPath, AppSettings settings)
         return ToolRunner.Launch(ExecutablePath, args, Path.GetDirectoryName(ExecutablePath));
     }
 
-    public async Task<ScrcpySession> StartEmbeddedAsync(AndroidDevice device, CancellationToken ct = default)
+    public async Task<ScrcpySession> StartEmbeddedAsync(AndroidDevice device, CancellationToken ct = default, string keyboardMode = "auto")
     {
         var args = BaseArguments(device);
-        ApplyRuntimeOptions(args, device);
+        ApplyRuntimeOptions(args, device, keyboardMode);
         args.Add("--window-borderless");
         args.Add("--window-width=640");
         args.Add("--window-height=960");
@@ -125,13 +125,17 @@ public sealed class ScrcpyService(string scrcpyPath, AppSettings settings)
             throw new InvalidOperationException(string.Join(Environment.NewLine, failures));
     }
 
-    private void ApplyRuntimeOptions(List<string> args, AndroidDevice device)
+    private void ApplyRuntimeOptions(List<string> args, AndroidDevice device, string keyboardMode = "auto")
     {
-        // Cross-process embedded SDL windows may receive key events without
-        // SDL_TEXTINPUT. Raw SDK events keep digits/letters on the same working
-        // path as Backspace. Unicode stays available via explicit clipboard/IME.
-        args.Add("--keyboard=sdk");
-        args.Add("--raw-key-events");
+        var hardware = keyboardMode.ToLowerInvariant() switch
+        {
+            "uhid" => true,
+            "sdk" => false,
+            "auto" => device.ApiLevel >= 28,
+            _ => throw new ArgumentException("Select Auto, Hardware or Compatible keyboard mode.", nameof(keyboardMode))
+        };
+        args.Add(hardware ? "--keyboard=uhid" : "--keyboard=sdk");
+        if (!hardware) args.Add("--raw-key-events");
         switch ((_settings.MirrorQuality ?? "Standard").Trim().ToLowerInvariant())
         {
             case "smooth":

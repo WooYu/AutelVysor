@@ -28,6 +28,8 @@ public sealed class NativeWindowHost : HwndHost
     private bool _fitChild = true;
     private int _actualChildWidth;
     private int _actualChildHeight;
+    private double _zoom = 1;
+    private double _panX = .5, _panY = .5;
     private IntPtr _locationHook;
     private readonly WinEventProc _locationCallback;
     private bool _resizeQueued;
@@ -36,6 +38,26 @@ public sealed class NativeWindowHost : HwndHost
 
     public IntPtr ChildHandle => _childHwnd;
     public bool HasChild => _childHwnd != IntPtr.Zero;
+
+    /// <summary>Explicit scrcpy MOD+V paste; the caller has placed its text on the PC clipboard.</summary>
+    public bool PasteClipboard()
+    {
+        if (!HasChild || _hostHwnd == IntPtr.Zero || !IsWindow(_childHwnd)
+            || !IsWindowVisible(_hostHwnd) || !IsWindowVisible(_childHwnd)
+            || GetAncestor(_hostHwnd, 2) != GetForegroundWindow()) return false;
+        // Do not modify keys the user is physically holding or send into another app.
+        foreach (var key in new[] { 0x10, 0x11, 0x12, 0x5B, 0x5C })
+            if ((GetAsyncKeyState(key) & 0x8000) != 0) return false;
+        if (!FocusEmbeddedWindow()) return false;
+        // scrcpy's default shortcut modifier is left Alt. MOD+V explicitly
+        // synchronizes and pastes even if clipboard autosync is disabled.
+        var keys = new[] { KeyInput(0xA4, false), KeyInput(0x56, false), KeyInput(0x56, true), KeyInput(0xA4, true) };
+        if (SendInput((uint)keys.Length, keys, Marshal.SizeOf<NativeInput>()) == keys.Length) return true;
+        // A partial SendInput must not leave the synthetic modifier held.
+        var release = new[] { KeyInput(0x56, true), KeyInput(0xA4, true) };
+        SendInput((uint)release.Length, release, Marshal.SizeOf<NativeInput>());
+        return false;
+    }
 
     /// <summary>
     /// Cross-process SDL HWNDs do not automatically participate in WPF keyboard
@@ -75,6 +97,7 @@ public sealed class NativeWindowHost : HwndHost
         if (msg == 0x0007 && HasChild)
             Dispatcher.BeginInvoke(DispatcherPriority.Input,
                 new Action(() => { if (HasChild) FocusEmbeddedWindow(); }));
+        if (msg == 0x0005) QueueResizeChild(); // WM_SIZE: host client rect is now updated.
         return base.WndProc(hwnd, msg, wParam, lParam, ref handled);
     }
 
@@ -113,6 +136,9 @@ public sealed class NativeWindowHost : HwndHost
     {
         base.OnRenderSizeChanged(sizeInfo);
         ResizeChild();
+        // WPF can notify layout before moving the native host HWND. Reconcile
+        // after arrange too, using the final physical client rectangle.
+        QueueResizeChild();
     }
 
     public void AttachExternalWindow(IntPtr childHwnd)
@@ -160,6 +186,25 @@ public sealed class NativeWindowHost : HwndHost
     public void SetFitMode()
     {
         _fitChild = true;
+        _zoom = 1;
+        _panX = _panY = .5;
+        ResizeChild();
+    }
+
+    public void SetZoom(double zoom)
+    {
+        if (!double.IsFinite(zoom) || zoom < 1 || zoom > 3) throw new ArgumentOutOfRangeException(nameof(zoom));
+        _fitChild = true;
+        _zoom = zoom;
+        _panX = _panY = .5;
+        ResizeChild();
+    }
+
+    public void SetPan(double horizontal, double vertical)
+    {
+        if (!double.IsFinite(horizontal) || !double.IsFinite(vertical) || horizontal < 0 || horizontal > 1 || vertical < 0 || vertical > 1)
+            throw new ArgumentOutOfRangeException(nameof(horizontal));
+        _panX = horizontal; _panY = vertical;
         ResizeChild();
     }
 
@@ -170,6 +215,7 @@ public sealed class NativeWindowHost : HwndHost
         _fitChild = false;
         _actualChildWidth = width;
         _actualChildHeight = height;
+        _panX = _panY = .5;
         ResizeChild();
     }
 
@@ -211,10 +257,10 @@ public sealed class NativeWindowHost : HwndHost
         var hostWidth = Math.Max(1, rect.Right);
         var hostHeight = Math.Max(1, rect.Bottom);
         var actualSize = !_fitChild && _actualChildWidth > 0 && _actualChildHeight > 0;
-        var width = actualSize ? _actualChildWidth : hostWidth;
-        var height = actualSize ? _actualChildHeight : hostHeight;
-        var x = actualSize ? (hostWidth - width) / 2 : 0;
-        var y = actualSize ? (hostHeight - height) / 2 : 0;
+        var width = actualSize ? _actualChildWidth : (int)Math.Round(hostWidth * _zoom);
+        var height = actualSize ? _actualChildHeight : (int)Math.Round(hostHeight * _zoom);
+        var x = width > hostWidth ? (int)Math.Round((hostWidth - width) * _panX) : (hostWidth - width) / 2;
+        var y = height > hostHeight ? (int)Math.Round((hostHeight - height) * _panY) : (hostHeight - height) / 2;
 
         if (GetWindowRect(_childHwnd, out var current))
         {
@@ -228,8 +274,14 @@ public sealed class NativeWindowHost : HwndHost
 
     private void OnChildLocationChanged(IntPtr hook, uint eventType, IntPtr hwnd, int objectId, int childId, uint thread, uint time)
     {
-        if (hwnd != _childHwnd || objectId != 0 || childId != 0 || _resizeQueued || Dispatcher.HasShutdownStarted)
+        if (hwnd != _childHwnd || objectId != 0 || childId != 0)
             return;
+        QueueResizeChild();
+    }
+
+    private void QueueResizeChild()
+    {
+        if (_resizeQueued || Dispatcher.HasShutdownStarted) return;
         _resizeQueued = true;
         Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
         {
@@ -325,4 +377,19 @@ public sealed class NativeWindowHost : HwndHost
 
     [DllImport("user32.dll")]
     private static extern IntPtr GetFocus();
+
+    // This application targets win-x64; Win64 INPUT is a 40-byte tagged union.
+    [StructLayout(LayoutKind.Explicit, Size = 40)]
+    private struct NativeInput
+    {
+        [FieldOffset(0)] public uint Type;
+        [FieldOffset(8)] public ushort Key;
+        [FieldOffset(12)] public uint Flags;
+    }
+    private static NativeInput KeyInput(ushort key, bool up) => new() { Type = 1, Key = key, Flags = up ? 2u : 0u };
+    [DllImport("user32.dll")] private static extern uint SendInput(uint count, [In] NativeInput[] inputs, int size);
+    [DllImport("user32.dll")] private static extern short GetAsyncKeyState(int key);
+    [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] private static extern IntPtr GetAncestor(IntPtr window, uint flags);
+    [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool IsWindowVisible(IntPtr window);
 }

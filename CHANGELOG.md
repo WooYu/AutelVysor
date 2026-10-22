@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.10.5 (input / readability candidate)
+
+- Route modern toolbar text through explicit native scrcpy clipboard paste, including Chinese/Unicode without optional ADBKeyBoard. Guard active/visible window and modifier state; report a request rather than fabricated insertion success.
+- Default Auto keyboard to UHID on Android 9+, with a per-session SDK compatibility selector and phone keyboard settings shortcut.
+- Add view magnification and panning; preserve view geometry through renderer and WPF layout changes. Keep long error diagnostics in a compact status line with full tooltip.
+- Native Windows tests exercise real cross-process digit delivery, clipboard shortcut payload, zoom/pan and WPF host resizes. Physical Android acceptance remains pending.
+
 ## 0.10.4 (candidate; signed publication gated)
 
 - AV-006: explicitly decode redirected ADB text and live logcat as UTF-8, write BOM-free UTF-8 stdin, preserve binary streams.

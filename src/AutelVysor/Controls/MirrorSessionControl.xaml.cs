@@ -41,6 +41,10 @@ public partial class MirrorSessionControl : UserControl, IDisposable
     private DateTime _lastRotationCheckUtc;
     private int _offlineChecks;
     private int _restartFailures;
+    private bool _viewReady, _updatingView, _textSendBusy, _keyboardChanging;
+    private int _viewChangeVersion;
+    private double _viewZoom = 1;
+    private string _keyboardMode = "auto";
 
     public MirrorSessionControl(
         AndroidBridge bridge,
@@ -58,6 +62,7 @@ public partial class MirrorSessionControl : UserControl, IDisposable
         _settings = settings;
         _device = device;
         UpdateHeader();
+        _viewReady = true;
         Loaded += async (_, _) =>
         {
             Focus();
@@ -188,7 +193,7 @@ public partial class MirrorSessionControl : UserControl, IDisposable
         ShowOverlay("Starting mirror…", $"{_device.DisplayName} · {_device.Serial}");
         StatusText.Text = "Starting scrcpy…";
 
-        var session = await _scrcpy.StartEmbeddedAsync(_device, _lifetime.Token);
+        var session = await _scrcpy.StartEmbeddedAsync(_device, _lifetime.Token, _keyboardMode);
         if (_disposed)
         {
             session.Dispose();
@@ -412,6 +417,8 @@ public partial class MirrorSessionControl : UserControl, IDisposable
         var api = _device.ApiLevel > 0 ? _device.ApiLevel.ToString() : "?";
         DeviceMetaText.Text = $"{_device.Serial} · Android {Fallback(_device.AndroidVersion)} · API {api} · {Fallback(_device.Abi)} · {_device.Connection}";
         BackendText.Text = UsesLegacyBackend ? "ADB compatibility · API 19/20" : "scrcpy · API 21+";
+        KeyboardModeBox.IsEnabled = !UsesLegacyBackend && !_keyboardChanging;
+        SendTextButton.Content = !UsesLegacyBackend && _device.ApiLevel >= 24 ? "Paste text" : "Send text";
         AudioRouteText.Text = !_settings.EnableAudio || _device.ApiLevel < 30
             ? "Audio: device"
             : _settings.KeepDeviceAudio && _device.ApiLevel >= 33
@@ -458,34 +465,99 @@ public partial class MirrorSessionControl : UserControl, IDisposable
 
     private void FitView_Click(object sender, RoutedEventArgs e)
     {
-        if (UsesLegacyBackend)
-        {
-            LegacyImage.Stretch = Stretch.Uniform;
-            StatusText.Text = "View mode: Fit.";
-            return;
-        }
-
+        ApplyZoom(1);
         ScrcpyHost.SetFitMode();
         StatusText.Text = "View mode: Fit.";
     }
 
-    private async void ActualSize_Click(object sender, RoutedEventArgs e)
+    private void ApplyZoom(double zoom)
     {
+        ++_viewChangeVersion;
+        _viewZoom = zoom;
+        LegacyImage.Stretch = Stretch.Uniform;
+        ScrcpyHost.SetZoom(zoom);
+        _updatingView = true;
+        try
+        {
+            PanHorizontal.Value = PanVertical.Value = .5;
+            ZoomBox.SelectedIndex = zoom switch { 1 => 0, 1.25 => 1, 1.5 => 2, 2 => 3, _ => 4 };
+        }
+        finally { _updatingView = false; }
+        SetPanVisibility(zoom > 1);
+        ApplyPan();
+        StatusText.Text = zoom == 1 ? "View mode: Fit." : $"View: {zoom:P0} · use the edge scrollbars to reach the cropped areas; Fit restores the full frame.";
+    }
+
+    private async void ZoomChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_viewReady || _updatingView) return;
+        var tag = (ZoomBox.SelectedItem as ComboBoxItem)?.Tag?.ToString();
+        if (tag == "actual") { await SetActualSizeAsync(); return; }
+        if (double.TryParse(tag, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var zoom))
+            ApplyZoom(zoom);
+    }
+
+    private void SetPanVisibility(bool visible)
+        => PanHorizontal.Visibility = PanVertical.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+
+    private void PanChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_viewReady && !_updatingView) ApplyPan();
+    }
+
+    private void Viewport_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (_viewReady) ApplyLegacyTransform();
+    }
+
+    private void ApplyPan()
+    {
+        ScrcpyHost.SetPan(PanHorizontal.Value, PanVertical.Value);
+        ApplyLegacyTransform();
+    }
+
+    private void ApplyLegacyTransform()
+    {
+        LegacyImage.RenderTransformOrigin = new Point(.5, .5);
+        var transform = new TransformGroup();
+        transform.Children.Add(new ScaleTransform(_viewZoom, _viewZoom));
+        transform.Children.Add(new TranslateTransform(
+            (.5 - PanHorizontal.Value) * (_viewZoom - 1) * LegacyImage.ActualWidth,
+            (.5 - PanVertical.Value) * (_viewZoom - 1) * LegacyImage.ActualHeight));
+        LegacyImage.RenderTransform = transform;
+    }
+
+    private async void ActualSize_Click(object sender, RoutedEventArgs e)
+        => await SetActualSizeAsync();
+
+    private async Task SetActualSizeAsync()
+    {
+        var request = ++_viewChangeVersion;
         try
         {
             if (UsesLegacyBackend)
             {
+                _viewZoom = 1;
                 LegacyImage.Stretch = Stretch.None;
+                ApplyLegacyTransform();
+                SetPanVisibility(false);
+                SelectActualSize();
                 StatusText.Text = "View mode: 1:1. Large Android displays may be cropped by the current window.";
                 return;
             }
 
             var (width, height) = await _bridge.GetDisplaySizeAsync(_device.Serial, _lifetime.Token);
             var rotation = await _bridge.GetCurrentRotationDegreesAsync(_device.Serial, _lifetime.Token);
+            if (_disposed || request != _viewChangeVersion) return;
             if (rotation is 90 or 270)
                 (width, height) = (height, width);
 
             ScrcpyHost.SetActualSize(width, height);
+            _updatingView = true;
+            try { PanHorizontal.Value = PanVertical.Value = .5; }
+            finally { _updatingView = false; }
+            SelectActualSize();
+            SetPanVisibility(true);
             StatusText.Text = $"View mode: 1:1 · {width}×{height}. Large displays may be cropped by the current window.";
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
@@ -495,6 +567,49 @@ public partial class MirrorSessionControl : UserControl, IDisposable
         {
             StatusText.Text = ex.Message;
         }
+    }
+
+    private void SelectActualSize()
+    {
+        _updatingView = true;
+        try { ZoomBox.SelectedIndex = 5; }
+        finally { _updatingView = false; }
+    }
+
+    private async void KeyboardModeChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_viewReady || _disposed || _keyboardChanging) return;
+        _keyboardMode = (KeyboardModeBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "auto";
+        _keyboardChanging = true;
+        KeyboardModeBox.IsEnabled = false;
+        try
+        {
+            if (IsLoaded) await RestartAsync();
+            StatusText.Text = "Keyboard mode changed. Hardware uses the phone's input method; use Paste text for Chinese composed on the PC.";
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
+        catch (Exception ex) { StatusText.Text = ex.Message; }
+        finally
+        {
+            _keyboardChanging = false;
+            if (!_disposed) KeyboardModeBox.IsEnabled = !UsesLegacyBackend;
+        }
+    }
+
+    private void InputOptions_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { ContextMenu: { } menu } button)
+        {
+            menu.PlacementTarget = button;
+            menu.IsOpen = true;
+        }
+    }
+
+    private async void PhoneKeyboardSettings_Click(object sender, RoutedEventArgs e)
+    {
+        try { await _bridge.RunShellCommandAsync(_device.Serial, "am start -a android.settings.HARD_KEYBOARD_SETTINGS", _lifetime.Token); }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
+        catch (Exception ex) { StatusText.Text = ex.Message; }
     }
 
     private async Task RefreshRotationStateAsync()
@@ -524,15 +639,38 @@ public partial class MirrorSessionControl : UserControl, IDisposable
 
     private async void SendText_Click(object sender, RoutedEventArgs e)
     {
+        if (_textSendBusy || _disposed) return;
         var text = AndroidTextBox.Text;
-        if (string.IsNullOrWhiteSpace(text))
+        if (string.IsNullOrWhiteSpace(text) || text.Length > 4000)
         {
-            StatusText.Text = "Type text in the box first.";
+            StatusText.Text = "Enter between 1 and 4000 characters in the text box.";
             return;
         }
 
+        _textSendBusy = true;
+        SendTextButton.IsEnabled = false;
         try
         {
+            if (!UsesLegacyBackend && _device.ApiLevel >= 24)
+            {
+                var session = _scrcpySession;
+                if (session is null || session.HasExited)
+                {
+                    StatusText.Text = "Mirror is not connected. Restart it, tap a phone input field and retry Paste text.";
+                    return;
+                }
+                // Let the toolbar click finish before moving native input focus.
+                var requested = await Dispatcher.InvokeAsync(() =>
+                {
+                    if (_disposed || !IsVisible || !ReferenceEquals(session, _scrcpySession) || session.HasExited) return false;
+                    Clipboard.SetText(text);
+                    return ScrcpyHost.PasteClipboard();
+                }, DispatcherPriority.Input);
+                StatusText.Text = requested
+                    ? "Paste requested through scrcpy. Confirm the text in the focused phone field; no ADBKeyBoard is required."
+                    : "Paste not sent. Activate this window, release modifier keys, tap a phone input field and retry.";
+                return;
+            }
             if (text.Any(ch => ch > 127))
             {
                 // adb shell input text cannot reliably type CJK / Unicode.
@@ -551,6 +689,11 @@ public partial class MirrorSessionControl : UserControl, IDisposable
         catch (Exception ex)
         {
             StatusText.Text = ex.Message;
+        }
+        finally
+        {
+            _textSendBusy = false;
+            if (!_disposed) SendTextButton.IsEnabled = true;
         }
     }
 
@@ -619,8 +762,7 @@ public partial class MirrorSessionControl : UserControl, IDisposable
         try
         {
             // Orientation changes always return to Fit, including from a cropped 1:1 view.
-            ScrcpyHost.SetFitMode();
-            LegacyImage.Stretch = Stretch.Uniform;
+            ApplyZoom(1);
             if (automatic)
             {
                 await _bridge.EnableAutoRotationAsync(_device.Serial, _lifetime.Token);
