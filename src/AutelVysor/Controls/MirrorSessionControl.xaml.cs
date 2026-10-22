@@ -41,7 +41,7 @@ public partial class MirrorSessionControl : UserControl, IDisposable
     private DateTime _lastRotationCheckUtc;
     private int _offlineChecks;
     private int _restartFailures;
-    private bool _viewReady, _updatingView, _textSendBusy, _keyboardChanging;
+    private bool _viewReady, _updatingView, _textSendBusy, _keyboardChanging, _focusBusy, _audioBusy;
     private int _viewChangeVersion;
     private double _viewZoom = 1;
     private string _keyboardMode = "auto";
@@ -69,6 +69,20 @@ public partial class MirrorSessionControl : UserControl, IDisposable
             await EnsureRunningAsync();
             RefreshKeyboardRecovery();
         };
+    }
+
+    public FrameworkElement DetachToolsForSidebar()
+    {
+        if (ReferenceEquals(SessionTools.Parent, SessionLayout)) SessionLayout.Children.Remove(SessionTools);
+        InlineToolsColumn.Width = new GridLength(0);
+        // MainWindow supplies the scrolling surface after rehosting.
+        if (SessionTools.Child is ScrollViewer scroll) scroll.VerticalScrollBarVisibility = ScrollBarVisibility.Disabled;
+        return SessionTools;
+    }
+
+    public void FitToWindow()
+    {
+        if (!_disposed) ApplyZoom(1);
     }
 
     public string Serial => _device.Serial;
@@ -616,24 +630,29 @@ public partial class MirrorSessionControl : UserControl, IDisposable
     {
         var (rotation, automatic) = await _advanced.GetRotationStateAsync(_device.Serial, _lifetime.Token);
         RotateStateText.Text = $"Rotation: {rotation}° · {(automatic ? "Auto" : "Locked")}";
+        AutoRotateButton.Content = automatic ? "Auto rotate · On" : "Auto rotate · Off";
+        AutoRotateButton.Background = automatic ? Brushes.DarkSlateBlue : new SolidColorBrush(Color.FromRgb(31, 41, 55));
+        AutoRotateButton.ToolTip = automatic ? "Sensor rotation enabled; actual orientation depends on the device and foreground app." : "Orientation is locked. Click to enable sensor rotation.";
     }
 
     private void FocusMirror_Click(object sender, RoutedEventArgs e)
     {
-        if (UsesLegacyBackend)
-        {
-            Focus();
-            StatusText.Text = "Keyboard focus moved to Android 4.4 mirror. Type ASCII or use Send text.";
-            return;
-        }
-
-        // A toolbar button may reclaim focus while its Click event is running.
-        // Transfer native Win32 focus after WPF has processed the button click.
+        if (_disposed || _focusBusy) return;
+        _focusBusy = true; FocusKeyboardButton.IsEnabled = false; FocusKeyboardButton.Content = "Focusing…";
+        StatusText.Text = "Moving keyboard focus to the phone…";
         Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(() =>
         {
-            StatusText.Text = ScrcpyHost.FocusEmbeddedWindow()
-                ? "Keyboard connected to scrcpy. Click an Android text field and type on the PC keyboard."
-                : "Could not focus the embedded scrcpy window. Use Send text or restart the mirror.";
+            try
+            {
+                if (_disposed) return;
+                var focused = UsesLegacyBackend ? Focus() : ScrcpyHost.FocusEmbeddedWindow();
+                FocusKeyboardButton.Content = focused ? "Focus sent ✓" : "Focus failed";
+                FocusKeyboardButton.Background = focused ? Brushes.DarkSlateBlue : Brushes.Maroon;
+                StatusText.Text = focused
+                    ? "Keyboard focus transferred. Select an Android text field; PC-composed Chinese uses Paste text."
+                    : "Keyboard focus failed. Start/restart the mirror, then select the Android input field.";
+            }
+            finally { _focusBusy = false; if (!_disposed) FocusKeyboardButton.IsEnabled = true; }
         }));
     }
 
@@ -738,14 +757,20 @@ public partial class MirrorSessionControl : UserControl, IDisposable
 
     private async void AudioRoute_Click(object sender, RoutedEventArgs e)
     {
+        if (_disposed || _audioBusy) return;
+        _audioBusy = true; AudioRoutesButton.IsEnabled = false; AudioRoutesButton.Content = "Reading audio…";
+        StatusText.Text = "Reading audio configuration and Android diagnostics…";
         try
         {
-            var report = await _advanced.GetAudioRouteReportAsync(
-                _device, _settings.EnableAudio, _settings.KeepDeviceAudio, _lifetime.Token);
-            MessageBox.Show(report, "Audio routing diagnostics", MessageBoxButton.OK, MessageBoxImage.Information);
+            var report = await _advanced.GetAudioRouteReportAsync(_device, _settings.EnableAudio, _settings.KeepDeviceAudio, _lifetime.Token);
+            if (_disposed) return;
+            var window = new TextReportWindow("Audio routing diagnostics", report) { Owner = Window.GetWindow(this) };
+            window.Show();
+            StatusText.Text = "Audio report opened. Exit codes describe the query; playback destination remains unverified.";
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
         catch (Exception ex) { StatusText.Text = ex.Message; }
+        finally { _audioBusy = false; if (!_disposed) { AudioRoutesButton.IsEnabled = true; AudioRoutesButton.Content = "Audio routes"; } }
     }
 
     private async void Rotate_Click(object sender, RoutedEventArgs e) => await ChangeOrientationAsync(automatic: false);
@@ -759,6 +784,9 @@ public partial class MirrorSessionControl : UserControl, IDisposable
         _orientationBusy = true;
         RotateButton.IsEnabled = false;
         AutoRotateButton.IsEnabled = false;
+        RotateButton.Content = automatic ? "Switch orientation" : "Rotating…";
+        if (automatic) AutoRotateButton.Content = "Enabling…";
+        StatusText.Text = automatic ? "Enabling Android sensor rotation…" : "Requesting Android orientation change…";
         try
         {
             // Orientation changes always return to Fit, including from a cropped 1:1 view.
@@ -804,7 +832,9 @@ public partial class MirrorSessionControl : UserControl, IDisposable
             if (!_disposed)
             {
                 RotateButton.IsEnabled = true;
+                RotateButton.Content = "Switch orientation";
                 AutoRotateButton.IsEnabled = true;
+                if (AutoRotateButton.Content?.ToString() == "Enabling…") AutoRotateButton.Content = "Auto rotate · Unknown";
             }
         }
     }

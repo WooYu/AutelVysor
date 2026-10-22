@@ -1,6 +1,7 @@
 <Window x:Class="AutelVysor.DeviceDebugWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Icon="pack://application:,,,/AutelVysor;component/Assets/AutelVysor.ico"
         Title="Autel Vysor · Device Debug"
         Width="1180" Height="780" MinWidth="980" MinHeight="680"
         Background="#0B1120" Foreground="#F1F5F9">
@@ -120,6 +121,7 @@
             <Border Grid.Column="0" Background="#0F172A" BorderBrush="#1E293B" BorderThickness="1" Padding="14">
               <StackPanel>
                 <TextBlock FontSize="15" FontWeight="SemiBold" Text="App summary"/>
+                <TextBlock x:Name="AppStatusText" TextWrapping="Wrap" Foreground="#93C5FD" Margin="0,8,0,0"/>
                 <Grid Margin="0,12,0,0">
                   <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="120"/>
@@ -237,7 +239,7 @@
           <StackPanel Grid.Row="0">
             <WrapPanel Margin="0,0,0,8">
               <TextBlock Margin="0,7,6,0" Foreground="#94A3B8" Text="Filter"/>
-              <TextBox x:Name="LogFilterBox" Width="220" Margin="0,0,10,7" ToolTip="Text, tag or message contains"/>
+              <TextBox x:Name="LogFilterBox" Width="220" Margin="0,0,10,7" ToolTip="Case-insensitive text across the whole log record, including exception lines"/>
               <TextBlock Margin="0,7,6,0" Foreground="#94A3B8" Text="Minimum level"/>
               <ComboBox x:Name="LogLevelBox" Width="110" SelectedIndex="0" Margin="0,0,10,7">
                 <ComboBoxItem Content="All" Tag="*"/>
@@ -249,25 +251,30 @@
                 <ComboBoxItem Content="Fatal" Tag="F"/>
               </ComboBox>
               <TextBlock Text="Tag" Foreground="#94A3B8" Margin="0,7,6,0"/>
-              <TextBox x:Name="LogTagBox" Width="110" Margin="0,0,8,7" ToolTip="Exact Android logcat Tag substring"/>
+              <TextBox x:Name="LogTagBox" Width="110" Margin="0,0,8,7" ToolTip="Exact Tag, case-insensitive; combines with text, PID and minimum level"/>
               <TextBlock Text="PID" Foreground="#94A3B8" Margin="0,7,6,0"/>
               <TextBox x:Name="LogPidBox" Width="76" Margin="0,0,8,7" ToolTip="Optional PID"/>
               <CheckBox x:Name="OnlySelectedAppLogBox" Margin="0,7,14,7" Content="Selected app PID only"/>
-              <CheckBox x:Name="PauseLogBox" Margin="0,7,0,7" Content="Pause"/>
+              <CheckBox x:Name="PauseLogBox" Margin="0,7,0,7" Content="Pause view"/>
             </WrapPanel>
             <WrapPanel Margin="0,0,0,10">
-              <Button Click="StartLiveLog_Click" Content="Start live"/>
-              <Button Click="StopLiveLog_Click" Content="Stop" Background="#475569"/>
-              <Button Click="SnapshotLog_Click" Content="Snapshot" Background="#475569"/>
-              <Button Click="ExportLog_Click" Content="Export logcat" Background="#475569"/>
+              <Button x:Name="StartLiveLogButton" Click="StartLiveLog_Click" Content="Start live"/>
+              <Button x:Name="StopLiveLogButton" IsEnabled="False" Click="StopLiveLog_Click" Content="Stop" Background="#475569"/>
+              <Button x:Name="SnapshotLogButton" Click="SnapshotLog_Click" Content="Snapshot" Background="#475569"/>
+              <Button Click="ImportLog_Click" Content="Import ADB log" Background="#475569"/>
+              <Button Click="ExportLog_Click" Content="Export all retained" Background="#475569"/>
+              <Button Click="ExportFilteredLog_Click" Content="Export filtered" Background="#475569"/>
               <Button Click="ClearLogView_Click" Content="Clear view" Background="#475569"/>
             </WrapPanel>
+            <TextBlock x:Name="LogCountText" Text="No source loaded. Filter changes apply to retained records." Foreground="#94A3B8" Margin="0,0,0,8" TextWrapping="Wrap"/>
           </StackPanel>
-          <TextBox Grid.Row="1" x:Name="LogTextBox"
-                   IsReadOnly="True" AcceptsReturn="True"
-                   VerticalScrollBarVisibility="Auto"
-                   HorizontalScrollBarVisibility="Auto"
-                   FontFamily="Consolas" FontSize="11"/>
+          <ListBox Grid.Row="1" x:Name="LogLines" Background="#111827" BorderBrush="#334155" Foreground="#E5E7EB"
+                   FontFamily="Consolas" FontSize="12" SelectionMode="Extended" HorizontalContentAlignment="Stretch"
+                   ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                   ScrollViewer.CanContentScroll="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
+            <ListBox.ItemContainerStyle><Style TargetType="ListBoxItem" BasedOn="{StaticResource DarkListItemStyle}"><Setter Property="Padding" Value="3,1"/></Style></ListBox.ItemContainerStyle>
+            <ListBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Text}" Foreground="{Binding Color}" TextWrapping="NoWrap"/></DataTemplate></ListBox.ItemTemplate>
+          </ListBox>
         </Grid>
       </TabItem>
 
@@ -284,17 +291,47 @@
               <ColumnDefinition Width="*"/>
               <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <Button Grid.Column="0" Click="RemoteUp_Click" Content="Up" Background="#475569"/>
-            <TextBox Grid.Column="1" x:Name="RemoteFilePathBox" Margin="0,0,7,7" Text="/sdcard/Download"/>
-            <Button Grid.Column="2" Click="RefreshRemoteFiles_Click" Content="Refresh"/>
+            <StackPanel Grid.Column="0" Orientation="Horizontal">
+              <Button x:Name="RemoteRootButton" Click="RemoteRoot_Click" Content="Root" Background="#475569"/>
+              <Button x:Name="RemoteUpButton" Click="RemoteUp_Click" Content="Up" Background="#475569"/>
+            </StackPanel>
+            <TextBox Grid.Column="1" x:Name="RemoteFilePathBox" KeyDown="RemotePath_KeyDown" TextChanged="RemotePathChanged" Margin="0,0,7,7" Text="/sdcard/Download"/>
+            <Button x:Name="RemoteRefreshButton" Grid.Column="2" Click="RefreshRemoteFiles_Click" Content="Refresh"/>
           </Grid>
           <ListView Grid.Row="1"
-                    x:Name="RemoteFileList"
+                    x:Name="RemoteFileList" SelectionChanged="RemoteSelectionChanged"
                     SelectionMode="Extended"
                     MouseDoubleClick="RemoteFileList_MouseDoubleClick"
                     Background="#0F172A"
                     Foreground="#E5E7EB"
                     BorderBrush="#334155">
+            <ListView.ItemContainerStyle>
+              <Style TargetType="ListViewItem">
+                <Setter Property="Foreground" Value="#E5E7EB"/>
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="BorderBrush" Value="Transparent"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="Padding" Value="5,7"/>
+                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                <Setter Property="Template">
+                  <Setter.Value>
+                    <ControlTemplate TargetType="ListViewItem">
+                      <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}">
+                        <GridViewRowPresenter Content="{TemplateBinding Content}" Columns="{Binding View.Columns, RelativeSource={RelativeSource AncestorType=ListView}}"/>
+                      </Border>
+                    </ControlTemplate>
+                  </Setter.Value>
+                </Setter>
+                <Style.Triggers>
+                  <Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="#1E293B"/></Trigger>
+                  <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="#1D4ED8"/>
+                    <Setter Property="Foreground" Value="White"/>
+                    <Setter Property="BorderBrush" Value="#93C5FD"/>
+                  </Trigger>
+                </Style.Triggers>
+              </Style>
+            </ListView.ItemContainerStyle>
             <ListView.View>
               <GridView>
                 <GridViewColumn Header="Name" Width="420" DisplayMemberBinding="{Binding Name}"/>
@@ -313,12 +350,15 @@
               <ColumnDefinition Width="Auto"/>
               <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
-            <Button Grid.Column="0" Click="UploadRemoteFile_Click" Content="Upload"/>
-            <Button Grid.Column="1" Click="DownloadRemoteFile_Click" Content="Download" Background="#475569"/>
-            <Button Grid.Column="2" Click="DeleteRemoteFile_Click" Content="Delete" Background="#B45309"/>
+            <Button x:Name="RemoteUploadButton" Grid.Column="0" Click="UploadRemoteFile_Click" Content="Upload"/>
+            <Button x:Name="RemoteDownloadButton" Grid.Column="1" Click="DownloadRemoteFile_Click" Content="Download" Background="#475569"/>
+            <Button x:Name="RemoteDeleteButton" Grid.Column="2" Click="DeleteRemoteFile_Click" Content="Delete" Background="#B45309"/>
             <TextBox Grid.Column="3" x:Name="NewFolderNameBox" Margin="6,0,7,7" ToolTip="New folder name"/>
-            <Button Grid.Column="4" Click="CreateRemoteFolder_Click" Content="New folder" Background="#475569"/>
-            <TextBlock Grid.Column="5" Margin="10,7,0,0" Foreground="#64748B" Text="Double-click a folder to open it."/>
+            <Button x:Name="RemoteNewFolderButton" Grid.Column="4" Click="CreateRemoteFolder_Click" Content="New folder" Background="#475569"/>
+            <StackPanel Grid.Column="5" Margin="10,0,0,0">
+              <Button x:Name="RemoteOpenButton" Click="RemoteOpen_Click" Content="Open folder" HorizontalAlignment="Left"/>
+              <TextBlock x:Name="FileStatusText" TextWrapping="Wrap" Foreground="#93C5FD"/>
+            </StackPanel>
           </Grid>
         </Grid>
       </TabItem>

@@ -17,47 +17,40 @@
     </Style>
   </UserControl.Resources>
 
-  <Grid>
-    <Grid.RowDefinitions>
-      <RowDefinition Height="Auto"/>
-      <RowDefinition Height="*"/>
-      <RowDefinition Height="Auto"/>
-    </Grid.RowDefinitions>
-
-    <Border Grid.Row="0" Background="#111827" BorderBrush="#1F2937" BorderThickness="0,0,0,1" Padding="10">
-      <StackPanel>
-      <DockPanel LastChildFill="True">
-        <StackPanel DockPanel.Dock="Left">
-          <TextBlock x:Name="DeviceTitleText" FontSize="15" FontWeight="SemiBold"/>
-          <TextBlock x:Name="DeviceMetaText" Margin="0,3,0,0" Foreground="#94A3B8" FontSize="11"/>
-        </StackPanel>
-        <WrapPanel HorizontalAlignment="Right">
-          <Button Click="Back_Click" Content="Back"/>
-          <Button Click="Home_Click" Content="Home"/>
-          <Button Click="Recents_Click" Content="Recents"/>
-          <Button Click="VolumeDown_Click" Content="Vol −"/>
-          <Button Click="VolumeUp_Click" Content="Vol +"/>
-          <Button Click="Power_Click" Content="Power"/>
-          <Button Click="FitView_Click" Content="Fit"/>
-          <ComboBox x:Name="ZoomBox" Width="86" Margin="4,0" SelectedIndex="0" SelectionChanged="ZoomChanged" Style="{StaticResource DarkComboBoxStyle}"
-                    ToolTip="Magnify the view; use the edge scrollbars to see cropped areas. Fit restores the whole frame.">
-            <ComboBoxItem Content="100%" Tag="1"/>
-            <ComboBoxItem Content="125%" Tag="1.25"/>
-            <ComboBoxItem Content="150%" Tag="1.5"/>
-            <ComboBoxItem Content="200%" Tag="2"/>
-            <ComboBoxItem Content="300%" Tag="3"/>
-            <ComboBoxItem Content="1:1" Tag="actual"/>
+  <Grid x:Name="SessionLayout">
+    <Grid.ColumnDefinitions><ColumnDefinition x:Name="InlineToolsColumn" Width="280"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+    <Border x:Name="SessionTools" Grid.Column="0" Background="#111827" BorderBrush="#334155" BorderThickness="0,0,0,1" Padding="10" TextElement.FontSize="13" TextElement.Foreground="#E5E7EB">
+      <Border.Resources>
+        <Style TargetType="Button" BasedOn="{StaticResource DarkButtonStyle}">
+          <Setter Property="Padding" Value="7,7"/><Setter Property="Margin" Value="2,3"/>
+        </Style>
+      </Border.Resources>
+      <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel>
+          <TextBlock x:Name="DeviceTitleText" FontSize="16" FontWeight="SemiBold"/>
+          <TextBlock x:Name="DeviceMetaText" Margin="0,4,0,10" Foreground="#94A3B8" FontSize="11" TextWrapping="Wrap"/>
+          <Button Click="FitView_Click" Content="Fit · 完整画面" Background="#2563EB"/>
+          <UniformGrid Columns="3">
+            <Button Click="Back_Click" Content="Back"/><Button Click="Home_Click" Content="Home"/><Button Click="Recents_Click" Content="Recents"/>
+            <Button Click="VolumeDown_Click" Content="Vol −"/><Button Click="VolumeUp_Click" Content="Vol +"/><Button Click="Power_Click" Content="Power"/>
+          </UniformGrid>
+          <UniformGrid Columns="2">
+            <Button x:Name="RotateButton" Click="Rotate_Click" Content="Switch orientation" ToolTip="Switch the real Android display between its two main orientations"/>
+            <Button x:Name="AutoRotateButton" Click="AutoRotate_Click" Content="Auto rotate"/>
+          </UniformGrid>
+          <TextBlock x:Name="RotateStateText" Foreground="#CBD5E1" TextWrapping="Wrap" Margin="2,4,2,8"/>
+          <TextBlock Text="Text input" FontWeight="SemiBold" Margin="2,8,0,5"/>
+          <TextBox x:Name="AndroidTextBox" Background="#0B1220" Foreground="#E5E7EB" BorderBrush="#334155" CaretBrush="White"
+                   MinHeight="32" Padding="6,5" ToolTip="Enter up to 4000 characters; focus a phone field, then Paste text."/>
+          <UniformGrid Columns="2">
+            <Button x:Name="SendTextButton" Click="SendText_Click" Content="Paste text" ToolTip="Paste into the focused Android field; updates the PC clipboard."/>
+            <Button x:Name="FocusKeyboardButton" Click="FocusMirror_Click" Content="Focus keyboard" ToolTip="Move keyboard focus to the phone after selecting an Android input field"/>
+          </UniformGrid>
+          <ComboBox x:Name="KeyboardModeBox" SelectedIndex="0" Margin="2,4" Style="{StaticResource DarkComboBoxStyle}" SelectionChanged="KeyboardModeChanged"
+                    ToolTip="Auto uses hardware keyboard on Android 9+. Compatible uses SDK events; changing mode restarts this mirror.">
+            <ComboBoxItem Content="Keyboard: Auto" Tag="auto"/><ComboBoxItem Content="Hardware" Tag="uhid"/><ComboBoxItem Content="Compatible" Tag="sdk"/>
           </ComboBox>
-          <Button Click="ActualSize_Click" Content="1:1"/>
-          <Button x:Name="RotateButton" Click="Rotate_Click" Content="Switch orientation" ToolTip="Switch the real Android display between its two main orientations"/>
-          <Button x:Name="AutoRotateButton" Click="AutoRotate_Click" Content="Auto rotate"/>
-          <Button Click="Restart_Click" Content="Restart"/>
-        </WrapPanel>
-      </DockPanel>
-      <DockPanel Margin="0,7,0,0" LastChildFill="True">
-        <Button DockPanel.Dock="Right" Click="AudioRoute_Click" Content="Audio routes" ToolTip="Show configured PC audio and Android route indicators"/>
-        <Button DockPanel.Dock="Right" Click="FocusMirror_Click" Content="Focus keyboard" ToolTip="Move Windows keyboard focus into the embedded scrcpy or Android compatibility screen"/>
-        <Button DockPanel.Dock="Right" Click="InputOptions_Click" Content="Input options">
+        <Button Click="InputOptions_Click" Content="Input options">
           <Button.ContextMenu>
             <ContextMenu>
               <MenuItem Header="Copy text only" Click="CopyAndroidText_Click"/>
@@ -68,26 +61,33 @@
             </ContextMenu>
           </Button.ContextMenu>
         </Button>
-        <ComboBox x:Name="KeyboardModeBox" DockPanel.Dock="Right" Width="128" Margin="4,0" SelectedIndex="0" Style="{StaticResource DarkComboBoxStyle}"
-                  SelectionChanged="KeyboardModeChanged" ToolTip="Auto uses a hardware keyboard on Android 9+. Compatible uses SDK key events. Changing mode restarts this mirror.">
-          <ComboBoxItem Content="Keyboard: Auto" Tag="auto"/>
-          <ComboBoxItem Content="Hardware" Tag="uhid"/>
-          <ComboBoxItem Content="Compatible" Tag="sdk"/>
-        </ComboBox>
-        <Button x:Name="SendTextButton" DockPanel.Dock="Right" Click="SendText_Click" Content="Paste text"
-                ToolTip="Android 7+: paste Chinese/Unicode through scrcpy into the focused phone field. This updates the PC clipboard; ADBKeyBoard is optional."/>
-        <TextBox x:Name="AndroidTextBox" Background="#0B1220" Foreground="#E5E7EB"
-                 BorderBrush="#334155" CaretBrush="White" MinWidth="200" Height="30"
-                 Padding="6,4" ToolTip="Enter up to 4000 characters, focus a phone input field, then click Paste text. Hardware typing uses the phone's input method."/>
-      </DockPanel>
-      <TextBlock x:Name="InputHint" Margin="0,5,0,0" FontSize="11" Foreground="#94A3B8" TextTrimming="CharacterEllipsis"
-                 Text="先点手机输入框；电脑输入法打好的中文，可在上方输入后点 Paste text。放大后用右侧/底部滚动条平移。"/>
-      <TextBlock x:Name="ImeRecoveryText" Visibility="Collapsed" Margin="0,6,0,0" Foreground="#FBBF24" TextWrapping="Wrap"
-                 Text="Saved keyboard recovery exists for this device. Open Unicode / clipboard setup and choose Restore original keyboard. No keyboard is changed automatically after restart."/>
-      </StackPanel>
-    </Border>
 
-    <Grid Grid.Row="1" Background="Black" ClipToBounds="True" SizeChanged="Viewport_SizeChanged">
+          <TextBlock x:Name="InputHint" Margin="2,5,2,8" FontSize="11" Foreground="#94A3B8" TextWrapping="Wrap"
+                     Text="先点手机输入框；电脑上打好的中文用 Paste text。Fit 保留完整画面。"/>
+          <TextBlock x:Name="ImeRecoveryText" Visibility="Collapsed" Margin="0,6,0,0" Foreground="#FBBF24" TextWrapping="Wrap"
+                     Text="Saved IME recovery exists. Open Input options → ADB IME setup and choose Restore original keyboard."/>
+          <UniformGrid Columns="2">
+            <Button x:Name="AudioRoutesButton" Click="AudioRoute_Click" Content="Audio routes"/>
+            <Button Click="Restart_Click" Content="Restart"/>
+          </UniformGrid>
+          <Expander Header="Advanced zoom · crops image" Margin="2,8,2,4" Foreground="#94A3B8">
+            <StackPanel Margin="0,5,0,0">
+              <TextBlock Text="Optional: use Fit above to show the entire frame." TextWrapping="Wrap" FontSize="11" Margin="0,0,0,5"/>
+              <ComboBox x:Name="ZoomBox" SelectedIndex="0" SelectionChanged="ZoomChanged" Style="{StaticResource DarkComboBoxStyle}">
+                <ComboBoxItem Content="Fit · 100%" Tag="1"/><ComboBoxItem Content="125%" Tag="1.25"/><ComboBoxItem Content="150%" Tag="1.5"/>
+                <ComboBoxItem Content="200%" Tag="2"/><ComboBoxItem Content="300%" Tag="3"/><ComboBoxItem Content="1:1" Tag="actual"/>
+              </ComboBox>
+              <Button Click="ActualSize_Click" Content="1:1 · actual pixels"/>
+            </StackPanel>
+          </Expander>
+          <TextBlock x:Name="StatusText" Foreground="#CBD5E1" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" MaxHeight="20" ClipToBounds="True"
+                     Margin="2,8,2,3" ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
+          <TextBlock x:Name="AudioRouteText" Foreground="#93C5FD" TextWrapping="Wrap" FontSize="11" Margin="2,3"/>
+          <TextBlock x:Name="BackendText" Foreground="#64748B" FontSize="11" Margin="2,3"/>
+        </StackPanel>
+      </ScrollViewer>
+    </Border>
+    <Grid x:Name="MirrorViewport" Grid.Column="1" Background="Black" ClipToBounds="True" SizeChanged="Viewport_SizeChanged">
       <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
       <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
       <controls:NativeWindowHost x:Name="ScrcpyHost" Visibility="Collapsed"/>
@@ -115,15 +115,5 @@
                  ValueChanged="PanChanged" ToolTip="Move the enlarged picture left/right"/>
     </Grid>
 
-    <Border Grid.Row="2" Background="#111827" BorderBrush="#1F2937" BorderThickness="0,1,0,0" Padding="8,6">
-      <DockPanel>
-        <TextBlock x:Name="BackendText" DockPanel.Dock="Right" Foreground="#64748B" Margin="12,0,0,0"/>
-        <TextBlock x:Name="AudioRouteText" DockPanel.Dock="Right" Foreground="#93C5FD" Margin="12,0,0,0"/>
-        <TextBlock x:Name="RotateStateText" DockPanel.Dock="Right" Foreground="#CBD5E1" Margin="12,0,0,0"/>
-        <TextBlock x:Name="StatusText" Foreground="#94A3B8" TextTrimming="CharacterEllipsis"
-                   TextWrapping="NoWrap" MaxHeight="20" ClipToBounds="True" VerticalAlignment="Center"
-                   ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
-      </DockPanel>
-    </Border>
   </Grid>
 </UserControl>

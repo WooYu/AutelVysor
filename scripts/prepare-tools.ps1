@@ -10,7 +10,11 @@ if ([string]::IsNullOrWhiteSpace($Destination)) {
 
 Write-Host 'Resolving latest official scrcpy Windows x64 release...'
 $headers = @{ 'User-Agent' = 'AutelVysor-Build' }
-$release = Invoke-RestMethod -Headers $headers -Uri 'https://api.github.com/repos/Genymobile/scrcpy/releases/latest'
+$apiHeaders = $headers.Clone()
+if (-not [string]::IsNullOrWhiteSpace($env:GITHUB_TOKEN)) {
+    $apiHeaders['Authorization'] = 'Bearer ' + $env:GITHUB_TOKEN
+}
+$release = Invoke-RestMethod -Headers $apiHeaders -Uri 'https://api.github.com/repos/Genymobile/scrcpy/releases/latest'
 $asset = $release.assets | Where-Object { $_.name -match '^scrcpy-win64-v.*\.zip$' } | Select-Object -First 1
 if (-not $asset) {
     throw 'Could not find the official scrcpy win64 ZIP asset in the latest GitHub release.'

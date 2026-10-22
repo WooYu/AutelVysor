@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.10.6 (desktop usability candidate)
+
+- Move session/global controls to the left and maximize full-height Fit; fullscreen resets cropped zoom and provides mouse-accessible Tools/Exit recovery.
+- Add right-side capture video playback controls and clear unsupported-media feedback.
+- Automatically refresh typed app details with stale-response guards; improve dark file selection and explicit folder navigation.
+- Import logs, reapply combined filters to retained live/snapshot/import records, color severity rows, and export all retained or filtered data. Bound retention and disclose loss.
+- Expose running/results for focus, rotation, audio and live logging; show audio evidence in a bounded copyable report.
+- Add a custom blue desktop/phone application icon, with 16–256px ICO frames for Windows Explorer and the taskbar.
+- Embed the icon in the executable and WPF windows; use the same mark for the installer, shortcuts and installed-app entry.
+- Preserve FileDescription=Autel and the unsigned internal-candidate signing gate.
+
 ## 0.10.5 (input / readability candidate)
 
 - Route modern toolbar text through explicit native scrcpy clipboard paste, including Chinese/Unicode without optional ADBKeyBoard. Guard active/visible window and modifier state; report a request rather than fabricated insertion success.

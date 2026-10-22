@@ -83,13 +83,25 @@ internal static class Program
         try
         {
             var deadline = DateTime.UtcNow.AddSeconds(5);
-            while (!File.Exists(marker) && DateTime.UtcNow < deadline) await Task.Delay(10);
-            Check(File.Exists(marker), "Child did not reach the blocked input stage");
+            while (!File.Exists(marker + ".pid") && DateTime.UtcNow < deadline) await Task.Delay(10);
+            Check(File.Exists(marker + ".pid"), "Child did not reach the blocked input stage");
+            var childPid = int.Parse(File.ReadAllText(marker + ".pid"));
             cts.Cancel();
             try { await running.WaitAsync(TimeSpan.FromSeconds(3)); throw new Exception("Cancellation was ignored"); }
             catch (OperationCanceledException) { }
-            // The fixture holds this file exclusively until its process exits.
-            using var unlocked = File.Open(marker, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+            // Verify termination separately from delayed Windows file-handle cleanup.
+            try
+            {
+                using var child = System.Diagnostics.Process.GetProcessById(childPid);
+                Check(child.HasExited, "Canceled stdin left the child process running");
+            }
+            catch (ArgumentException) { /* The PID no longer exists. */ }
+            var releaseDeadline = DateTime.UtcNow.AddSeconds(1);
+            while (true)
+            {
+                try { using var unlocked = File.Open(marker, FileMode.Open, FileAccess.ReadWrite, FileShare.None); break; }
+                catch (IOException) when (DateTime.UtcNow < releaseDeadline) { await Task.Delay(20); }
+            }
         }
         finally { cts.Cancel(); }
     }
@@ -337,6 +349,8 @@ internal static class Program
             if (args[0] == "blocked-input")
             {
                 using var held = File.Open(args[1], FileMode.Create, FileAccess.ReadWrite, FileShare.None);
+                File.WriteAllText(args[1] + ".pid.tmp", Environment.ProcessId.ToString());
+                File.Move(args[1] + ".pid.tmp", args[1] + ".pid");
                 await Task.Delay(Timeout.Infinite);
                 return 0;
             }
