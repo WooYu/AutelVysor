@@ -447,6 +447,15 @@ internal static class Program
                 Check(actual.Left == 0 && actual.Top == 0 && actual.Right == available.Right && actual.Bottom == available.Bottom,
                     $"Rotation {i + 1}: child remained at {actual.Left},{actual.Top} {actual.Right - actual.Left}x{actual.Bottom - actual.Top}; expected {available.Right}x{available.Bottom}");
             }
+            foreach (var height in new[] { 350d, 700d, 450d })
+            {
+                window.Height = height;
+                await Task.Delay(200);
+                GetClientRect(host.Handle, out var available);
+                GetWindowRect(child, out var actual); MapWindowPoints(IntPtr.Zero, host.Handle, ref actual, 2);
+                Check(actual.Left == 0 && actual.Top == 0 && actual.Right == available.Right && actual.Bottom == available.Bottom,
+                    "A WPF viewport resize left the Android window cropped at the old size");
+            }
         }
         finally
         {
