@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.10.9
+
+- Automatically focus the foreground mirror on startup, tab selection and activation, with short bounded retries and native focus confirmation.
+- Reuse existing focus without repeated input-thread attachment; preserve PC text entry and mode selection.
+- Confirm Keyboard ready on the non-focusable recovery button instead of reporting Focus sent.
+- Cover automatic focus, editor protection, explicit recovery and repeated native focus in regression tests. Physical Android acceptance remains separate.
+
 ## 0.10.8
 
 - Select the first online supported device on startup and rediscovery; automatically focus the active mirror keyboard after startup and tab activation.
