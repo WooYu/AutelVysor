@@ -312,6 +312,12 @@ internal static class Program
             status.Text = string.Join('\n', Enumerable.Repeat("ADB command failed / stdout / stderr diagnostic detail", 10));
             window.UpdateLayout();
             Check(status.ActualHeight <= 24, "Multiline command diagnostics consumed the mirror viewport");
+            Check(status.ToolTip?.ToString() == status.Text, "Compact status lost the full diagnostic tooltip");
+            var folder = Path.GetFullPath("test-results"); Directory.CreateDirectory(folder);
+            var bitmap = new RenderTargetBitmap((int)window.ActualWidth, (int)window.ActualHeight, 96, 96, PixelFormats.Pbgra32);
+            bitmap.Render(window);
+            var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
+            using var image = File.Create(Path.Combine(folder, "input-zoom.png")); encoder.Save(image);
         }
         finally { view.Dispose(); window.Close(); }
     }
@@ -354,7 +360,7 @@ internal static class Program
     {
         File.Delete(State("native-hwnd"));
         var service = new ScrcpyService(Environment.ProcessPath!, new AppSettings());
-        using var session = await service.StartEmbeddedAsync(TestDevice());
+        using var session = await service.StartEmbeddedAsync(TestDevice(), keyboardMode: "sdk");
         var arguments = File.ReadAllLines(State("scrcpy-args"));
         Check(arguments.Contains("--keyboard=sdk") && arguments.Contains("--raw-key-events") && !arguments.Contains("--prefer-text"),
             "Embedded numeric/letter keys still require SDL_TEXTINPUT instead of key events");

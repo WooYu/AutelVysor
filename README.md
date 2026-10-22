@@ -2,7 +2,7 @@
 
 Windows Android mirror/control client for **Android 4.4 (API 19) and newer**.
 
-Current source version: **0.10.4**
+Current source version: **0.10.5**
 
 ## Compatibility
 
@@ -25,6 +25,14 @@ Android fixture APK. It generates local HTML, JSON and CSV real-device reports.
 ADB backend test success is **not** equivalent to Windows UI/scrcpy validation.
 Features blocked by company executable policy are explicitly marked BLOCKED_POLICY.
 See [Chinese usage guide](docs/COMPANY_ADB_ONLY_TESTING.md).
+
+## v0.10.5 input / readability candidate
+
+- Android 7+: **Paste text** explicitly sends PC-composed Chinese/Unicode through scrcpy clipboard into the focused phone field. ADBKeyBoard remains an optional advanced channel. A submitted paste is not an assertion of Android insertion.
+- **Keyboard: Auto** selects UHID on Android 9+; **Compatible** retains SDK raw key events. Hardware typing uses the phone's input method/layout; use Paste text for text composed by the PC IME.
+- New **125% / 150% / 200% / 300%** viewing magnification and edge scrollbars; **Fit** resets magnification/pan. Zoom enlarges the view, rather than changing Android density or fonts. Select High mirror quality and restart if a larger picture needs more source detail.
+- Native viewport size is reconciled after WPF layout changes, fixing a reproduced bottom-cropping case. Multiline diagnostics stay in a compact status line with a full tooltip.
+- See [input and zoom guide](docs/INPUT_AND_ZOOM.md). Real device text insertion and visual acceptance still require a connected phone.
 
 ## v0.10.4 correction candidate
 
@@ -201,7 +209,7 @@ The build fails if the executable metadata does not contain:
 ```text
 FileDescription : Autel
 ProductName     : Autel Vysor
-FileVersion     : 0.10.4.0
+FileVersion     : 0.10.5.0
 ```
 
 ## Build portable ZIP and installer
@@ -213,7 +221,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build-release.ps1 -RequireSig
 Expected artifacts after a successfully signed build:
 
 ```text
-dist\AutelVysor-v0.10.4-windows-x64.zip
+dist\AutelVysor-v0.10.5-windows-x64.zip
 dist\AutelVysor-Setup.exe           # when Inno Setup 6 is installed
 ```
 

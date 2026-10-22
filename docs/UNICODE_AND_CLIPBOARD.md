@@ -1,5 +1,13 @@
 # Unicode input and real clipboard acceptance
 
+## v0.10.5 primary modern input
+
+On Android 7+ use **Paste text** in the mirror toolbar for PC-composed Chinese/Unicode. Focus a phone input field first. The app updates the PC clipboard, focuses the visible active scrcpy child, and sends the explicit default scrcpy MOD+V shortcut. It does not install or activate ADBKeyBoard, and does not claim Android insertion merely because the Windows shortcut was submitted. Use a disposable field and inspect actual text before retrying. Password/custom fields or device policy can reject paste.
+
+**Keyboard: Auto** uses UHID on Android 9+; **Compatible** retains SDK raw events. Direct hardware typing uses the phone's current input method and keyboard layout. Phone keyboard settings are in **Input options**. The selector restarts only the current mirror and is a per-session choice.
+
+The IME setup and acceptance workflow below is still available under **Input options → ADB IME setup (optional)**. Android 4.4–6 toolbar Unicode input continues to require that optional helper.
+
 `adb shell input text` is an ASCII path. Chinese, accented characters and emoji use the optional ADBKeyBoard IME through **Unicode / clipboard setup** in each mirror. The setup window is modeless so you can still focus and operate the mirrored Android screen.
 
 ## Install, activate and restore

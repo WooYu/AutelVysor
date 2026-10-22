@@ -37,7 +37,9 @@ jobs:
         with:
           name: AutelVysor-visual-check
           if-no-files-found: warn
-          path: test-results/dark-selection.png
+          path: |
+            test-results/dark-selection.png
+            test-results/input-zoom.png
   build:
     needs: regression-tests
     runs-on: windows-latest
