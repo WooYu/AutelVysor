@@ -252,8 +252,6 @@ internal static class Program
             Check(((Image)view.FindName("LegacyImage")).RenderTransform.Value.M11 == 1,
                 "Rotation left the legacy image magnified");
         }
-        var wm = Path.Combine(State("commands"), "wm");
-        var original = File.ReadAllText(wm);
         try
         {
             foreach (var device in new[] { TestDevice(), TestDevice() with { ApiLevel = 19 } })
@@ -264,14 +262,27 @@ internal static class Program
                 AssertFit(view);
             }
             // Hold the first display-size query so rotation can return to Fit while 1:1 is pending.
-            File.WriteAllText(wm, "#!/bin/sh\nsleep 0.5\n" + original.Replace("#!/bin/sh\n", ""));
+            File.Delete(State("release-display-size"));
+            File.WriteAllText(State("delay-display-size"), "1");
             using var modern = new MirrorSessionControl(Bridge(), null, null, new AppSettings(), TestDevice());
             var actualSize = (Task)Call(modern, "SetActualSizeAsync")!;
+            var until = DateTime.UtcNow.AddSeconds(4);
+            while (!File.Exists(State("display-size-started")) && DateTime.UtcNow < until) await Task.Delay(20);
+            Check(File.Exists(State("display-size-started")) && !actualSize.IsCompleted,
+                "Display-size query did not reach the pending gate");
             var rotation = (Task)Call(modern, "ChangeOrientationAsync", true)!;
+            File.WriteAllText(State("release-display-size"), "1");
             await Task.WhenAll(actualSize, rotation);
             AssertFit(modern);
+            Check(!((TextBlock)modern.FindName("StatusText")).Text.Contains("did not report a display size"),
+                "Pending 1:1 was not exercised through a successful display-size query");
         }
-        finally { File.WriteAllText(wm, original); }
+        finally
+        {
+            File.WriteAllText(State("release-display-size"), "1");
+            File.Delete(State("delay-display-size"));
+            File.Delete(State("display-size-started"));
+        }
     }
 
     private static async Task ActualDisplayRotation()
@@ -675,6 +686,17 @@ internal static class Program
                 File.WriteAllText(State("sensor"), args[^1]);
             if (args.Contains("user_rotation"))
                 File.WriteAllText(State("rotation"), args[^1]);
+        }
+        else if (args.Contains("wm") && args.Contains("size"))
+        {
+            if (File.Exists(State("delay-display-size")))
+            {
+                File.WriteAllText(State("display-size-started"), "1");
+                var wait = Stopwatch.StartNew();
+                while (!File.Exists(State("release-display-size")) && wait.Elapsed < TimeSpan.FromSeconds(8)) Thread.Sleep(10);
+                if (!File.Exists(State("release-display-size"))) { Console.Error.WriteLine("Display-size fixture gate timed out"); return 1; }
+            }
+            Console.WriteLine("Physical size: 1080x2400");
         }
         else if (args.Contains("wm") && (args.Contains("user-rotation") || args.Contains("set-user-rotation")))
         {

@@ -762,8 +762,7 @@ public partial class MirrorSessionControl : UserControl, IDisposable
         try
         {
             // Orientation changes always return to Fit, including from a cropped 1:1 view.
-            ScrcpyHost.SetFitMode();
-            LegacyImage.Stretch = Stretch.Uniform;
+            ApplyZoom(1);
             if (automatic)
             {
                 await _bridge.EnableAutoRotationAsync(_device.Serial, _lifetime.Token);
