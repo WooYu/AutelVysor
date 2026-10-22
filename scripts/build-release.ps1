@@ -11,7 +11,7 @@ if (-not $RequireSigning -and -not $AllowUnsignedInternal) { throw 'Specify -Req
 if ($RequireSigning -and $SkipInstaller) { throw 'A signed release requires both portable ZIP and installer.' }
 # This preflight intentionally precedes build, archive creation, installer and hash calculation.
 if ($RequireSigning) { Assert-ReleaseSigningConfiguration }
-if ($AllowUnsignedInternal) { Write-Warning 'UNSIGNED INTERNAL candidate only. Publishing verification will reject these artifacts.' }
+if ($AllowUnsignedInternal) { Write-Warning 'UNSIGNED release: publisher trust is not verified. Publication requires manifest, hash and source verification.' }
 $root = Split-Path $PSScriptRoot -Parent
 $project = Join-Path $root 'src/AutelVysor/AutelVysor.csproj'
 $versionMatch = [regex]::Match((Get-Content -Raw $project), '<Version>([^<]+)</Version>')

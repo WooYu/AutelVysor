@@ -41,9 +41,8 @@ try {
     Assert-Throws { Assert-ReleaseSignatureRecord -Signature $untrusted } 'untrusted' 'Untrusted certificate is rejected even with timestamp metadata'
     $wrongPublisher = [pscustomobject]@{ Status = 'Valid'; SignerCertificate = [pscustomobject]@{ Thumbprint = $thumbprint }; TimeStamperCertificate = [pscustomobject]@{ Subject = 'timestamp' } }
     Assert-Throws { Assert-ReleaseSignatureRecord -Signature $wrongPublisher -ExpectedThumbprint ('B' * 40) } 'thumbprint mismatch' 'Optional configured publisher pin is enforced'
-    # Public release verification must reject an internal manifest before inspecting packages.
-    @{schemaVersion=1; releaseMode='unsigned-internal'; hashesCalculatedAfterSigning=$false} | ConvertTo-Json | Set-Content (Join-Path $temp 'release-manifest.json')
-    Assert-Throws { & (Join-Path $scripts 'verify-release.ps1') -ArtifactDirectory $temp } 'Only a signed release' 'Internal candidate is rejected by publishing gate'
+    @{schemaVersion=1; releaseMode='unknown'; hashesCalculatedAfterSigning=$false} | ConvertTo-Json | Set-Content (Join-Path $temp 'release-manifest.json')
+    Assert-Throws { & (Join-Path $scripts 'verify-release.ps1') -ArtifactDirectory $temp } 'Unsupported release manifest' 'Unknown signing mode is rejected'
     $exe = Join-Path $temp 'AutelVysor.exe'
     [System.IO.File]::WriteAllBytes($exe, [byte[]]@(1,2,3))
     $zip = Join-Path $temp 'test.zip'
@@ -51,6 +50,26 @@ try {
     Assert-ReleaseZipExecutable -ZipPath $zip -ExecutablePath $exe
     $script:passed++
     Write-Host 'PASS Portable archive contains exact application bytes'
+    # Unsigned publication keeps the same provenance, hash and portable-byte checks.
+    $package = Join-Path $temp 'unsigned-release'
+    New-Item -ItemType Directory -Path (Join-Path $package 'AutelVysor') -Force | Out-Null
+    Copy-Item $exe (Join-Path $package 'AutelVysor/AutelVysor.exe')
+    Copy-Item $exe (Join-Path $package 'AutelVysor-Setup.exe')
+    Copy-Item $zip (Join-Path $package 'AutelVysor-v0.10.7-windows-x64.zip')
+    $unsignedManifest = @{schemaVersion=1; releaseMode='unsigned-internal'; hashesCalculatedAfterSigning=$false;
+        version='0.10.7'; sourceCommit=('a' * 40); sourceRunId='123'; files=@(
+            foreach ($relative in @('AutelVysor/AutelVysor.exe', 'AutelVysor-Setup.exe', 'AutelVysor-v0.10.7-windows-x64.zip')) {
+                $file = Join-Path $package $relative
+                @{path=$relative; sha256=(Get-ReleaseHash $file); size=(Get-Item $file).Length}
+            }
+        )}
+    $unsignedManifest | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $package 'release-manifest.json')
+    & (Join-Path $scripts 'verify-release.ps1') -ArtifactDirectory $package -ExpectedVersion '0.10.7' -ExpectedSourceCommit ('a' * 40) -ExpectedSourceRunId '123'
+    $script:passed++
+    Write-Host 'PASS Unsigned packages can be published with verified provenance and exact bytes'
+    Assert-Throws { & (Join-Path $scripts 'verify-release.ps1') -ArtifactDirectory $package -ExpectedSourceCommit ('b' * 40) } 'source commit differs' 'Unsigned release rejects incorrect provenance'
+    [System.IO.File]::WriteAllBytes((Join-Path $package 'AutelVysor-Setup.exe'), [byte[]]@(9,9,9))
+    Assert-Throws { & (Join-Path $scripts 'verify-release.ps1') -ArtifactDirectory $package } 'hash/size mismatch' 'Unsigned release rejects tampered installer'
     [System.IO.File]::WriteAllBytes($exe, [byte[]]@(4,5,6))
     Assert-Throws { Assert-ReleaseZipExecutable -ZipPath $zip -ExecutablePath $exe } 'differs from' 'Portable archive mismatch is rejected'
     $archive = [System.IO.Compression.ZipFile]::Open($zip, [System.IO.Compression.ZipArchiveMode]::Update)

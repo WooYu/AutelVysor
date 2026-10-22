@@ -44,8 +44,8 @@ Uses left-side controls and full-height Fit/fullscreen, right-side capture playb
 - Shell UI/batch output separates stdout/stderr and displays process/remote exit status. Batch operations do not count unverified remote status as success.
 - DNS diagnostics query legacy properties and modern resolver/connectivity services separately, distinguish unsupported/permission/query failures, and retain command evidence. Reported DNS configuration is not a successful hostname-resolution test.
 - **Unicode setup:** explicit trusted-local-APK install, temporary ADBKeyBoard activation, saved original IME recovery, and exact focused-field readback. Broadcast completion alone is not insertion proof. The setup window provides action-driven PC→Android and Android→PC clipboard acceptance; physical acceptance remains pending.
-- **Signed public release gate:** trusted timestamped signatures are required on the app and installer; hashes are calculated after signing, then the publisher rechecks signatures, hashes and exact ZIP executable bytes. Unsigned internal candidates remain explicitly marked and cannot be published by that gate.
-- `FileDescription=Autel` remains unchanged. See [signing setup](docs/SIGNING.md) and [Unicode/clipboard acceptance](docs/UNICODE_AND_CLIPBOARD.md). A trusted certificate is required to finish signed publication.
+- **Public release verification:** signed and unsigned packages can be published. Both require pinned build provenance, hashes and exact ZIP executable bytes. Signed releases additionally require trusted timestamped app and installer signatures; unsigned releases are explicitly labelled.
+- `FileDescription=Autel` remains unchanged. See [signing setup](docs/SIGNING.md) and [Unicode/clipboard acceptance](docs/UNICODE_AND_CLIPBOARD.md). A trusted certificate is optional for publication and required only for signed releases.
 
 ## v0.10.3 report corrections
 
@@ -229,7 +229,7 @@ dist\AutelVysor-v0.10.6-windows-x64.zip
 dist\AutelVysor-Setup.exe           # when Inno Setup 6 is installed
 ```
 
-The installer is also configured with `VersionInfoDescription=Autel`. For deliberately unsigned internal testing, use `scripts/build-release.ps1 -AllowUnsignedInternal`. A public release requires `-RequireSigning`, the configured trusted certificate, and an independently verified post-signing manifest. Builds no longer silently downgrade a final release to unsigned.
+The installer is also configured with `VersionInfoDescription=Autel`. For deliberately unsigned internal testing, use `scripts/build-release.ps1 -AllowUnsignedInternal`. Public releases accept this explicit unsigned mode or `-RequireSigning` with a trusted certificate. Both require an independently verified manifest. Signed builds never silently downgrade to unsigned.
 
 ## Android 4.4 behavior
 

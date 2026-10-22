@@ -9,8 +9,15 @@ $ErrorActionPreference = 'Stop'
 $expected = Get-ReleasePublisherThumbprint
 $manifestPath = Join-Path $ArtifactDirectory 'release-manifest.json'
 $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
-if ($manifest.schemaVersion -ne 1 -or $manifest.releaseMode -ne 'signed-release' -or $manifest.hashesCalculatedAfterSigning -ne $true) {
-    throw 'Only a signed release with post-signing hashes can be published.'
+if ($manifest.schemaVersion -ne 1 -or $manifest.releaseMode -notin @('signed-release', 'unsigned-internal')) {
+    throw 'Unsupported release manifest schema or signing mode.'
+}
+$signed = $manifest.releaseMode -eq 'signed-release'
+if ($signed -and $manifest.hashesCalculatedAfterSigning -ne $true) {
+    throw 'Signed releases require post-signing hashes.'
+}
+if (-not $signed -and $manifest.hashesCalculatedAfterSigning -ne $false) {
+    throw 'Unsigned releases must not claim post-signing hashes.'
 }
 if ($ExpectedVersion -and $manifest.version -cne $ExpectedVersion) { throw 'Manifest version differs from requested release.' }
 if ($ExpectedSourceCommit -and $manifest.sourceCommit -cne $ExpectedSourceCommit) { throw 'Manifest source commit differs from requested build.' }
@@ -27,7 +34,7 @@ foreach ($relative in $expectedPaths) {
     if ($record.sha256 -cnotmatch '^[a-f0-9]{64}$' -or (Get-ReleaseHash $path) -cne $record.sha256 -or (Get-Item -LiteralPath $path).Length -ne $record.size) {
         throw "Manifest hash/size mismatch: $relative"
     }
-    if ($relative.EndsWith('.exe')) {
+    if ($signed -and $relative.EndsWith('.exe')) {
         $verified = Get-VerifiedReleaseSignature -FilePath $path -ExpectedThumbprint $expected
         foreach ($field in @('status', 'signerSubject', 'signerThumbprint', 'signerIssuer', 'timestampPresent', 'timestampSubject', 'timestampThumbprint', 'timestampIssuer', 'verificationPolicy')) {
             if ($null -eq $record.signature -or $record.signature.$field -cne $verified[$field]) { throw "Manifest signature metadata mismatch: $relative ($field)" }
@@ -36,4 +43,5 @@ foreach ($relative in $expectedPaths) {
     }
 }
 Assert-ReleaseZipExecutable -ZipPath (Join-Path $ArtifactDirectory $expectedPaths[2]) -ExecutablePath (Join-Path $ArtifactDirectory $expectedPaths[0])
-Write-Host 'Release gate passed: trusted publisher and timestamp, post-signing hashes, and exact signed portable EXE.'
+if ($signed) { Write-Host 'Release gate passed: trusted publisher and timestamp, post-signing hashes, and exact portable EXE.' }
+else { Write-Warning 'Release gate passed: unsigned release; hashes, source identity and exact portable EXE verified. Publisher trust is not verified.' }
