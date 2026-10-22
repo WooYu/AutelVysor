@@ -24,6 +24,9 @@ jobs:
       - name: Run Unicode and IME recovery regressions
         shell: powershell
         run: dotnet run --project tests/UnicodeRegressionTests -c Release
+      - name: Run retained log parsing and export regressions
+        shell: powershell
+        run: dotnet run --project tests/LogcatRegressionTests -c Release
       - name: Verify signing failure paths
         shell: powershell
         run: .\scripts\tests\ReleaseSigning.Tests.ps1
@@ -40,6 +43,9 @@ jobs:
           path: |
             test-results/dark-selection.png
             test-results/input-zoom.png
+            test-results/left-tools.png
+            test-results/capture-preview.png
+            test-results/log-import.png
   build:
     needs: regression-tests
     runs-on: windows-latest
@@ -49,6 +55,8 @@ jobs:
         with:
           dotnet-version: '8.0.x'
       - name: Prepare official scrcpy toolchain
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         shell: powershell
         run: .\scripts\prepare-tools.ps1
       - name: Build and validate Windows executable

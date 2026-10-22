@@ -13,25 +13,26 @@ namespace AutelVysor;
 
 public partial class DeviceDebugWindow : Window
 {
-    private const int MaxLiveLogChars = 500_000;
-    private const int MaxLiveLogBatchChars = 32_768;
-    private const int MaxLiveLogLineChars = 16_000;
-    private static readonly Regex ThreadtimePattern = new(
-        @"^\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\.\d+\s+(?<pid>\d+)\s+(?<tid>\d+)\s+(?<level>[VDIWEFAS])\s+",
-        RegexOptions.Compiled | RegexOptions.CultureInvariant);
-
     private readonly AndroidBridge _bridge;
     private readonly AdvancedAdbService _advanced;
     private readonly ShellFavoritesService _favoritesService = new();
     private readonly List<string> _favorites = [];
     private IReadOnlyList<string> _allPackages = Array.Empty<string>();
     private readonly AndroidDevice _device;
-    private readonly ConcurrentQueue<string> _logQueue = new();
+    private readonly ConcurrentQueue<QueuedLogLine> _logQueue = new();
     private readonly DispatcherTimer _logFlushTimer;
     private readonly List<string> _shellHistory = [];
     private Process? _logcatProcess;
     private int _shellHistoryIndex;
     private string _selectedLogPid = string.Empty;
+
+    private CancellationTokenSource? _appLookupCancellation;
+    private long _appLookupVersion;
+    private long _fileLookupVersion;
+    private bool _windowClosed;
+    private bool _filesBusy;
+    private bool _filesLoaded;
+    private string _loadedRemotePath = string.Empty;
 
     public DeviceDebugWindow(AndroidBridge bridge, AndroidDevice device)
     {
@@ -39,6 +40,11 @@ public partial class DeviceDebugWindow : Window
         _bridge = bridge;
         _advanced = new AdvancedAdbService(bridge.ExecutablePath);
         _device = device;
+        PackageBox.AddHandler(System.Windows.Controls.TextBox.TextChangedEvent,
+            new System.Windows.Controls.TextChangedEventHandler(PackageInputChanged));
+        PackageBox.SelectionChanged += (_, _) => Dispatcher.BeginInvoke(new Action(() => PackageInputChanged(PackageBox, null!)));
+        ClearSelectedAppDetails();
+        UpdateRemoteFileActions();
         _favorites.AddRange(_favoritesService.Load());
         SavedCommandsBox.ItemsSource = _favorites.ToArray();
 
@@ -56,6 +62,7 @@ public partial class DeviceDebugWindow : Window
         _logFlushTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
         _logFlushTimer.Tick += (_, _) => FlushLiveLog();
         _logFlushTimer.Start();
+        InitializeLogUi();
 
         Loaded += async (_, _) =>
         {
@@ -65,6 +72,11 @@ public partial class DeviceDebugWindow : Window
         };
         Closed += (_, _) =>
         {
+            _windowClosed = true;
+            _logLoadCancellation?.Cancel();
+            _appLookupVersion++;
+            _fileLookupVersion++;
+            _appLookupCancellation?.Cancel();
             StopLiveLog();
             _logFlushTimer.Stop();
         };
@@ -125,25 +137,79 @@ public partial class DeviceDebugWindow : Window
             ApplyPackageFilter();
     }
 
-    private async Task RefreshSelectedAppAsync()
-    {
-        var packageName = SelectedPackageName();
-        StatusText.Text = $"Reading {packageName}…";
+    private static bool IsPackageName(string value)
+        => Regex.IsMatch(value, @"^[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)+$");
 
-        var details = await _bridge.GetAppDetailsAsync(_device.Serial, packageName);
-        var info = details.Info;
-        VersionText.Text = Empty(info.VersionName);
-        VersionCodeText.Text = Empty(info.VersionCode);
-        PidText.Text = string.IsNullOrWhiteSpace(info.Pid) ? "not running" : info.Pid;
-        _selectedLogPid = info.Pid;
-        MinSdkText.Text = Empty(info.MinSdk);
-        TargetSdkText.Text = Empty(info.TargetSdk);
-        FirstInstallText.Text = Empty(info.FirstInstallTime);
-        LastUpdateText.Text = Empty(info.LastUpdateTime);
-        DataDirText.Text = Empty(info.DataDir);
-        PermissionsTextBox.Text = details.Permissions;
-        PackageDumpTextBox.Text = details.PackageDump;
-        StatusText.Text = $"Loaded app details for {packageName}.";
+    private void ClearSelectedAppDetails()
+    {
+        VersionText.Text = VersionCodeText.Text = PidText.Text = MinSdkText.Text = TargetSdkText.Text = "—";
+        FirstInstallText.Text = LastUpdateText.Text = DataDirText.Text = "—";
+        PermissionsTextBox.Clear();
+        PackageDumpTextBox.Clear();
+        AppOpsTextBox.Clear();
+        _selectedLogPid = string.Empty;
+        _logFiltersDirty = true;
+    }
+
+    private async void PackageInputChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+        => await LoadSelectedAppAsync(debounce: true);
+
+    private Task RefreshSelectedAppAsync() => LoadSelectedAppAsync(debounce: false);
+
+    private async Task LoadSelectedAppAsync(bool debounce)
+    {
+        var packageName = PackageBox.Text.Trim();
+        var version = ++_appLookupVersion;
+        _appLookupCancellation?.Cancel();
+        var cancellation = new CancellationTokenSource();
+        _appLookupCancellation = cancellation;
+        ClearSelectedAppDetails();
+        if (!IsPackageName(packageName))
+        {
+            AppStatusText.Text = "Enter or select a valid Android package name.";
+            cancellation.Dispose();
+            if (ReferenceEquals(_appLookupCancellation, cancellation)) _appLookupCancellation = null;
+            return;
+        }
+        bool Current() => !_windowClosed && version == _appLookupVersion && PackageBox.Text.Trim() == packageName;
+        AppStatusText.Text = debounce ? $"Waiting to read {packageName}…" : $"Reading {packageName}…";
+        try
+        {
+            if (debounce) await Task.Delay(350, cancellation.Token);
+            if (!Current()) return;
+            AppStatusText.Text = $"Reading {packageName}…";
+            var details = await _bridge.GetAppDetailsAsync(_device.Serial, packageName, cancellation.Token);
+            if (!Current()) return;
+            // dumpsys may exit successfully for an absent package; do not present an empty dump as loaded.
+            if (string.IsNullOrWhiteSpace(details.PackageDump) ||
+                (string.IsNullOrWhiteSpace(details.Info.VersionName) && string.IsNullOrWhiteSpace(details.Info.VersionCode) &&
+                 !details.PackageDump.Contains("Package [" + packageName + "]", StringComparison.Ordinal)))
+                throw new InvalidOperationException($"No installed app details were returned for {packageName}.");
+            var info = details.Info;
+            VersionText.Text = Empty(info.VersionName);
+            VersionCodeText.Text = Empty(info.VersionCode);
+            PidText.Text = string.IsNullOrWhiteSpace(info.Pid) ? "not running" : info.Pid;
+            _selectedLogPid = info.Pid;
+            _logFiltersDirty = true;
+            MinSdkText.Text = Empty(info.MinSdk);
+            TargetSdkText.Text = Empty(info.TargetSdk);
+            FirstInstallText.Text = Empty(info.FirstInstallTime);
+            LastUpdateText.Text = Empty(info.LastUpdateTime);
+            DataDirText.Text = Empty(info.DataDir);
+            PermissionsTextBox.Text = details.Permissions;
+            PackageDumpTextBox.Text = details.PackageDump;
+            AppStatusText.Text = $"Loaded app details for {packageName}.";
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
+        catch (Exception ex)
+        {
+            if (Current()) AppStatusText.Text = $"Unable to read {packageName}: {ex.Message}";
+        }
+        finally
+        {
+            if (ReferenceEquals(_appLookupCancellation, cancellation)) _appLookupCancellation = null;
+            cancellation.Dispose();
+        }
     }
 
     private static string Empty(string value) => string.IsNullOrWhiteSpace(value) ? "—" : value;
@@ -155,6 +221,7 @@ public partial class DeviceDebugWindow : Window
     private async void ForceStopApp_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
     {
         var packageName = SelectedPackageName();
+        StatusText.Text = $"Stopping {packageName}…";
         await _bridge.ForceStopAppAsync(_device.Serial, packageName);
         StatusText.Text = $"Stopped {packageName}.";
         await RefreshSelectedAppAsync();
@@ -163,6 +230,7 @@ public partial class DeviceDebugWindow : Window
     private async void StartApp_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
     {
         var packageName = SelectedPackageName();
+        StatusText.Text = $"Starting {packageName}…";
         await _bridge.StartAppAsync(_device.Serial, packageName);
         StatusText.Text = $"Started {packageName}.";
         await RefreshSelectedAppAsync();
@@ -171,6 +239,7 @@ public partial class DeviceDebugWindow : Window
     private async void RestartApp_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
     {
         var packageName = SelectedPackageName();
+        StatusText.Text = $"Restarting {packageName}…";
         await _bridge.RestartAppAsync(_device.Serial, packageName);
         StatusText.Text = $"Restarted {packageName}.";
         await RefreshSelectedAppAsync();
@@ -190,6 +259,7 @@ public partial class DeviceDebugWindow : Window
         if (answer != MessageBoxResult.Yes)
             return;
 
+        StatusText.Text = $"Clearing data for {packageName}…";
         await _bridge.ClearAppDataAsync(_device.Serial, packageName);
         StatusText.Text = $"Cleared data for {packageName}.";
         await RefreshSelectedAppAsync();
@@ -227,6 +297,7 @@ public partial class DeviceDebugWindow : Window
         if (answer != MessageBoxResult.Yes)
             return;
 
+        StatusText.Text = $"Uninstalling {packageName}…";
         await _bridge.UninstallAppAsync(_device.Serial, packageName, keepData);
         PackageBox.Text = string.Empty;
         VersionText.Text = VersionCodeText.Text = PidText.Text = MinSdkText.Text = TargetSdkText.Text = "—";
@@ -239,8 +310,10 @@ public partial class DeviceDebugWindow : Window
 
     private async void GrantPermission_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
     {
+        var packageName = SelectedPackageName();
+        StatusText.Text = $"Granting permission for {packageName}…";
         StatusText.Text = await _advanced.SetRuntimePermissionAsync(
-            _device.Serial, SelectedPackageName(), PermissionNameBox.Text, grant: true);
+            _device.Serial, packageName, PermissionNameBox.Text, grant: true);
         await RefreshSelectedAppAsync();
     });
 
@@ -251,6 +324,7 @@ public partial class DeviceDebugWindow : Window
             $"Revoke {PermissionNameBox.Text.Trim()} from {packageName}?\nThe app may lose access to a required feature.",
             "Confirm permission revoke", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
             return;
+        StatusText.Text = $"Revoking permission for {packageName}…";
         StatusText.Text = await _advanced.SetRuntimePermissionAsync(
             _device.Serial, packageName, PermissionNameBox.Text, grant: false);
         await RefreshSelectedAppAsync();
@@ -258,8 +332,13 @@ public partial class DeviceDebugWindow : Window
 
     private async void RefreshAppOps_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
     {
-        AppOpsTextBox.Text = await _advanced.GetAppOpsAsync(_device.Serial, SelectedPackageName());
-        StatusText.Text = "AppOps refreshed.";
+        var packageName = SelectedPackageName();
+        var version = _appLookupVersion;
+        AppStatusText.Text = $"Reading AppOps for {packageName}…";
+        var result = await _advanced.GetAppOpsAsync(_device.Serial, packageName);
+        if (_windowClosed || version != _appLookupVersion || PackageBox.Text.Trim() != packageName) return;
+        AppOpsTextBox.Text = result;
+        AppStatusText.Text = "AppOps refreshed.";
     });
 
     private async void SetAppOp_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
@@ -271,8 +350,13 @@ public partial class DeviceDebugWindow : Window
             $"Set {name} appop {op} = {mode}?\nThis changes Android app access policy.",
             "Confirm AppOps change", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
             return;
-        StatusText.Text = await _advanced.SetAppOpAsync(_device.Serial, name, op, mode);
-        AppOpsTextBox.Text = await _advanced.GetAppOpsAsync(_device.Serial, name);
+        var version = _appLookupVersion;
+        StatusText.Text = $"Setting AppOp for {name}…";
+        var result = await _advanced.SetAppOpAsync(_device.Serial, name, op, mode);
+        var appOps = await _advanced.GetAppOpsAsync(_device.Serial, name);
+        if (_windowClosed || version != _appLookupVersion || PackageBox.Text.Trim() != name) return;
+        StatusText.Text = result;
+        AppOpsTextBox.Text = appOps;
     });
 
     private async void RefreshProcesses_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
@@ -296,239 +380,126 @@ public partial class DeviceDebugWindow : Window
         StatusText.Text = "Process list refreshed.";
     });
 
-    private async void SnapshotLog_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
+    private static string NormalizeBrowserPath(string path)
     {
-        StatusText.Text = "Reading logcat snapshot…";
-        var snapshot = await _bridge.GetLogcatSnapshotAsync(_device.Serial);
-        LogTextBox.Text = ApplyLogFilters(snapshot);
-        LogTextBox.ScrollToEnd();
-        StatusText.Text = "Logcat snapshot loaded.";
-    });
-
-    private void StartLiveLog_Click(object sender, RoutedEventArgs e)
-    {
-        try
+        var segments = new List<string>();
+        foreach (var segment in path.Trim().Split('/', StringSplitOptions.RemoveEmptyEntries))
         {
-            StopLiveLog();
-            while (_logQueue.TryDequeue(out _)) { }
-
-            var process = _bridge.StartLogcat(_device.Serial);
-            process.OutputDataReceived += (_, args) =>
-            {
-                if (args.Data is not null)
-                    EnqueueLogLine(args.Data);
-            };
-            process.ErrorDataReceived += (_, args) =>
-            {
-                if (args.Data is not null)
-                    EnqueueLogLine("[adb] " + args.Data);
-            };
-            process.Exited += (_, _) => Dispatcher.InvokeAsync(() =>
-            {
-                if (ReferenceEquals(_logcatProcess, process))
-                    StatusText.Text = "Live logcat stopped.";
-            });
-
-            _logcatProcess = process;
-            process.BeginOutputReadLine();
-            process.BeginErrorReadLine();
-            StatusText.Text = "Live logcat started.";
+            if (segment == ".") continue;
+            if (segment == "..") { if (segments.Count > 0) segments.RemoveAt(segments.Count - 1); }
+            else segments.Add(segment);
         }
-        catch (Exception ex)
-        {
-            StatusText.Text = ex.Message;
-            MessageBox.Show(this, ex.Message, "Device debug", MessageBoxButton.OK, MessageBoxImage.Warning);
-        }
+        return "/" + string.Join("/", segments);
     }
 
-    private void StopLiveLog_Click(object sender, RoutedEventArgs e)
+    private void UpdateRemoteFileActions()
     {
-        StopLiveLog();
-        StatusText.Text = "Live logcat stopped.";
+        if (RemoteOpenButton is null) return;
+        var selected = RemoteFileList.SelectedItems.Cast<RemoteFileEntry>().ToArray();
+        var ready = !_filesBusy && _filesLoaded && NormalizeBrowserPath(RemoteFilePathBox.Text) == _loadedRemotePath;
+        RemoteOpenButton.IsEnabled = ready && selected.Length == 1 && selected[0].IsDirectory;
+        RemoteDownloadButton.IsEnabled = ready && selected.Length == 1 && !selected[0].IsDirectory;
+        RemoteDeleteButton.IsEnabled = ready && selected.Length > 0;
+        RemoteUploadButton.IsEnabled = RemoteNewFolderButton.IsEnabled = ready;
+        RemoteUpButton.IsEnabled = !_filesBusy && NormalizeBrowserPath(RemoteFilePathBox.Text) != "/";
+        RemoteRootButton.IsEnabled = RemoteRefreshButton.IsEnabled = !_filesBusy;
+        RemoteFileList.IsEnabled = !_filesBusy;
     }
 
-    private void StopLiveLog()
-    {
-        var process = _logcatProcess;
-        _logcatProcess = null;
-        if (process is null)
-            return;
-
-        try
-        {
-            if (!process.HasExited)
-                process.Kill(entireProcessTree: true);
-        }
-        catch { }
-        try { process.Dispose(); } catch { }
-    }
-
-    private void EnqueueLogLine(string line)
-    {
-        const string truncated = " [truncated]";
-        if (line.Length > MaxLiveLogLineChars)
-            line = line[..(MaxLiveLogLineChars - truncated.Length)] + truncated;
-        _logQueue.Enqueue(line);
-        while (_logQueue.Count > 20_000)
-            _logQueue.TryDequeue(out _);
-    }
-
-    private void FlushLiveLog()
-    {
-        if (_logQueue.IsEmpty || PauseLogBox.IsChecked == true)
-            return;
-
-        var chunk = new StringBuilder();
-        var count = 0;
-        // Reserve room for a worst-case line before dequeuing: no loss/requeue
-        // races with producer callbacks, and no giant text update on the UI thread.
-        while (count < 500 && chunk.Length <= MaxLiveLogBatchChars - MaxLiveLogLineChars - Environment.NewLine.Length
-            && _logQueue.TryDequeue(out var line))
-        {
-            if (ShouldShowLogLine(line))
-                chunk.AppendLine(line);
-            count++;
-        }
-
-        if (chunk.Length == 0)
-            return;
-
-        LogTextBox.AppendText(chunk.ToString());
-        if (LogTextBox.Text.Length > MaxLiveLogChars)
-        {
-            var keep = LogTextBox.Text[^250_000..];
-            LogTextBox.Text = keep;
-            LogTextBox.CaretIndex = LogTextBox.Text.Length;
-        }
-        LogTextBox.ScrollToEnd();
-    }
-
-    private bool ShouldShowLogLine(string line)
-    {
-        var filter = LogFilterBox.Text.Trim();
-        if (filter.Length > 0 && !line.Contains(filter, StringComparison.OrdinalIgnoreCase))
-            return false;
-
-        var match = ThreadtimePattern.Match(line);
-
-        if (OnlySelectedAppLogBox.IsChecked == true)
-        {
-            if (string.IsNullOrWhiteSpace(_selectedLogPid))
-                return false;
-            if (!match.Success || !string.Equals(match.Groups["pid"].Value, _selectedLogPid, StringComparison.Ordinal))
-                return false;
-        }
-
-        var pidFilter = LogPidBox.Text.Trim();
-        if (pidFilter.Length > 0 && (!match.Success || match.Groups["pid"].Value != pidFilter))
-            return false;
-
-        var tagFilter = LogTagBox.Text.Trim();
-        if (tagFilter.Length > 0)
-        {
-            if (!match.Success)
-                return false;
-            var levelEnd = match.Index + match.Length;
-            var remaining = line[levelEnd..];
-            var colon = remaining.IndexOf(':');
-            var tag = colon < 0 ? remaining.Trim() : remaining[..colon].Trim();
-            if (!tag.Contains(tagFilter, StringComparison.OrdinalIgnoreCase))
-                return false;
-        }
-
-        var selectedLevel = (LogLevelBox.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag?.ToString() ?? "*";
-        if (selectedLevel != "*")
-        {
-            if (!match.Success) return false;
-            static int Rank(char level) => level switch
-            {
-                'V' => 0,
-                'D' => 1,
-                'I' => 2,
-                'W' => 3,
-                'E' => 4,
-                'F' or 'A' => 5,
-                _ => 0
-            };
-            if (Rank(match.Groups["level"].Value[0]) < Rank(selectedLevel[0]))
-                return false;
-        }
-
-        return true;
-    }
-
-    private string ApplyLogFilters(string text)
-        => string.Join(
-            Environment.NewLine,
-            text.Split('\n', StringSplitOptions.RemoveEmptyEntries)
-                .Select(line => line.TrimEnd('\r'))
-                .Where(ShouldShowLogLine));
-
-    private async void ExportLog_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
-    {
-        var safeSerial = Regex.Replace(_device.Serial, @"[^A-Za-z0-9_.-]", "_");
-        var dialog = new SaveFileDialog
-        {
-            Title = "Export logcat",
-            FileName = $"autel-logcat-{safeSerial}-{DateTime.Now:yyyyMMdd-HHmmss}.txt",
-            Filter = "Text files (*.txt)|*.txt|All files (*.*)|*.*"
-        };
-        if (dialog.ShowDialog(this) != true)
-            return;
-
-        StatusText.Text = "Exporting logcat…";
-        await _bridge.ExportLogcatAsync(_device.Serial, dialog.FileName);
-        StatusText.Text = $"Logcat exported to {dialog.FileName}";
-    });
-
-    private void ClearLogView_Click(object sender, RoutedEventArgs e)
-    {
-        LogTextBox.Clear();
-        while (_logQueue.TryDequeue(out _)) { }
-        StatusText.Text = "Log view cleared.";
-    }
+    private void RemoteSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e) => UpdateRemoteFileActions();
+    private void RemotePathChanged(object sender, System.Windows.Controls.TextChangedEventArgs e) => UpdateRemoteFileActions();
 
     private async Task RefreshRemoteFilesAsync()
     {
-        var path = RemoteFilePathBox.Text.Trim();
-        if (string.IsNullOrWhiteSpace(path))
-            path = "/sdcard/Download";
-
-        StatusText.Text = $"Reading {path}…";
-        var entries = await _bridge.ListRemoteFilesAsync(_device.Serial, path);
-        RemoteFileList.ItemsSource = entries;
+        var path = NormalizeBrowserPath(RemoteFilePathBox.Text);
+        var version = ++_fileLookupVersion;
+        _filesBusy = true;
+        _filesLoaded = false;
+        RemoteFileList.ItemsSource = null;
         RemoteFilePathBox.Text = path;
-        StatusText.Text = $"{entries.Count} item(s) in {path}.";
+        UpdateRemoteFileActions();
+        FileStatusText.Text = $"Reading {path}…";
+        try
+        {
+            var entries = await _bridge.ListRemoteFilesAsync(_device.Serial, path);
+            if (_windowClosed || version != _fileLookupVersion) return;
+            if (NormalizeBrowserPath(RemoteFilePathBox.Text) != path)
+            {
+                FileStatusText.Text = "Path changed. Press Enter or Refresh to load it.";
+                return;
+            }
+            RemoteFileList.ItemsSource = entries;
+            _loadedRemotePath = path;
+            _filesLoaded = true;
+            FileStatusText.Text = $"{entries.Count} item(s) in {path}.";
+        }
+        catch (Exception ex)
+        {
+            if (!_windowClosed && version == _fileLookupVersion) FileStatusText.Text = $"Unable to read {path}: {ex.Message}";
+        }
+        finally
+        {
+            if (version == _fileLookupVersion) { _filesBusy = false; UpdateRemoteFileActions(); }
+        }
     }
 
-    private async void RefreshRemoteFiles_Click(object sender, RoutedEventArgs e)
-        => await Guard(RefreshRemoteFilesAsync);
+    private async void RefreshRemoteFiles_Click(object sender, RoutedEventArgs e) => await RefreshRemoteFilesAsync();
 
-    private async void RemoteUp_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
+    private async void RemoteUp_Click(object sender, RoutedEventArgs e)
     {
-        var path = RemoteFilePathBox.Text.Trim().TrimEnd('/');
-        if (path.Length <= 1)
-        {
-            RemoteFilePathBox.Text = "/";
-        }
-        else
-        {
-            var slash = path.LastIndexOf('/');
-            RemoteFilePathBox.Text = slash <= 0 ? "/" : path[..slash];
-        }
+        RemoteFilePathBox.Text = NormalizeBrowserPath(RemoteFilePathBox.Text + "/..");
         await RefreshRemoteFilesAsync();
-    });
+    }
+
+    private async void RemoteRoot_Click(object sender, RoutedEventArgs e)
+    {
+        RemoteFilePathBox.Text = "/";
+        await RefreshRemoteFilesAsync();
+    }
+
+    private async void RemotePath_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter) return;
+        e.Handled = true;
+        await RefreshRemoteFilesAsync();
+    }
+
+    private async void RemoteOpen_Click(object sender, RoutedEventArgs e) => await OpenRemoteFolderAsync();
+
+    private async Task OpenRemoteFolderAsync()
+    {
+        if (_filesBusy || !RemoteOpenButton.IsEnabled || RemoteFileList.SelectedItem is not RemoteFileEntry entry || !entry.IsDirectory) return;
+        RemoteFilePathBox.Text = entry.FullPath;
+        await RefreshRemoteFilesAsync();
+    }
 
     private async void RemoteFileList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
-        if (RemoteFileList.SelectedItem is not RemoteFileEntry entry || !entry.IsDirectory)
-            return;
-
-        RemoteFilePathBox.Text = entry.FullPath;
-        await Guard(RefreshRemoteFilesAsync);
+        // Empty list space must not open the previously selected directory.
+        var row = System.Windows.Controls.ItemsControl.ContainerFromElement(RemoteFileList, e.OriginalSource as DependencyObject);
+        if (row is System.Windows.Controls.ListViewItem) await OpenRemoteFolderAsync();
     }
 
-    private async void UploadRemoteFile_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
+    private async Task GuardRemoteFileOperation(Func<Task> action)
+    {
+        if (_filesBusy) return;
+        _filesBusy = true;
+        UpdateRemoteFileActions();
+        FileStatusText.Text = "Running file operation…";
+        try
+        {
+            await action();
+            if (FileStatusText.Text == "Running file operation…") FileStatusText.Text = StatusText.Text;
+        }
+        catch (Exception ex)
+        {
+            FileStatusText.Text = $"File operation failed: {ex.Message}";
+            StatusText.Text = ex.Message;
+        }
+        finally { _filesBusy = false; UpdateRemoteFileActions(); }
+    }
+
+    private async void UploadRemoteFile_Click(object sender, RoutedEventArgs e) => await GuardRemoteFileOperation(async () =>
     {
         var dialog = new OpenFileDialog
         {
@@ -536,7 +507,10 @@ public partial class DeviceDebugWindow : Window
             Multiselect = true
         };
         if (dialog.ShowDialog(this) != true)
+        {
+            FileStatusText.Text = "Upload cancelled.";
             return;
+        }
 
         var remoteDir = RemoteFilePathBox.Text.Trim().TrimEnd('/');
         foreach (var file in dialog.FileNames)
@@ -548,7 +522,7 @@ public partial class DeviceDebugWindow : Window
         await RefreshRemoteFilesAsync();
     });
 
-    private async void DownloadRemoteFile_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
+    private async void DownloadRemoteFile_Click(object sender, RoutedEventArgs e) => await GuardRemoteFileOperation(async () =>
     {
         if (RemoteFileList.SelectedItem is not RemoteFileEntry entry)
             throw new InvalidOperationException("Select a file to download.");
@@ -562,14 +536,17 @@ public partial class DeviceDebugWindow : Window
             Filter = "All files (*.*)|*.*"
         };
         if (dialog.ShowDialog(this) != true)
+        {
+            FileStatusText.Text = "Download cancelled.";
             return;
+        }
 
         StatusText.Text = $"Downloading {entry.Name}…";
         await _bridge.PullAsync(_device.Serial, entry.FullPath, dialog.FileName);
         StatusText.Text = $"Saved to {dialog.FileName}";
     });
 
-    private async void CreateRemoteFolder_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
+    private async void CreateRemoteFolder_Click(object sender, RoutedEventArgs e) => await GuardRemoteFileOperation(async () =>
     {
         var name = NewFolderNameBox.Text.Trim();
         if (string.IsNullOrWhiteSpace(name) || name.Length > 80 || name.IndexOfAny(['/', '\\', ':', '*', '?', '"', '<', '>', '|']) >= 0)
@@ -582,7 +559,7 @@ public partial class DeviceDebugWindow : Window
         await RefreshRemoteFilesAsync();
     });
 
-    private async void DeleteRemoteFile_Click(object sender, RoutedEventArgs e) => await Guard(async () =>
+    private async void DeleteRemoteFile_Click(object sender, RoutedEventArgs e) => await GuardRemoteFileOperation(async () =>
     {
         var entries = RemoteFileList.SelectedItems.Cast<RemoteFileEntry>().ToArray();
         if (entries.Length == 0)
@@ -596,7 +573,10 @@ public partial class DeviceDebugWindow : Window
             MessageBoxImage.Warning,
             MessageBoxResult.No);
         if (answer != MessageBoxResult.Yes)
+        {
+            FileStatusText.Text = "Delete cancelled.";
             return;
+        }
 
         foreach (var entry in entries)
             await _bridge.DeleteRemotePathAsync(_device.Serial, entry.FullPath);

@@ -9,7 +9,7 @@ using AutelVysor.Controls;
 using AutelVysor.Models;
 using AutelVysor.Services;
 
-internal static class Program
+internal static partial class Program
 {
     private static string StateDirectory => Environment.GetEnvironmentVariable("AUTEL_TEST_ADB_STATE")!;
     private static string State(string file) => Path.Combine(StateDirectory, file);
@@ -55,6 +55,16 @@ internal static class Program
                 ("ASCII text is injected via the actual ADB process boundary", AsciiText),
                 ("Embedded child returns to fit after repeated self-resizing", NativeResize),
                 ("Keyboard focus reaches an external native-window process", CrossProcessFocus),
+                ("Typed app summaries ignore stale replies", DebugAppLookup),
+                ("File navigation opens folders and parent/root paths", DebugFileNavigation),
+                ("File browser rejects stale navigation replies", DebugFileStaleNavigation),
+                ("File selection remains visible in dark UI", DebugFileSelectionContrast),
+                ("Imported logs reapply UI filters and show severity colors", ImportedLogFilters),
+                ("Live log controls reject duplicate starts and recover on EOF", LiveLogControlState),
+                ("Audio reports stay bounded and copyable", AudioReportLayout),
+                ("Mirror actions show focus failure and sensor policy", MirrorActionFeedback),
+                ("Capture images preview on the right and release files", CapturePreviewLifecycle),
+                ("Capture video controls handle selection and codec failure", CaptureVideoLifecycle),
                 ("Left tools preserve full-height Fit and fullscreen recovery", LeftToolsLayout),
                 ("Dark selections remain readable without keyboard focus", DarkSelection)
             })
@@ -118,12 +128,14 @@ internal static class Program
         {
             for (var i = 0; i < 100; i++) DebugCall(window, "EnqueueLogLine", $"{i:D3}:" + new string('x', 4000));
             DebugCall(window, "FlushLiveLog");
-            var output = (TextBox)window.FindName("LogTextBox");
-            Console.WriteLine($"Logcat first flush: {output.Text.Length} characters (100 queued 4K lines)");
-            Check(output.Text.Length > 0 && output.Text.Length <= 32_768, "A single UI tick appended more than 32K characters");
+            var output = (ListBox)window.FindName("LogLines");
+            string Rendered() => string.Join("\n", output.Items.Cast<object>().Select(row => row.GetType().GetProperty("Text")!.GetValue(row)));
+            var firstBatch = Rendered();
+            Console.WriteLine($"Logcat first flush: {firstBatch.Length} characters (100 queued 4K lines)");
+            Check(firstBatch.Length > 0 && firstBatch.Length <= 32_768, "A single UI tick rendered more than 32K characters");
             for (var i = 0; i < 100; i++) DebugCall(window, "FlushLiveLog");
-            Check(output.Text.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length == 100, "Batched log lines were lost or duplicated");
-            Check(output.Text.StartsWith("000:") && output.Text.Contains("099:"), "Log order changed");
+            Check(Rendered().Split('\n', StringSplitOptions.RemoveEmptyEntries).Length == 100, "Batched log lines were lost or duplicated");
+            Check(Rendered().StartsWith("000:") && Rendered().Contains("099:"), "Log order changed");
         }
         finally { window.Close(); }
         return Task.CompletedTask;
@@ -136,7 +148,8 @@ internal static class Program
         {
             DebugCall(window, "EnqueueLogLine", new string('x', 1_000_000));
             DebugCall(window, "FlushLiveLog");
-            var text = ((TextBox)window.FindName("LogTextBox")).Text;
+            var row = ((ListBox)window.FindName("LogLines")).Items[0];
+            var text = (string)row.GetType().GetProperty("Text")!.GetValue(row)!;
             Check(text.Length <= 32_768 && text.Contains("[truncated]"), "Oversized line was not explicitly bounded");
         }
         finally { window.Close(); }
@@ -652,6 +665,8 @@ internal static class Program
             try { File.AppendAllText(State("calls"), string.Join(" ", args) + "\n"); }
             finally { mutex.ReleaseMutex(); }
         }
+        if (TryDebugAppFileAdb(args) is int debugExitCode) return debugExitCode;
+        if (TryLogUiAdb(args) is int logExitCode) return logExitCode;
         if (args[0] == "devices")
         {
             Console.WriteLine("List of devices attached");
@@ -785,7 +800,9 @@ internal static class Program
             window.UpdateLayout();
             var item = (ListBoxItem)list.ItemContainerGenerator.ContainerFromIndex(0);
             var rowSurface = (Border)item.Template.FindName("Surface", item);
-            var tabSurface = (Border)selectedTab.Template.FindName("Surface", selectedTab);
+            var sessionList = (ListBox)window.FindName("SessionList");
+            var sessionItem = (ListBoxItem)sessionList.ItemContainerGenerator.ContainerFromIndex(0);
+            var tabSurface = (Border)sessionItem.Template.FindName("Surface", sessionItem);
             Check(((SolidColorBrush)rowSurface.Background).Color == (Color)ColorConverter.ConvertFromString("#173454"), "Inactive device selection lost dark background");
             Check(((SolidColorBrush)tabSurface.Background).Color == (Color)ColorConverter.ConvertFromString("#173454"), "Selected tab uses a system light background");
             var output = Path.GetFullPath("test-results");

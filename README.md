@@ -26,9 +26,9 @@ ADB backend test success is **not** equivalent to Windows UI/scrcpy validation.
 Features blocked by company executable policy are explicitly marked BLOCKED_POLICY.
 See [Chinese usage guide](docs/COMPANY_ADB_ONLY_TESTING.md).
 
-## v0.10.6 application icon candidate
+## v0.10.6 desktop usability candidate
 
-Includes a blue phone/display icon for the executable, windows, installer and shortcuts. See [icon asset details](docs/APP_ICON.md).
+Uses left-side controls and full-height Fit/fullscreen, right-side capture playback, automatic app details, navigable files and imported/retained colored logs with all/filtered exports. Includes a blue phone/display icon for the executable, windows, installer and shortcuts. See [icon asset details](docs/APP_ICON.md).
 
 ## v0.10.5 input / readability candidate
 

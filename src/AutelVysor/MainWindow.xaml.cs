@@ -47,6 +47,9 @@ public partial class MainWindow : Window
     private bool _closeAfterRecordings;
     private bool _sidebarHidden;
     private bool _isFullscreen;
+    private bool _syncingSessionList;
+    private double _sidebarWidth = 340;
+    private sealed record SessionChoice(TabItem Tab) { public string Title => Tab.Header?.ToString() ?? "Device"; }
     private bool _sidebarHiddenBeforeFullscreen;
     private WindowState _restoreWindowState = WindowState.Normal;
 
@@ -266,6 +269,7 @@ public partial class MainWindow : Window
         SessionTabs.Items.Add(tab);
         SessionTabs.SelectedItem = tab;
         EmptyWorkspace.Visibility = Visibility.Collapsed;
+        DeviceSection.IsExpanded = false;
         StatusText.Text = $"Opened embedded mirror session for {device.DisplayName}.";
     }
 
@@ -285,21 +289,47 @@ public partial class MainWindow : Window
         StatusText.Text = $"Closed mirror session for {match.Key}.";
     }
 
-    private void SetSidebarHidden(bool hidden)
+    private void SessionTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        _sidebarHidden = hidden;
-        SidebarPanel.Visibility = hidden ? Visibility.Collapsed : Visibility.Visible;
-        SidebarSplitter.Visibility = hidden ? Visibility.Collapsed : Visibility.Visible;
-        SidebarColumn.Width = hidden ? new GridLength(0) : new GridLength(390);
-        SidebarSplitterColumn.Width = hidden ? new GridLength(0) : new GridLength(5);
-        SidebarToggleButton.Content = hidden ? "Show sidebar" : "Hide sidebar";
+        if (!ReferenceEquals(e.Source, SessionTabs)) return;
+        SessionToolsHost.Content = null;
+        if (SessionTabs.SelectedItem is TabItem { Content: MirrorSessionControl view })
+        {
+            SessionToolsHost.Content = view.DetachToolsForSidebar();
+            if (_isFullscreen || _sidebarHidden) view.FitToWindow();
+        }
+        _syncingSessionList = true;
+        try
+        {
+            var choices = SessionTabs.Items.Cast<TabItem>().Select(tab => new SessionChoice(tab)).ToArray();
+            SessionList.ItemsSource = choices;
+            SessionList.SelectedItem = choices.FirstOrDefault(choice => ReferenceEquals(choice.Tab, SessionTabs.SelectedItem));
+        }
+        finally { _syncingSessionList = false; }
     }
 
-    private void SidebarToggle_Click(object sender, RoutedEventArgs e)
-        => SetSidebarHidden(!_sidebarHidden);
+    private void SessionList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_syncingSessionList && SessionList.SelectedItem is SessionChoice choice)
+            SessionTabs.SelectedItem = choice.Tab;
+    }
 
-    private void Fullscreen_Click(object sender, RoutedEventArgs e)
-        => ToggleFullscreen();
+    private void SetSidebarHidden(bool hidden)
+    {
+        if (hidden && !_sidebarHidden && SidebarColumn.ActualWidth > 44) _sidebarWidth = SidebarColumn.ActualWidth;
+        _sidebarHidden = hidden;
+        SidebarPanel.Visibility = hidden ? Visibility.Collapsed : Visibility.Visible;
+        SidebarRecoveryRail.Visibility = hidden ? Visibility.Visible : Visibility.Collapsed;
+        SidebarSplitter.Visibility = hidden ? Visibility.Collapsed : Visibility.Visible;
+        SidebarColumn.Width = new GridLength(hidden ? 44 : _sidebarWidth);
+        SidebarSplitterColumn.Width = new GridLength(hidden ? 0 : 5);
+        SidebarToggleButton.Content = hidden ? "Show tools" : "Hide tools";
+        ExitFullscreenButton.Visibility = _isFullscreen ? Visibility.Visible : Visibility.Collapsed;
+        if (hidden && SessionTabs.SelectedItem is TabItem { Content: MirrorSessionControl view }) view.FitToWindow();
+    }
+
+    private void SidebarToggle_Click(object sender, RoutedEventArgs e) => SetSidebarHidden(!_sidebarHidden);
+    private void Fullscreen_Click(object sender, RoutedEventArgs e) => ToggleFullscreen();
 
     private void ToggleFullscreen()
     {
@@ -307,27 +337,23 @@ public partial class MainWindow : Window
         {
             _restoreWindowState = WindowState == WindowState.Minimized ? WindowState.Normal : WindowState;
             _sidebarHiddenBeforeFullscreen = _sidebarHidden;
+            _isFullscreen = true;
             SetSidebarHidden(true);
-            TopBar.Visibility = Visibility.Collapsed;
-            StatusBar.Visibility = Visibility.Collapsed;
-
             WindowState = WindowState.Normal;
             WindowStyle = WindowStyle.None;
             ResizeMode = ResizeMode.NoResize;
             WindowState = WindowState.Maximized;
-            _isFullscreen = true;
         }
         else
         {
+            _isFullscreen = false;
             WindowState = WindowState.Normal;
             WindowStyle = WindowStyle.SingleBorderWindow;
             ResizeMode = ResizeMode.CanResize;
-            TopBar.Visibility = Visibility.Visible;
-            StatusBar.Visibility = Visibility.Visible;
             SetSidebarHidden(_sidebarHiddenBeforeFullscreen);
             WindowState = _restoreWindowState;
-            _isFullscreen = false;
         }
+        FullscreenButton.Content = _isFullscreen ? "Exit full" : "Full screen";
     }
 
     private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)

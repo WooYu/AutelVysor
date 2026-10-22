@@ -81,57 +81,45 @@
   </Window.Resources>
 
   <Grid>
-    <Grid.RowDefinitions>
-      <RowDefinition Height="Auto"/>
-      <RowDefinition Height="*"/>
-      <RowDefinition Height="Auto"/>
-    </Grid.RowDefinitions>
-
-    <Border x:Name="TopBar" Grid.Row="0" Background="#0F172A" BorderBrush="#1E293B" BorderThickness="0,0,0,1" Padding="18,13">
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition x:Name="SidebarColumn" Width="340" MinWidth="0"/>
+      <ColumnDefinition x:Name="SidebarSplitterColumn" Width="5"/>
+      <ColumnDefinition Width="*"/>
+    </Grid.ColumnDefinitions>
+    <Border x:Name="SidebarPanel" Grid.Column="0" Background="#0F172A" BorderBrush="#1E293B" BorderThickness="0,0,1,0">
       <DockPanel>
-        <StackPanel DockPanel.Dock="Left">
-          <TextBlock FontSize="24" FontWeight="Bold" Text="Autel Vysor"/>
-          <TextBlock Margin="0,3,0,0" Foreground="#94A3B8" Text="Android 4.4+ · embedded mirror · USB / Wi-Fi · multi-device"/>
-        </StackPanel>
-        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-          <CheckBox x:Name="AutoReconnectBox" IsChecked="True" VerticalAlignment="Center" Margin="0,0,16,7" Content="Auto reconnect Wi-Fi"/>
-          <Button x:Name="SidebarToggleButton" Click="SidebarToggle_Click" Content="Hide sidebar" Background="#475569"/>
-          <Button Click="Fullscreen_Click" Content="Full screen" Background="#475569"/>
-          <Button Click="CheckUpdates_Click" Content="Check updates" Background="#475569"/>
-          <Button Click="Diagnostics_Click" Content="Copy diagnostics" Background="#475569"/>
-          <Button Click="Refresh_Click" Content="Refresh devices"/>
-        </StackPanel>
-      </DockPanel>
-    </Border>
-
-    <Grid Grid.Row="1">
-      <Grid.ColumnDefinitions>
-        <ColumnDefinition x:Name="SidebarColumn" Width="390"/>
-        <ColumnDefinition x:Name="SidebarSplitterColumn" Width="5"/>
-        <ColumnDefinition Width="*"/>
-      </Grid.ColumnDefinitions>
-
-      <Border x:Name="SidebarPanel" Grid.Column="0" Background="#0F172A" BorderBrush="#1E293B" BorderThickness="0,0,1,0" Padding="14">
-        <Grid>
-          <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="2*"/>
-            <RowDefinition Height="3*"/>
-          </Grid.RowDefinitions>
-          <StackPanel Grid.Row="0">
-            <TextBlock FontSize="14" FontWeight="SemiBold" Text="Connected devices"/>
-            <TextBlock Margin="0,4,0,10" Foreground="#64748B" Text="Select one or more devices. Double-click to open a mirror tab. Android 4.4 tabs also accept dropped APK/files." TextWrapping="Wrap"/>
-            <WrapPanel>
-              <Button Click="Mirror_Click" Content="Open selected"/>
-              <Button Click="OpenAll_Click" Content="Open all" Background="#334155"/>
-              <Button Click="CloseSession_Click" Content="Close current tab" Background="#334155"/>
-              <Button Click="DeviceDebug_Click" Content="Device debug" Background="#475569"/>
-              <Button Click="BatchOperations_Click" Content="Batch operations" Background="#475569"/>
-              <Button Click="Captures_Click" Content="Captures" Background="#475569"/>
-            </WrapPanel>
+        <Border x:Name="TopBar" DockPanel.Dock="Top" Padding="12,10,12,4">
+          <StackPanel>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+              <Image Source="pack://application:,,,/AutelVysor;component/Assets/AutelVysor.ico" Width="28" Height="28" Margin="0,0,8,0"/>
+              <TextBlock Text="Autel Vysor" FontSize="20" FontWeight="Bold" VerticalAlignment="Center"/>
+            </StackPanel>
+            <UniformGrid Columns="3">
+              <Button x:Name="FullscreenButton" Click="Fullscreen_Click" Content="Full screen" Padding="5,7"/>
+              <Button x:Name="SidebarToggleButton" Click="SidebarToggle_Click" Content="Hide tools" Padding="5,7" Background="#475569"/>
+              <Button Click="Refresh_Click" Content="Refresh" Padding="5,7"/>
+            </UniformGrid>
           </StackPanel>
-
-          <ListBox Grid.Row="1" x:Name="DeviceList"
+        </Border>
+        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" CanContentScroll="False" Padding="12,0,12,12">
+          <StackPanel>
+            <TextBlock Text="Open sessions" FontWeight="SemiBold" Margin="0,5,0,5"/>
+            <ListBox x:Name="SessionList" DisplayMemberPath="Title" MaxHeight="135" Background="#111827" Foreground="White"
+                     BorderBrush="#334155" SelectionChanged="SessionList_SelectionChanged" Margin="0,0,0,10"
+                     ItemContainerStyle="{StaticResource DarkListItemStyle}"/>
+            <ContentControl x:Name="SessionToolsHost" HorizontalContentAlignment="Stretch"/>
+            <Expander x:Name="DeviceSection" Header="Devices / connect" IsExpanded="True">
+              <StackPanel Margin="0,8,0,0">
+                <TextBlock Foreground="#94A3B8" Text="Select devices, then open a mirror." Margin="0,0,0,8"/>
+                <WrapPanel>
+                  <Button Click="Mirror_Click" Content="Open selected"/>
+                  <Button Click="OpenAll_Click" Content="Open all" Background="#334155"/>
+                  <Button Click="CloseSession_Click" Content="Close current" Background="#334155"/>
+                  <Button Click="DeviceDebug_Click" Content="Device debug" Background="#475569"/>
+                  <Button Click="BatchOperations_Click" Content="Batch operations" Background="#475569"/>
+                  <Button Click="Captures_Click" Content="Captures" Background="#475569"/>
+                </WrapPanel>
+          <ListBox MaxHeight="210" x:Name="DeviceList"
                    Margin="0,10,0,8"
                    SelectionMode="Extended"
                    MouseDoubleClick="DeviceList_MouseDoubleClick"
@@ -172,15 +160,11 @@
               </DataTemplate>
             </ListBox.ItemTemplate>
           </ListBox>
-
-          <ScrollViewer Grid.Row="2"
-                        Margin="0,4,0,0"
-                        VerticalScrollBarVisibility="Auto"
-                        HorizontalScrollBarVisibility="Disabled"
-                        CanContentScroll="False">
-            <StackPanel>
+              </StackPanel>
+            </Expander>
             <Expander Header="Wi-Fi debugging">
               <StackPanel Margin="0,8,0,0">
+                <CheckBox x:Name="AutoReconnectBox" IsChecked="True" Margin="0,0,0,8" Content="Auto reconnect Wi-Fi"/>
                 <TextBox x:Name="AddressBox" Text="192.168.1.10:5555" ToolTip="host:port"/>
                 <TextBox x:Name="PairCodeBox" ToolTip="Android 11+ six-digit pairing code"/>
                 <WrapPanel>
@@ -229,45 +213,47 @@
                 </WrapPanel>
               </StackPanel>
             </Expander>
-            </StackPanel>
-          </ScrollViewer>
-        </Grid>
-      </Border>
 
-      <GridSplitter x:Name="SidebarSplitter" Grid.Column="1" Width="5" HorizontalAlignment="Stretch" Background="#1E293B"/>
-
-      <Grid Grid.Column="2" Background="#070B12">
-        <TabControl x:Name="SessionTabs" Background="#070B12" BorderThickness="0" Padding="0">
-          <TabControl.Template>
-            <ControlTemplate TargetType="TabControl">
-              <Grid>
-                <Grid.RowDefinitions>
-                  <RowDefinition Height="Auto"/>
-                  <RowDefinition Height="*"/>
-                </Grid.RowDefinitions>
-                <TabPanel Grid.Row="0" IsItemsHost="True" Background="#0F172A" Margin="8,7,8,0"/>
-                <Border Grid.Row="1" Background="#070B12" BorderBrush="#1E293B" BorderThickness="0,1,0,0">
-                  <ContentPresenter ContentSource="SelectedContent"/>
-                </Border>
-              </Grid>
-            </ControlTemplate>
-          </TabControl.Template>
-        </TabControl>
-
-        <StackPanel x:Name="EmptyWorkspace" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="520">
-          <TextBlock FontSize="24" FontWeight="SemiBold" Text="No mirror session open" HorizontalAlignment="Center"/>
-          <TextBlock Margin="0,10,0,0" Foreground="#94A3B8" TextAlignment="Center" TextWrapping="Wrap"
-                     Text="Select a device on the left and choose Open selected. Android 5.0+ is embedded using scrcpy; Android 4.4 uses the compatibility backend."/>
-        </StackPanel>
-      </Grid>
-    </Grid>
-
-    <Border x:Name="StatusBar" Grid.Row="2" Background="#0F172A" BorderBrush="#1E293B" BorderThickness="0,1,0,0" Padding="14,8">
-      <DockPanel>
-        <TextBlock x:Name="MonitorText" DockPanel.Dock="Right" Foreground="#475569" Text="Monitor: idle"/>
-        <TextBlock x:Name="StatusText" Foreground="#94A3B8" Text="Ready" TextWrapping="Wrap"/>
+            <Expander Header="App tools">
+              <WrapPanel Margin="0,8,0,0">
+                <Button Click="CheckUpdates_Click" Content="Check updates" Background="#475569"/>
+                <Button Click="Diagnostics_Click" Content="Copy diagnostics" Background="#475569"/>
+              </WrapPanel>
+            </Expander>
+            <Border x:Name="StatusBar" BorderBrush="#1E293B" BorderThickness="0,1,0,0" Padding="0,8" Margin="0,10,0,0">
+              <StackPanel>
+                <TextBlock x:Name="StatusText" Text="Ready" Foreground="#94A3B8" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" MaxHeight="20"
+                           ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
+                <TextBlock x:Name="MonitorText" Text="Monitor: idle" Foreground="#64748B" TextWrapping="Wrap" FontSize="11" Margin="0,4,0,0"/>
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </ScrollViewer>
       </DockPanel>
     </Border>
+    <Border x:Name="SidebarRecoveryRail" Grid.Column="0" Background="#0F172A" Visibility="Collapsed">
+      <StackPanel VerticalAlignment="Top" Margin="0,6,0,0">
+        <Button Click="SidebarToggle_Click" Content="Tools" Padding="2,8" Margin="2" ToolTip="Show left-side tools"/>
+        <Button x:Name="ExitFullscreenButton" Click="Fullscreen_Click" Content="Exit" Padding="2,8" Margin="2" Visibility="Collapsed" ToolTip="Exit fullscreen"/>
+      </StackPanel>
+    </Border>
+    <GridSplitter x:Name="SidebarSplitter" Grid.Column="1" Width="5" HorizontalAlignment="Stretch" Background="#1E293B"/>
+    <Grid Grid.Column="2" Background="#070B12">
+      <TabControl x:Name="SessionTabs" SelectionChanged="SessionTabs_SelectionChanged" Background="#070B12" BorderThickness="0" Padding="0">
+        <TabControl.Template>
+          <ControlTemplate TargetType="TabControl">
+            <Grid>
+              <TabPanel IsItemsHost="True" Visibility="Collapsed"/>
+              <ContentPresenter ContentSource="SelectedContent"/>
+            </Grid>
+          </ControlTemplate>
+        </TabControl.Template>
+      </TabControl>
+      <StackPanel x:Name="EmptyWorkspace" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="440" Margin="30">
+        <TextBlock FontSize="24" FontWeight="SemiBold" Text="No mirror session open" HorizontalAlignment="Center"/>
+        <TextBlock Margin="0,10,0,0" Foreground="#94A3B8" TextAlignment="Center" TextWrapping="Wrap"
+                   Text="Open a device from the left. Fit keeps the complete phone frame visible. F11 toggles fullscreen; use the left Tools / Exit rail when the phone owns keyboard focus."/>
+      </StackPanel>
+    </Grid>
   </Grid>
 </Window>
-
