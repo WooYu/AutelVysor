@@ -1,22 +1,22 @@
 {
-  "tag_name": "v0.10.9",
-  "name": "Autel Vysor v0.10.9",
-  "source_commit": "f4e2bad579ddced9e989f75e20971d48205c1e1a",
-  "source_run_id": 39832589551,
-  "artifact_id": 12448803834,
-  "manifest_sha256": "1ff82a828b8c4bfc6632a0cab89cbffd5a79214838c746372006a23c426fbfe2",
+  "tag_name": "v0.10.10",
+  "name": "Autel Vysor v0.10.10",
+  "source_commit": "744501733b4d3f733f8f8396d36b3c6ce2acdd8e",
+  "source_run_id": 40728683487,
+  "artifact_id": 12833722863,
+  "manifest_sha256": "d7b932c31ebab680f3560a44a5b238e6b595b237fdd88827194cbd1f08bc0a8d",
   "files": [
     {
-      "source": "AutelVysor-v0.10.9-windows-x64.zip",
-      "name": "AutelVysor-v0.10.9-windows-x64.zip",
-      "sha256": "4bd328a0daa5354b96f616b75da1955d44a06f1ee088137134a03b120ebd674f"
+      "source": "AutelVysor-v0.10.10-windows-x64.zip",
+      "name": "AutelVysor-v0.10.10-windows-x64.zip",
+      "sha256": "38246fc58eb1d01b3ff64f9ee14d89243db1596003eda41e3adef13022871a9a"
     },
     {
       "source": "AutelVysor-Setup.exe",
-      "name": "AutelVysor-v0.10.9-Setup.exe",
-      "sha256": "8cfcd7b803e34e2ff2132f8e73a02cc203b4f7b8e82878da272c5cf9beb9a054"
+      "name": "AutelVysor-v0.10.10-Setup.exe",
+      "sha256": "0db0c70fecc2f293836cbd556844d2ec180aba5a3ead449370031d95ee9aa454"
     }
   ],
-  "notes": "## 本次更新\n\n- 打开投屏、切换设备页、返回程序时默认自动获取键盘焦点，无需先点击 Focus。\n- 增加短暂重试和原生焦点确认；已聚焦时不再反复连接输入线程。\n- 恢复按钮不再获取键盘焦点，确认成功后显示 Keyboard ready，替代 Focus sent。\n- 电脑端文本框、搜索框和下拉框编辑时不自动抢焦点，可点击按钮恢复到手机。\n\n## 下载与验证\n\n- 安装版：AutelVysor-v0.10.9-Setup.exe\n- 免安装版：AutelVysor-v0.10.9-windows-x64.zip\n- 包含运行时及官方 scrcpy 工具链。\n- Windows 全部回归、程序自检和打包通过，涵盖自动聚焦、编辑保护、手动恢复和独立原生进程实际按键。\n- 发布流程校验版本、来源提交、ZIP 内程序及文件 SHA-256。\n- 构建记录：https://github.com/WooYu/AutelVysor/actions/runs/39832589551\n\n## 当前限制\n\n本版未进行可信数字签名。手机实际输入延迟、中文输入法和应用接收效果仍需真机验收。仍须选中手机输入框；电脑已组合好的中文继续使用 Paste text。\n",
+  "notes": "## 本次更新\n\n- 显示设备标签，切换时恢复对应投屏；仅一台受支持的在线设备时自动打开。\n- 增加紧凑窗口，随设备横竖屏调整尺寸，提供鼠标可操作的最小化和恢复入口。\n- 旧版 Android 键盘事件按顺序发送，避免快速输入的并发乱序；允许发送纯空格。\n\n## 验证与限制\n\n- Windows CI 全部回归、程序自检及安装包构建通过。\n- 现代 Android 实际输入、中文输入法及多设备切换尚需目标设备验收，不能断言所有输入问题已解决。\n- 本版未使用可信数字签名。\n",
   "request_revision": 1
 }
