@@ -7,3 +7,5 @@ src/AutelVysor/tools/
 
 *_wpftmp.csproj
 test-results/
+tests/AndroidFixture/.gradle/
+tests/AndroidFixture/**/build/
