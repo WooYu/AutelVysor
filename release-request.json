@@ -1,22 +1,22 @@
 {
-  "tag_name": "v0.10.11",
-  "name": "Autel Vysor v0.10.11",
-  "source_commit": "1e8b5db026c9f268de00f1285e913049d855acc2",
-  "source_run_id": 40743955382,
-  "artifact_id": 12839734117,
-  "manifest_sha256": "9de798d29a8d07ea2e29526868f70586da7b82cea375c54fc615ddb7a2a56166",
+  "tag_name": "v0.10.12",
+  "name": "Autel Vysor v0.10.12",
+  "source_commit": "7ec123a3c3db875f4a6a99332dc348b3d7446a1b",
+  "source_run_id": 40749639461,
+  "artifact_id": 12842788988,
+  "manifest_sha256": "6a460380c602ff37eb3907e187c322e608df83cb6706fa73416c1587de68c4a0",
   "files": [
     {
-      "source": "AutelVysor-v0.10.11-windows-x64.zip",
-      "name": "AutelVysor-v0.10.11-windows-x64.zip",
-      "sha256": "695649e7a97a798fc075a6c6aab7681cba8c4b3c0d6244e2a3a827e48768826e"
+      "source": "AutelVysor-v0.10.12-windows-x64.zip",
+      "name": "AutelVysor-v0.10.12-windows-x64.zip",
+      "sha256": "8c5b7441ce5ea638e6339895ebf28d7df41652236afe70d986f154de8c939779"
     },
     {
       "source": "AutelVysor-Setup.exe",
-      "name": "AutelVysor-v0.10.11-Setup.exe",
-      "sha256": "4dd244921c26f98049c19e7363b11b78a7a1c3f55be818f471db2d3a400a28e5"
+      "name": "AutelVysor-v0.10.12-Setup.exe",
+      "sha256": "52971d38cee83b69fe3b8cc4ce7a6a77d440a19730ac0ff8e8de53cf07e6078e"
     }
   ],
-  "notes": "## 本次更新\n\n- 主窗口与设备调试、截图记录、批量操作及输入设置等窗口统一为低亮度深色主题，标题栏也适配深色。\n- 将 Files / utilities 移到设备连接上方，简化左侧窗口与设备操作，继续自动适配手机画面比例。\n- 增加手机硬件键盘软键盘显示开关；电脑输入区支持回车发送并保留待确认内容。\n- 录像异常退出时给出检查其他投屏会话的提示。\n\n## 验证\n\n- GitHub Windows 全量回归、程序自检、安装包及便携包构建通过。\n- 三星 Android 12 真机测试：19 项通过、0 项失败；覆盖文件往返、截图、录屏和隔离测试应用。\n- 多设备切换、蓝牙实际听感、物理旋转与断线恢复等仍需专项硬件验收。设备资源限制下，多路投屏与录像可能失败。\n- 直接在投屏画面使用电脑中文输入法仍未确认；可在左侧电脑输入区选词后按 Enter 发送，发送请求不代表目标应用已插入。\n- 手机软键盘开关修改的是设备设置，关闭程序不会自动恢复；兼容模式和不同厂商的表现可能不同。\n- 本版未使用可信数字签名。\n",
+  "notes": "## 本次更新\n\n- 对齐设备文件操作、应用包名与 Shell 输入行、截图信息、日志筛选和输入法设置控件。\n- 改善窄侧栏、投屏状态提示及长设备名称和批量设备列表的显示。\n- 增加最小尺寸窗口截图和控件对齐回归检查。\n\n## 验证与限制\n\n- Windows CI 全量回归、程序自检及安装包、便携包构建通过；发布过程校验来源及 SHA-256。\n- 直接在投屏画面使用电脑中文输入法仍需实际验收；可在左侧电脑输入区选词后按 Enter 发送。\n- 手机软键盘开关修改设备设置，关闭程序不会自动恢复；不同设备和键盘模式可能有差异。\n- 本版未使用可信数字签名。\n",
   "request_revision": 1
 }
