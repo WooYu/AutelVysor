@@ -1,22 +1,22 @@
 {
-  "tag_name": "v0.10.10",
-  "name": "Autel Vysor v0.10.10",
-  "source_commit": "744501733b4d3f733f8f8396d36b3c6ce2acdd8e",
-  "source_run_id": 40728683487,
-  "artifact_id": 12833722863,
-  "manifest_sha256": "d7b932c31ebab680f3560a44a5b238e6b595b237fdd88827194cbd1f08bc0a8d",
+  "tag_name": "v0.10.11",
+  "name": "Autel Vysor v0.10.11",
+  "source_commit": "1e8b5db026c9f268de00f1285e913049d855acc2",
+  "source_run_id": 40743955382,
+  "artifact_id": 12839734117,
+  "manifest_sha256": "9de798d29a8d07ea2e29526868f70586da7b82cea375c54fc615ddb7a2a56166",
   "files": [
     {
-      "source": "AutelVysor-v0.10.10-windows-x64.zip",
-      "name": "AutelVysor-v0.10.10-windows-x64.zip",
-      "sha256": "38246fc58eb1d01b3ff64f9ee14d89243db1596003eda41e3adef13022871a9a"
+      "source": "AutelVysor-v0.10.11-windows-x64.zip",
+      "name": "AutelVysor-v0.10.11-windows-x64.zip",
+      "sha256": "695649e7a97a798fc075a6c6aab7681cba8c4b3c0d6244e2a3a827e48768826e"
     },
     {
       "source": "AutelVysor-Setup.exe",
-      "name": "AutelVysor-v0.10.10-Setup.exe",
-      "sha256": "0db0c70fecc2f293836cbd556844d2ec180aba5a3ead449370031d95ee9aa454"
+      "name": "AutelVysor-v0.10.11-Setup.exe",
+      "sha256": "4dd244921c26f98049c19e7363b11b78a7a1c3f55be818f471db2d3a400a28e5"
     }
   ],
-  "notes": "## 本次更新\n\n- 显示设备标签，切换时恢复对应投屏；仅一台受支持的在线设备时自动打开。\n- 增加紧凑窗口，随设备横竖屏调整尺寸，提供鼠标可操作的最小化和恢复入口。\n- 旧版 Android 键盘事件按顺序发送，避免快速输入的并发乱序；允许发送纯空格。\n\n## 验证与限制\n\n- Windows CI 全部回归、程序自检及安装包构建通过。\n- 现代 Android 实际输入、中文输入法及多设备切换尚需目标设备验收，不能断言所有输入问题已解决。\n- 本版未使用可信数字签名。\n",
+  "notes": "## 本次更新\n\n- 主窗口与设备调试、截图记录、批量操作及输入设置等窗口统一为低亮度深色主题，标题栏也适配深色。\n- 将 Files / utilities 移到设备连接上方，简化左侧窗口与设备操作，继续自动适配手机画面比例。\n- 增加手机硬件键盘软键盘显示开关；电脑输入区支持回车发送并保留待确认内容。\n- 录像异常退出时给出检查其他投屏会话的提示。\n\n## 验证\n\n- GitHub Windows 全量回归、程序自检、安装包及便携包构建通过。\n- 三星 Android 12 真机测试：19 项通过、0 项失败；覆盖文件往返、截图、录屏和隔离测试应用。\n- 多设备切换、蓝牙实际听感、物理旋转与断线恢复等仍需专项硬件验收。设备资源限制下，多路投屏与录像可能失败。\n- 直接在投屏画面使用电脑中文输入法仍未确认；可在左侧电脑输入区选词后按 Enter 发送，发送请求不代表目标应用已插入。\n- 手机软键盘开关修改的是设备设置，关闭程序不会自动恢复；兼容模式和不同厂商的表现可能不同。\n- 本版未使用可信数字签名。\n",
   "request_revision": 1
 }
