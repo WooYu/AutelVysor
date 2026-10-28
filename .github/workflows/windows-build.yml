@@ -46,6 +46,7 @@ jobs:
             test-results/left-tools.png
             test-results/capture-preview.png
             test-results/log-import.png
+            test-results/layout-*.png
   build:
     needs: regression-tests
     runs-on: windows-latest

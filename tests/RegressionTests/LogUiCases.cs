@@ -83,12 +83,17 @@ internal static partial class Program
     private static async Task AudioReportLayout()
     {
         var report = string.Join('\n', Enumerable.Repeat("Audio policy (configured, not a playback test) / Exit code: 0 / stdout / stderr", 500));
-        var window = new AutelVysor.TextReportWindow("Audio report", report) { ShowInTaskbar = false };
+        var window = new AutelVysor.TextReportWindow("Audio report", report) { Width = 500, ShowInTaskbar = false };
         try
         {
             window.Show(); await Task.Delay(50); window.UpdateLayout();
             var root = (DockPanel)window.Content; var text = root.Children.OfType<TextBox>().Single();
             Check(text.IsReadOnly && text.Text == report && text.VerticalScrollBarVisibility == ScrollBarVisibility.Auto, "Audio report lost copyable scrollable evidence");
+            var actions = root.Children.OfType<Grid>().Single();
+            var label = actions.Children.OfType<TextBlock>().Single();
+            var bounds = label.TransformToAncestor(actions).TransformBounds(new System.Windows.Rect(new Point(), label.RenderSize));
+            Check(bounds.Right <= actions.ActualWidth + 1 && bounds.Left >= 0 && label.ActualHeight > 20,
+                "Audio report explanation does not wrap within the minimum window width");
             Check(window.ActualHeight <= SystemParameters.WorkArea.Height + 2, "Diagnostic report exceeds the screen height");
         }
         finally { window.Close(); }

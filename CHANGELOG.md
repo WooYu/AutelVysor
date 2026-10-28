@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.12
+
+- Align device file actions, package and shell inputs, capture details, log filters and Unicode setup controls.
+- Keep long device names, batch selections and diagnostics readable within minimum window sizes; prevent narrow sidebar and mirror status clipping.
+- Add minimum-size window screenshots and alignment checks to the Windows regression suite.
+
 ## 0.10.11
 
 - Unify application windows, native title bars, controls, scrollbars and diagnostics in a subdued dark palette.

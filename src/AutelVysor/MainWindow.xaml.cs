@@ -352,6 +352,7 @@ public partial class MainWindow : Window
         SidebarPanel.Visibility = hidden ? Visibility.Collapsed : Visibility.Visible;
         SidebarRecoveryRail.Visibility = hidden ? Visibility.Visible : Visibility.Collapsed;
         SidebarSplitter.Visibility = hidden ? Visibility.Collapsed : Visibility.Visible;
+        SidebarColumn.MinWidth = hidden ? 0 : 260;
         SidebarColumn.Width = new GridLength(hidden ? 44 : _sidebarWidth);
         SidebarSplitterColumn.Width = new GridLength(hidden ? 0 : 5);
         SidebarToggleButton.ToolTip = hidden ? "Show tools" : "Hide tools";

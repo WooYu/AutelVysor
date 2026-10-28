@@ -181,14 +181,14 @@ public partial class MirrorSessionControl : UserControl, IDisposable
                     if (_disposed || request != _focusRequestVersion) return;
                     if (!IsVisible || Window.GetWindow(this)?.IsActive != true) return;
                     if (!(UsesLegacyBackend ? IsKeyboardFocusWithin : ScrcpyHost.HasKeyboardFocus)) continue;
-                    FocusKeyboardButton.Content = "Keyboard ready ✓";
+                    FocusKeyboardButton.Content = "Ready ✓";
                     FocusKeyboardButton.Background = new SolidColorBrush(Color.FromRgb(70, 96, 82));
                     if (explicitRequest) StatusText.Text = "Keyboard ready. Select a phone text field to type; PC-composed Chinese uses Paste text.";
                     return;
                 }
                 await Task.Delay(40, _lifetime.Token);
             }
-            FocusKeyboardButton.Content = "Retry keyboard focus";
+            FocusKeyboardButton.Content = "Retry focus";
             FocusKeyboardButton.Background = Brushes.Maroon;
             if (explicitRequest) StatusText.Text = "Keyboard focus unavailable. Check that the mirror is running and visible.";
         }

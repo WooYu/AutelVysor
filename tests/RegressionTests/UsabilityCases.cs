@@ -117,6 +117,17 @@ internal static partial class Program
             ((TextBox)window.FindName("RemoteSearchBox")).Clear();
             list.SelectedIndex = 0;
             window.Width = 980;
+            window.UpdateLayout();
+            var name = (FrameworkElement)window.FindName("NewFolderNameBox");
+            var create = (FrameworkElement)window.FindName("RemoteNewFolderButton");
+            var rename = (FrameworkElement)window.FindName("RemoteRenameButton");
+            var nameBounds = name.TransformToAncestor(window).TransformBounds(new System.Windows.Rect(new Point(), name.RenderSize));
+            var createBounds = create.TransformToAncestor(window).TransformBounds(new System.Windows.Rect(new Point(), create.RenderSize));
+            var renameBounds = rename.TransformToAncestor(window).TransformBounds(new System.Windows.Rect(new Point(), rename.RenderSize));
+            Check(Math.Abs(nameBounds.Bottom - createBounds.Bottom) < 2 && Math.Abs(createBounds.Bottom - renameBounds.Bottom) < 2,
+                "File name field and action buttons do not share a baseline");
+            Check(nameBounds.Right <= createBounds.Left && createBounds.Right <= renameBounds.Left,
+                "File name field overlaps the action buttons");
             SaveUsabilityRender(window, "file-manager.png");
         }
         finally { window.Close(); }

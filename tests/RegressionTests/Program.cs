@@ -76,6 +76,7 @@ internal static partial class Program
                 ("Capture video controls handle selection and codec failure", CaptureVideoLifecycle),
                 ("Left tools preserve full-height Fit and fullscreen recovery", LeftToolsLayout),
                 ("Dark selections remain readable without keyboard focus", DarkSelection),
+                ("Minimum window layouts keep controls aligned", MinimumWindowLayouts),
                 ("Test directory cleanup retries transient Windows locks", TestDirectoryCleanupRetries)
             })
             {

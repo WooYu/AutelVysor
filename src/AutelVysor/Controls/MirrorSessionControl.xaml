@@ -34,7 +34,7 @@
       </Border.Resources>
       <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel>
-          <TextBlock x:Name="DeviceTitleText" FontSize="15" FontWeight="SemiBold"/>
+          <TextBlock x:Name="DeviceTitleText" FontSize="15" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
           <TextBlock x:Name="DeviceMetaText" Margin="0,4,0,10" Foreground="#9AA5A0" FontSize="11" TextWrapping="Wrap"/>
           <UniformGrid Columns="6" Margin="0,0,0,8">
             <Button Style="{StaticResource SessionIconButton}" Click="Back_Click" Content="&#xE72B;" ToolTip="Back" AutomationProperties.Name="Back"/>
@@ -49,10 +49,11 @@
                    MinHeight="32" Padding="6,5" PreviewKeyDown="AndroidTextBox_PreviewKeyDown" ToolTip="Use the computer input method here. Press Enter to send to the selected phone field."/>
           <UniformGrid Columns="2">
             <Button x:Name="SendTextButton" Click="SendText_Click" Content="Paste text" ToolTip="Paste into the focused Android field; updates the PC clipboard."/>
-            <Button x:Name="FocusKeyboardButton" Focusable="False" Click="FocusMirror_Click" Content="Focus keyboard" ToolTip="Keyboard focus is automatic when the mirror opens. Click to restore it after using PC tools."/>
+            <Button x:Name="FocusKeyboardButton" Focusable="False" Click="FocusMirror_Click" Content="Focus" AutomationProperties.Name="Focus keyboard" ToolTip="Keyboard focus is automatic when the mirror opens. Click to restore it after using PC tools."/>
           </UniformGrid>
-          <CheckBox x:Name="PhoneKeyboardToggle" IsEnabled="False" Checked="PhoneKeyboardToggle_Changed" Unchecked="PhoneKeyboardToggle_Changed" Margin="2,8,2,5"
-                    Content="连接电脑键盘时隐藏手机软键盘" Foreground="#D4DAD6"/>
+          <CheckBox x:Name="PhoneKeyboardToggle" IsEnabled="False" Checked="PhoneKeyboardToggle_Changed" Unchecked="PhoneKeyboardToggle_Changed" Margin="2,8,2,5" Foreground="#D4DAD6">
+            <TextBlock Text="连接电脑键盘时隐藏手机软键盘" TextWrapping="Wrap"/>
+          </CheckBox>
           <TextBlock x:Name="ImeRecoveryText" Visibility="Collapsed" Margin="0,6,0,0" Foreground="#FBBF24" TextWrapping="Wrap"
                      Text="Saved IME recovery exists. Open Input options → ADB IME setup and choose Restore original keyboard."/>
           <Expander Header="输入与显示设置" Margin="2,8,2,4" Foreground="#B8C0BB">
@@ -75,10 +76,10 @@
 
           <TextBlock x:Name="InputHint" Margin="2,5,2,8" FontSize="11" Foreground="#A2ADA6" TextWrapping="Wrap"
                      Text="先点手机输入框，再在这里输入；按 Enter 发送。"/>
-          <UniformGrid Columns="2">
+          <StackPanel>
             <Button x:Name="RotateButton" Click="Rotate_Click" Content="Switch orientation" ToolTip="Switch the real Android display between its two main orientations"/>
             <Button x:Name="AutoRotateButton" Click="AutoRotate_Click" Content="Auto rotate"/>
-          </UniformGrid>
+          </StackPanel>
           <TextBlock x:Name="RotateStateText" Foreground="#C9D1CC" TextWrapping="Wrap" Margin="2,4,2,8"/>
           <UniformGrid Columns="2">
             <Button x:Name="AudioRoutesButton" Click="AudioRoute_Click" Content="Audio routes"/>
@@ -118,8 +119,8 @@
       </Grid>
 
       <Border x:Name="Overlay" Background="#CC1C201E">
-        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="420">
-          <TextBlock x:Name="OverlayTitle" Text="Starting mirror…" FontSize="18" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+        <StackPanel HorizontalAlignment="Stretch" VerticalAlignment="Center" MaxWidth="420" Margin="12,0">
+          <TextBlock x:Name="OverlayTitle" Text="Starting mirror…" FontSize="14" FontWeight="SemiBold" TextAlignment="Center" TextWrapping="Wrap"/>
           <TextBlock x:Name="OverlayDetail" Margin="0,8,0,0" Foreground="#C9D1CC" TextAlignment="Center" TextWrapping="Wrap"/>
         </StackPanel>
       </Border>

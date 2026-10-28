@@ -76,7 +76,7 @@
         <WrapPanel Grid.Row="2" x:Name="ImageControls" Visibility="Collapsed">
           <Button Content="Fit image" Click="FitImage_Click"/>
           <Button Content="Actual size" Click="ActualImage_Click"/>
-          <TextBlock x:Name="ImageDetails" Foreground="#C9D1CC" VerticalAlignment="Center"/>
+          <TextBlock x:Name="ImageDetails" Foreground="#C9D1CC" VerticalAlignment="Center" Margin="0,0,0,7"/>
         </WrapPanel>
       </Grid>
     </Grid>

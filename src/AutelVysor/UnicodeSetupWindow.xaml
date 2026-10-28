@@ -5,18 +5,18 @@
         Title="Unicode input and clipboard acceptance" Width="780" Height="800"
         MinWidth="640" MinHeight="580" Background="#1C201E" Foreground="#E5E7EB"
         WindowStartupLocation="CenterOwner">
-  <ScrollViewer VerticalScrollBarVisibility="Auto">
+  <ScrollViewer x:Name="SetupScroll" VerticalScrollBarVisibility="Auto">
     <StackPanel Margin="18">
       <TextBlock Text="Unicode input · optional ADBKeyBoard" FontSize="21" FontWeight="SemiBold"/>
       <TextBlock x:Name="DeviceText" Margin="0,6,0,12" Foreground="#A1BDAA"/>
       <TextBlock TextWrapping="Wrap" Text="Use an approved local APK from the ADBKeyBoard project or your own reviewed build. This app does not download a keyboard. Installation and temporary activation are separate actions. Your original keyboard is saved before switching. Close this window to restore an activation started here; a recovery remains if the device disconnects."/>
       <TextBox Margin="0,8,0,8" IsReadOnly="True" Text="https://github.com/senzhk/ADBKeyBoard"/>
-      <WrapPanel>
+      <UniformGrid Columns="2">
         <Button Content="1. Install trusted local APK…" Click="Install_Click" Margin="0,0,8,8" Padding="8,5"/>
         <Button Content="2. Activate temporarily" Click="Activate_Click" Margin="0,0,8,8" Padding="8,5"/>
         <Button Content="Restore original keyboard" Click="Restore_Click" Margin="0,0,8,8" Padding="8,5"/>
         <Button Content="Refresh status" Click="Refresh_Click" Margin="0,0,8,8" Padding="8,5"/>
-      </WrapPanel>
+      </UniformGrid>
       <TextBlock Text="Focus an empty, non-password Android text field, then send. Upstream ADBKeyBoard does not acknowledge commitText; this app checks a registered receiver and reads actual Android field text. A broadcast result of 0 alone is never a pass. Custom fields can remain unverified." TextWrapping="Wrap" Foreground="#C9D1CC"/>
       <TextBox x:Name="UnicodeText" Margin="0,8,0,6" MinHeight="55" AcceptsReturn="True" TextWrapping="Wrap"/>
       <Button Content="3. Send Unicode and verify Android field" Click="Send_Click" HorizontalAlignment="Left" Padding="8,5"/>
@@ -30,10 +30,10 @@
         <Button Content="Verify PC → Android" Click="VerifyForward_Click" Margin="0,0,8,8" Padding="8,5"/>
       </WrapPanel>
       <TextBlock Text="Android → PC: enter different test text on Android and focus that field. Capture it below (this replaces the PC clipboard with a fresh marker), then select/copy the Android text using Android Copy or scrcpy Ctrl+C. Finally verify the PC clipboard." TextWrapping="Wrap"/>
-      <WrapPanel Margin="0,6,0,0">
-        <Button Content="Capture Android source + clear PC clipboard" Click="CaptureSource_Click" Margin="0,0,8,8" Padding="8,5"/>
+      <UniformGrid Columns="2" Margin="0,6,0,0">
+        <Button Content="Capture Android source" ToolTip="Capture Android source and clear the PC clipboard" Click="CaptureSource_Click" Margin="0,0,8,8" Padding="8,5"/>
         <Button Content="Verify Android → PC" Click="VerifyReverse_Click" Margin="0,0,8,8" Padding="8,5"/>
-      </WrapPanel>
+      </UniformGrid>
       <TextBlock x:Name="AcceptanceText" Text="Clipboard checks: not run." Foreground="#A1BDAA" TextWrapping="Wrap"/>
       <TextBlock Text="Status / Android field readback" FontWeight="SemiBold" Margin="0,14,0,6"/>
       <TextBox x:Name="ResultText" IsReadOnly="True" MinHeight="135" MaxHeight="260" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"/>

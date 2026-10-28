@@ -89,7 +89,7 @@
 
   <Grid>
     <Grid.ColumnDefinitions>
-      <ColumnDefinition x:Name="SidebarColumn" Width="340" MinWidth="0"/>
+      <ColumnDefinition x:Name="SidebarColumn" Width="340" MinWidth="260"/>
       <ColumnDefinition x:Name="SidebarSplitterColumn" Width="5"/>
       <ColumnDefinition Width="*"/>
     </Grid.ColumnDefinitions>
@@ -200,7 +200,7 @@
               </StackPanel>
             </Expander>
 
-            <Expander Header="Mirror settings">
+            <Expander x:Name="MirrorSettingsSection" Header="Mirror settings">
               <StackPanel Margin="0,8,0,0">
                 <TextBlock Foreground="#A2ADA6" Margin="0,0,0,5" Text="Quality preset"/>
                 <ComboBox x:Name="MirrorQualityBox" Style="{StaticResource DarkComboBoxStyle}" Margin="0,0,7,7">
@@ -209,14 +209,13 @@
                   <ComboBoxItem Content="High · 2560 / 12 Mbps / 60 FPS"/>
                 </ComboBox>
                 <CheckBox x:Name="AudioBox" Margin="0,3,0,7" Content="Enable mirror audio"/>
-                <CheckBox x:Name="KeepDeviceAudioBox" IsChecked="True" Margin="0,3,0,4" Content="Keep phone / Bluetooth audio (recommended)"/>
+                <CheckBox x:Name="KeepDeviceAudioBox" IsChecked="True" Margin="0,3,0,4"><TextBlock Text="Keep phone / Bluetooth audio (recommended)" TextWrapping="Wrap"/></CheckBox>
                 <TextBlock Margin="22,0,4,7" Foreground="#829088" FontSize="11" TextWrapping="Wrap"
                            Text="Android 13+: audio is duplicated to PC and device. Android 11/12: device/Bluetooth audio takes priority."/>
                 <CheckBox x:Name="ClipboardBox" Margin="0,3,0,7" Content="Synchronize clipboard"/>
-                <CheckBox x:Name="ScreenOffBox" IsChecked="True" Margin="0,3,0,7" Content="Turn Android screen off while mirroring (default)"/>
-                <CheckBox x:Name="LegacyAccelerationBox" Margin="0,3,0,7" Content="Prefer Android 4.4 accelerated capture when available"/>
-                <CheckBox x:Name="AutoUpdateCheckBox" Margin="0,3,0,7"
-                          Content="Check GitHub Releases for updates on startup"/>
+                <CheckBox x:Name="ScreenOffBox" IsChecked="True" Margin="0,3,0,7"><TextBlock Text="Turn Android screen off while mirroring (default)" TextWrapping="Wrap"/></CheckBox>
+                <CheckBox x:Name="LegacyAccelerationBox" Margin="0,3,0,7"><TextBlock Text="Prefer Android 4.4 accelerated capture when available" TextWrapping="Wrap"/></CheckBox>
+                <CheckBox x:Name="AutoUpdateCheckBox" Margin="0,3,0,7"><TextBlock Text="Check GitHub Releases for updates on startup" TextWrapping="Wrap"/></CheckBox>
                 <Button Click="ApplyMirrorSettings_Click" Content="Apply &amp; restart mirrors" Background="#48534D"/>
               </StackPanel>
             </Expander>

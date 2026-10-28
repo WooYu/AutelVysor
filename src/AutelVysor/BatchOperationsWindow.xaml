@@ -31,13 +31,14 @@
     <StackPanel Grid.Row="0">
       <TextBlock Text="Batch device operations" FontSize="23" FontWeight="Bold"/>
       <TextBlock x:Name="DevicesText" Margin="0,6,0,12"
-                 TextWrapping="Wrap" Foreground="#A2ADA6"/>
+                 TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="68" Foreground="#A2ADA6"
+                 ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
     </StackPanel>
     <StackPanel Grid.Row="1">
       <TextBlock Text="Command to run on every selected device" Foreground="#C9D1CC" Margin="0,0,0,5"/>
       <TextBox x:Name="CommandBox" Text="getprop ro.build.version.release"/>
       <TextBlock Margin="0,4,0,12" Foreground="#829088" TextWrapping="Wrap"
-                 Text="Commands run sequentially using adb -s &lt;serial&gt; shell sh -c. Confirm the device list before running."/>
+                 Text="Commands run sequentially on each selected device. Confirm the device list before running."/>
     </StackPanel>
     <WrapPanel Grid.Row="2" Margin="0,4,0,5">
       <Button Click="RunCommand_Click" Content="Run command on selected devices"/>
@@ -48,6 +49,6 @@
              IsReadOnly="True" AcceptsReturn="True"
              VerticalScrollBarVisibility="Auto"
              HorizontalScrollBarVisibility="Auto"/>
-    <TextBlock Grid.Row="4" x:Name="StatusText" Margin="0,10,0,0" Foreground="#A2ADA6" Text="Ready"/>
+    <TextBlock Grid.Row="4" x:Name="StatusText" Margin="0,10,0,0" Foreground="#A2ADA6" Text="Ready" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="55" ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
   </Grid>
 </Window>
