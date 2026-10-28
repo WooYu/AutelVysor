@@ -833,6 +833,7 @@ internal static partial class Program
             tabs.Items.Add(tab1); tabs.Items.Add(tab2); tabs.SelectedItem = tab1;
             ((FrameworkElement)window.FindName("EmptyWorkspace")).Visibility = Visibility.Collapsed;
             window.Show(); await Task.Delay(100); window.UpdateLayout();
+            Check(tab1.IsVisible && tab2.IsVisible, "Device tabs are not visible");
             var tools = window.FindName("SessionToolsHost") as ContentControl;
             Check(tools is not null && ReferenceEquals(tools.Content, first.FindName("SessionTools")),
                 "Active device controls are not hosted in the left sidebar");
@@ -846,10 +847,19 @@ internal static partial class Program
             Check(ReferenceEquals(tools!.Content, second.FindName("SessionTools")), "Switching tabs retained the previous device's controls");
             tabs.SelectedItem = tab1; window.UpdateLayout();
             Check(((TextBox)first.FindName("AndroidTextBox")).Text == "first phone", "Switching tabs lost device input state");
+            var originalWidth = window.Width;
+            DebugCallMain(window, "Compact_Click", window, new RoutedEventArgs()); window.UpdateLayout();
+            Check(window.Width < originalWidth && ((FrameworkElement)window.FindName("CompactExitButton")).IsVisible,
+                "Compact mode did not shrink the window or expose its restore control");
+            typeof(MirrorSessionControl).GetProperty("RotationDegrees")!.SetValue(first, 90);
+            DebugCallMain(window, "ResizeCompact", first);
+            Check(window.Width > window.Height, "Compact window did not adapt to landscape orientation");
+            DebugCallMain(window, "Compact_Click", window, new RoutedEventArgs()); window.UpdateLayout();
+            Check(Math.Abs(window.Width - originalWidth) < 1, "Compact mode did not restore the original width");
             typeof(MirrorSessionControl).GetMethod("ApplyZoom", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(first, [2d]);
             DebugCallMain(window, "ToggleFullscreen"); await Task.Delay(100); window.UpdateLayout();
             Check(((ComboBox)first.FindName("ZoomBox")).SelectedIndex == 0, "Fullscreen retained a cropped zoom instead of Fit");
-            Check(viewport.ActualHeight >= window.ActualHeight - 4, "Fullscreen does not give the mirror the available height");
+            Check(viewport.ActualHeight >= window.ActualHeight - 55, "Fullscreen does not give the mirror the available height below the tabs");
             Check(((FrameworkElement)window.FindName("SidebarRecoveryRail")).IsVisible, "Hidden tools have no mouse-accessible recovery control");
             DebugCallMain(window, "SidebarToggle_Click", window, new RoutedEventArgs()); window.UpdateLayout();
             Check(((FrameworkElement)window.FindName("SidebarPanel")).IsVisible, "Tools cannot be opened while the native mirror has focus");

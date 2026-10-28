@@ -22,6 +22,7 @@ public partial class MirrorSessionControl : UserControl, IDisposable
     private readonly AppSettings _settings;
     private readonly CancellationTokenSource _lifetime = new();
     private readonly SemaphoreSlim _startGate = new(1, 1);
+    private readonly SemaphoreSlim _inputGate = new(1, 1);
     private AndroidDevice _device;
     private ScrcpySession? _scrcpySession;
     private LegacyMinicapSession? _minicapSession;
@@ -75,6 +76,8 @@ public partial class MirrorSessionControl : UserControl, IDisposable
                 if (owner is not null) owner.Activated += FocusWindow_Activated;
             }
             await EnsureRunningAsync();
+            if (!_disposed && IsLoaded && _scrcpySession is { HasExited: false } session && !ScrcpyHost.HasChild)
+                ScrcpyHost.AttachExternalWindow(session.WindowHandle);
             FocusKeyboardWhenReady();
             RefreshKeyboardRecovery();
         };
@@ -95,6 +98,8 @@ public partial class MirrorSessionControl : UserControl, IDisposable
     }
 
     public string Serial => _device.Serial;
+    public int RotationDegrees { get; private set; }
+    public event EventHandler? OrientationChanged;
 
     private void FocusWindow_Activated(object? sender, EventArgs e) => FocusKeyboardWhenReady();
 
@@ -276,9 +281,10 @@ public partial class MirrorSessionControl : UserControl, IDisposable
 
         try
         {
-            ScrcpyHost.AttachExternalWindow(session.WindowHandle);
             _scrcpySession = session;
             session.Exited += ScrcpySessionOnExited;
+            if (IsLoaded) ScrcpyHost.AttachExternalWindow(session.WindowHandle);
+            else NativeWindowHost.HideExternalWindow(session.WindowHandle);
         }
         catch
         {
@@ -516,9 +522,12 @@ public partial class MirrorSessionControl : UserControl, IDisposable
     {
         try
         {
-            await _bridge.KeyEventAsync(_device.Serial, keyCode, _lifetime.Token);
+            await _inputGate.WaitAsync(_lifetime.Token);
+            try { await _bridge.KeyEventAsync(_device.Serial, keyCode, _lifetime.Token); }
+            finally { _inputGate.Release(); }
             _refreshRequested = true;
         }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
         catch (Exception ex)
         {
             StatusText.Text = ex.Message;
@@ -690,6 +699,11 @@ public partial class MirrorSessionControl : UserControl, IDisposable
     private async Task RefreshRotationStateAsync()
     {
         var (rotation, automatic) = await _advanced.GetRotationStateAsync(_device.Serial, _lifetime.Token);
+        if (RotationDegrees != rotation)
+        {
+            RotationDegrees = rotation;
+            OrientationChanged?.Invoke(this, EventArgs.Empty);
+        }
         RotateStateText.Text = $"Rotation: {rotation}° · {(automatic ? "Auto" : "Locked")}";
         AutoRotateButton.Content = automatic ? "Auto rotate · On" : "Auto rotate · Off";
         AutoRotateButton.Background = automatic ? Brushes.DarkSlateBlue : new SolidColorBrush(Color.FromRgb(31, 41, 55));
@@ -707,7 +721,7 @@ public partial class MirrorSessionControl : UserControl, IDisposable
     {
         if (_textSendBusy || _disposed) return;
         var text = AndroidTextBox.Text;
-        if (string.IsNullOrWhiteSpace(text) || text.Length > 4000)
+        if (string.IsNullOrEmpty(text) || text.Length > 4000)
         {
             StatusText.Text = "Enter between 1 and 4000 characters in the text box.";
             return;
@@ -1014,7 +1028,7 @@ public partial class MirrorSessionControl : UserControl, IDisposable
 
     private async void Root_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        if (!UsesLegacyBackend)
+        if (!UsesLegacyBackend || e.OriginalSource is System.Windows.Controls.Primitives.TextBoxBase or ComboBox or PasswordBox)
             return;
 
         var keyCode = e.Key switch
@@ -1039,15 +1053,18 @@ public partial class MirrorSessionControl : UserControl, IDisposable
 
     private async void Root_PreviewTextInput(object sender, TextCompositionEventArgs e)
     {
-        if (!UsesLegacyBackend || string.IsNullOrEmpty(e.Text) || char.IsControl(e.Text[0]))
+        if (!UsesLegacyBackend || e.OriginalSource is System.Windows.Controls.Primitives.TextBoxBase or ComboBox or PasswordBox || string.IsNullOrEmpty(e.Text) || char.IsControl(e.Text[0]))
             return;
 
+        e.Handled = true;
         try
         {
-            await _bridge.InputTextAsync(_device.Serial, e.Text, _lifetime.Token);
+            await _inputGate.WaitAsync(_lifetime.Token);
+            try { await _bridge.InputTextAsync(_device.Serial, e.Text, _lifetime.Token); }
+            finally { _inputGate.Release(); }
             _refreshRequested = true;
-            e.Handled = true;
         }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
         catch (Exception ex)
         {
             StatusText.Text = ex.Message;

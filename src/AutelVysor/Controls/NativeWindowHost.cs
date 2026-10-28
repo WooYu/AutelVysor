@@ -38,6 +38,10 @@ public sealed class NativeWindowHost : HwndHost
 
     public IntPtr ChildHandle => _childHwnd;
     public bool HasChild => _childHwnd != IntPtr.Zero;
+    public static void HideExternalWindow(IntPtr window)
+    {
+        if (window != IntPtr.Zero && IsWindow(window)) ShowWindow(window, 0);
+    }
 
     /// <summary>Explicit scrcpy MOD+V paste; the caller has placed its text on the PC clipboard.</summary>
     public bool PasteClipboard()
@@ -139,6 +143,7 @@ public sealed class NativeWindowHost : HwndHost
 
     protected override void DestroyWindowCore(HandleRef hwnd)
     {
+        if (HasChild && IsWindow(_childHwnd)) ShowWindow(_childHwnd, 0);
         DetachExternalWindow();
         if (hwnd.Handle != IntPtr.Zero)
             DestroyWindow(hwnd.Handle);

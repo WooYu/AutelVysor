@@ -2,7 +2,7 @@
 
 Windows Android mirror/control client for **Android 4.4 (API 19) and newer**.
 
-Current source version: **0.10.9**
+Current source version: **0.10.10**
 
 ## Desktop interaction improvements
 

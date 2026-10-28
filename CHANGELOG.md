@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.10.10
+
+- Show device tabs, preserve native mirror sessions across tab switches and open the sole supported device automatically on discovery.
+- Add a compact window that adapts to device rotation, with mouse-accessible restore and minimize controls.
+- Serialize legacy Android keyboard events and protect local editors from legacy input handling; permit whitespace-only text submissions.
+- Physical Android input and multi-device acceptance remain pending; this release does not claim to resolve every reported input issue.
+
 ## 0.10.9
 
 - Automatically focus the foreground mirror on startup, tab selection and activation, with short bounded retries and native focus confirmation.

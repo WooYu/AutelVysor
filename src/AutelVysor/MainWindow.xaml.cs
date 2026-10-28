@@ -48,6 +48,10 @@ public partial class MainWindow : Window
     private bool _closeAfterRecordings;
     private bool _sidebarHidden;
     private bool _isFullscreen;
+    private bool _compact;
+    private bool _autoOpenPending = true;
+    private Rect _normalBounds;
+    private bool _sidebarHiddenBeforeCompact;
     private bool _syncingSessionList;
     private double _sidebarWidth = 340;
     private sealed record SessionChoice(TabItem Tab) { public string Title => Tab.Header?.ToString() ?? "Device"; }
@@ -213,6 +217,14 @@ public partial class MainWindow : Window
             }
             _devices = devices;
 
+            var online = devices.Where(d => d.IsOnline && (d.ApiLevel == 0 || d.ApiLevel >= 19)).ToArray();
+            if (IsLoaded && _autoOpenPending && _sessions.Count == 0 && online.Length == 1)
+            {
+                _autoOpenPending = false;
+                try { OpenSession(online[0]); }
+                catch (Exception ex) { StatusText.Text = ex.Message; }
+            }
+
             var map = devices.ToDictionary(x => x.Serial, StringComparer.OrdinalIgnoreCase);
             foreach (var (serial, session) in _sessions.ToArray())
             {
@@ -252,6 +264,7 @@ public partial class MainWindow : Window
     private void OpenSession(AndroidDevice device)
     {
         ValidateDevice(device);
+        _autoOpenPending = false;
         if (device.ApiLevel >= 21 || device.ApiLevel == 0)
             Require(Scrcpy);
 
@@ -264,6 +277,7 @@ public partial class MainWindow : Window
 
         var scrcpy = File.Exists(Scrcpy) ? _scrcpy : null;
         var view = new MirrorSessionControl(_bridge, scrcpy, _minicap, _settings, device);
+        view.OrientationChanged += (_, _) => { if (_compact && !_isFullscreen && ReferenceEquals(SessionTabs.SelectedItem, _sessions.GetValueOrDefault(view.Serial).Tab)) ResizeCompact(view); };
         var tab = new TabItem
         {
             Header = device.DisplayName,
@@ -302,6 +316,7 @@ public partial class MainWindow : Window
             SessionToolsHost.Content = view.DetachToolsForSidebar();
             view.FocusKeyboardWhenReady();
             if (_isFullscreen || _sidebarHidden) view.FitToWindow();
+            if (_compact && !_isFullscreen) ResizeCompact(view);
         }
         _syncingSessionList = true;
         try
@@ -335,6 +350,41 @@ public partial class MainWindow : Window
 
     private void SidebarToggle_Click(object sender, RoutedEventArgs e) => SetSidebarHidden(!_sidebarHidden);
     private void Fullscreen_Click(object sender, RoutedEventArgs e) => ToggleFullscreen();
+    private void Minimize_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
+
+    private void Compact_Click(object sender, RoutedEventArgs e)
+    {
+        if (_isFullscreen) ToggleFullscreen();
+        if (!_compact)
+        {
+            _normalBounds = WindowState == WindowState.Normal ? new Rect(Left, Top, Width, Height) : RestoreBounds;
+            _sidebarHiddenBeforeCompact = _sidebarHidden;
+            WindowState = WindowState.Normal;
+            _compact = true;
+            SetSidebarHidden(true);
+            if (SessionTabs.SelectedItem is TabItem { Content: MirrorSessionControl view }) ResizeCompact(view);
+        }
+        else
+        {
+            _compact = false;
+            SetSidebarHidden(_sidebarHiddenBeforeCompact);
+            Left = _normalBounds.Left; Top = _normalBounds.Top;
+            Width = _normalBounds.Width; Height = _normalBounds.Height;
+        }
+        CompactButton.Content = _compact ? "Restore window" : "Compact window";
+        CompactExitButton.Visibility = _compact ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void ResizeCompact(MirrorSessionControl view)
+    {
+        if (WindowState != WindowState.Normal) return;
+        var work = SystemParameters.WorkArea;
+        var landscape = view.RotationDegrees is 90 or 270;
+        Width = Math.Min(work.Width, landscape ? 800 : 480);
+        Height = Math.Min(work.Height, landscape ? 500 : 800);
+        Left = Math.Clamp(Left, work.Left, Math.Max(work.Left, work.Right - Width));
+        Top = Math.Clamp(Top, work.Top, Math.Max(work.Top, work.Bottom - Height));
+    }
 
     private void ToggleFullscreen()
     {
@@ -357,6 +407,7 @@ public partial class MainWindow : Window
             ResizeMode = ResizeMode.CanResize;
             SetSidebarHidden(_sidebarHiddenBeforeFullscreen);
             WindowState = _restoreWindowState;
+            if (_compact && SessionTabs.SelectedItem is TabItem { Content: MirrorSessionControl view }) ResizeCompact(view);
         }
         FullscreenButton.Content = _isFullscreen ? "Exit full" : "Full screen";
     }
