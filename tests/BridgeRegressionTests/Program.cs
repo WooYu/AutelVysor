@@ -14,7 +14,7 @@ internal static class Program
         var failures = 0;
         try
         {
-            foreach (var (name, test) in new (string, Func<Task>)[] { ("ShellBoundary", ShellBoundary), ("ActualDisplayRotation", ActualDisplayRotation), ("CleanupOwnership", CleanupOwnership) })
+            foreach (var (name, test) in new (string, Func<Task>)[] { ("ShellBoundary", ShellBoundary), ("ActualDisplayRotation", ActualDisplayRotation), ("PhoneKeyboardSetting", PhoneKeyboardSetting), ("CleanupOwnership", CleanupOwnership) })
             {
                 try { await test(); Console.WriteLine("PASS: " + name); }
                 catch (Exception ex) { failures++; Console.WriteLine("FAIL: " + name + "\n" + ex); }
@@ -85,11 +85,44 @@ internal static class Program
         Check(service.HasRecordings, "Unknown process liveness was discarded after cleanup failure");
     }
 
+    private static async Task PhoneKeyboardSetting()
+    {
+        var bridge = Bridge();
+        File.WriteAllText(State("phone-keyboard"), "1");
+        Check(await bridge.GetShowSoftKeyboardWithHardwareAsync("test-device"), "Initial phone setting was not read");
+        await bridge.SetShowSoftKeyboardWithHardwareAsync("test-device", false);
+        Check(!await bridge.GetShowSoftKeyboardWithHardwareAsync("test-device"), "Setting did not change to hidden");
+        File.WriteAllText(State("phone-keyboard-noop"), "1");
+        var rejected = false;
+        try { await bridge.SetShowSoftKeyboardWithHardwareAsync("test-device", true); }
+        catch (InvalidOperationException) { rejected = true; }
+        Check(rejected, "A write that did not change the setting was reported as successful");
+        File.Delete(State("phone-keyboard-noop"));
+        File.WriteAllText(State("phone-keyboard-denied"), "1");
+        rejected = false;
+        try { await bridge.SetShowSoftKeyboardWithHardwareAsync("test-device", true); }
+        catch (InvalidOperationException) { rejected = true; }
+        Check(rejected, "A denied setting write was reported as successful");
+        File.Delete(State("phone-keyboard-denied"));
+    }
+
     private static int FakeAdb(string[] args)
     {
         var index = Array.IndexOf(args, "shell");
         if (index < 0) return 1;
         var command = string.Join(" ", args.Skip(index + 1));
+        if (command.Contains("settings ") && command.Contains("show_ime_with_hard_keyboard"))
+        {
+            var marker = System.Text.RegularExpressions.Regex.Match(command, "__AUTEL_EXIT_[a-f0-9]{32}__").Value;
+            if (marker.Length == 0) return 1;
+            var write = command.Contains("settings put secure");
+            var denied = write && File.Exists(State("phone-keyboard-denied"));
+            if (write && !denied && !File.Exists(State("phone-keyboard-noop")))
+                File.WriteAllText(State("phone-keyboard"), command.Contains("show_ime_with_hard_keyboard 1") ? "1" : "0");
+            if (!write) Console.Write(File.ReadAllText(State("phone-keyboard")));
+            Console.Write("\n" + marker + (denied ? "1" : "0") + "\n");
+            return 0;
+        }
         if (args.Contains("dumpsys") && (args.Contains("window") || args.Contains("input")))
         {
             var rotation = File.ReadAllText(State("modern-display"));

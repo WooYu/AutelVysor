@@ -62,8 +62,8 @@ public partial class DeviceDebugWindow
         var filter = CurrentLogFilter();
         _visibleLogRows = _logDocument.GetVisible(filter).Select(record => new LogRow(record.Text, record.Level switch
         {
-            LogcatLevel.Verbose => "#94A3B8", LogcatLevel.Debug => "#93C5FD", LogcatLevel.Info => "#86EFAC",
-            LogcatLevel.Warn => "#FCD34D", LogcatLevel.Error => "#FCA5A5", LogcatLevel.Fatal => "#F0ABFC", _ => "#CBD5E1"
+            LogcatLevel.Verbose => "#A2ADA6", LogcatLevel.Debug => "#A1BDAA", LogcatLevel.Info => "#A8C9B0",
+            LogcatLevel.Warn => "#D9C197", LogcatLevel.Error => "#D9A6A2", LogcatLevel.Fatal => "#C9B2C7", _ => "#C9D1CC"
         })).ToArray();
         LogLines.ItemsSource = _visibleLogRows;
         if (_logcatProcess is not null && PauseLogBox.IsChecked != true && _visibleLogRows.Count > 0)

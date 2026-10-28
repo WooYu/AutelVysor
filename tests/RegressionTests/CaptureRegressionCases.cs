@@ -49,7 +49,7 @@ internal static partial class Program
             CaptureCall(window, "FitImage_Click", window, new RoutedEventArgs());
             var list = (ListBox)window.FindName("CaptureList");
             var surface = (Border)((ListBoxItem)list.ItemContainerGenerator.ContainerFromIndex(0)).Template.FindName("Surface", (ListBoxItem)list.ItemContainerGenerator.ContainerFromIndex(0));
-            Check(((SolidColorBrush)surface.Background).Color == (Color)ColorConverter.ConvertFromString("#173454"), "Capture selection became unreadable");
+            Check(((SolidColorBrush)surface.Background).Color == (Color)ColorConverter.ConvertFromString("#364C42"), "Capture selection became unreadable");
             var imageOrigin = image.TransformToAncestor(window).Transform(new Point());
             Check(imageOrigin.X > list.TransformToAncestor(window).Transform(new Point()).X + list.ActualWidth, "Preview is not to the right of captures");
             using (File.Open(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) { }

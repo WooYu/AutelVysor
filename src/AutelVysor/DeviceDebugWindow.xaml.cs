@@ -45,6 +45,7 @@ public partial class DeviceDebugWindow : Window
     public DeviceDebugWindow(AndroidBridge bridge, AndroidDevice device)
     {
         InitializeComponent();
+        AutelVysor.Services.DarkWindowChrome.Attach(this);
         _bridge = bridge;
         _appNamesService = new AppNameService(bridge);
         _advanced = new AdvancedAdbService(bridge.ExecutablePath);

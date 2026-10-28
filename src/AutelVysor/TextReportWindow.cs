@@ -10,9 +10,10 @@ public sealed class TextReportWindow : Window
 {
     public TextReportWindow(string title, string report)
     {
+        AutelVysor.Services.DarkWindowChrome.Attach(this);
         Title = title; Width = 900; Height = 650; MinWidth = 500; MinHeight = 350;
         MaxWidth = SystemParameters.WorkArea.Width; MaxHeight = SystemParameters.WorkArea.Height;
-        Background = (Brush)new BrushConverter().ConvertFromString("#0F172A")!;
+        Background = (Brush)new BrushConverter().ConvertFromString("#202322")!;
         Foreground = Brushes.White; WindowStartupLocation = WindowStartupLocation.CenterOwner;
         Icon = BitmapFrame.Create(new Uri("pack://application:,,,/AutelVysor;component/Assets/AutelVysor.ico"));
         var root = new DockPanel { Margin = new Thickness(14) };

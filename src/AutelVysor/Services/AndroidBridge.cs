@@ -511,6 +511,24 @@ public sealed class AndroidBridge(string adbPath)
         return (result.Output + (string.IsNullOrWhiteSpace(result.Error) ? string.Empty : "\n" + result.Error)).TrimEnd();
     }
 
+    public async Task<bool> GetShowSoftKeyboardWithHardwareAsync(string serial, CancellationToken ct = default)
+    {
+        var value = (await RunShellCommandAsync(serial, "settings get secure show_ime_with_hard_keyboard", ct)).Trim();
+        return value switch
+        {
+            "1" => true,
+            "0" or "null" => false,
+            _ => throw new InvalidOperationException("Android did not report its hardware keyboard setting: " + value)
+        };
+    }
+
+    public async Task SetShowSoftKeyboardWithHardwareAsync(string serial, bool show, CancellationToken ct = default)
+    {
+        await RunShellCommandAsync(serial, "settings put secure show_ime_with_hard_keyboard " + (show ? "1" : "0"), ct);
+        if (await GetShowSoftKeyboardWithHardwareAsync(serial, ct) != show)
+            throw new InvalidOperationException("Android did not apply its hardware keyboard setting.");
+    }
+
     public async Task<CommandResult> RunShellCommandResultAsync(string serial, string command, CancellationToken ct = default)
     {
         command = command.Trim();

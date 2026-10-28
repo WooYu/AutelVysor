@@ -34,7 +34,7 @@ internal static partial class Program
             DebugCall(window, "FlushLiveLog");
             Check(rows.Items.Count == 1, "Changing minimum level did not re-filter imported data");
             var errorRow = rows.Items[0];
-            Check(errorRow.GetType().GetProperty("Color")!.GetValue(errorRow)?.ToString() == "#FCA5A5", "Error row has no severity color");
+            Check(errorRow.GetType().GetProperty("Color")!.GetValue(errorRow)?.ToString() == "#D9A6A2", "Error row has no severity color");
             ((TextBox)window.FindName("LogFilterBox")).Text = "Sample.java";
             ((TextBox)window.FindName("LogTagBox")).Text = "Demo";
             DebugCall(window, "FlushLiveLog");

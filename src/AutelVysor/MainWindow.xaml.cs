@@ -48,10 +48,8 @@ public partial class MainWindow : Window
     private bool _closeAfterRecordings;
     private bool _sidebarHidden;
     private bool _isFullscreen;
-    private bool _compact;
+    private bool _fitWindow;
     private bool _autoOpenPending = true;
-    private Rect _normalBounds;
-    private bool _sidebarHiddenBeforeCompact;
     private bool _syncingSessionList;
     private double _sidebarWidth = 340;
     private sealed record SessionChoice(TabItem Tab) { public string Title => Tab.Header?.ToString() ?? "Device"; }
@@ -64,6 +62,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        DarkWindowChrome.Attach(this);
         _bridge = new AndroidBridge(Adb);
         _settings = _settingsService.Load();
         _scrcpy = new ScrcpyService(Scrcpy, _settings);
@@ -221,7 +220,15 @@ public partial class MainWindow : Window
             if (IsLoaded && _autoOpenPending && _sessions.Count == 0 && online.Length == 1)
             {
                 _autoOpenPending = false;
-                try { OpenSession(online[0]); }
+                try
+                {
+                    OpenSession(online[0]);
+                    _fitWindow = true;
+                    _ = Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
+                    {
+                        if (_fitWindow && SessionTabs.SelectedItem is TabItem { Content: MirrorSessionControl view }) ResizeFitWindow(view);
+                    }));
+                }
                 catch (Exception ex) { StatusText.Text = ex.Message; }
             }
 
@@ -277,7 +284,11 @@ public partial class MainWindow : Window
 
         var scrcpy = File.Exists(Scrcpy) ? _scrcpy : null;
         var view = new MirrorSessionControl(_bridge, scrcpy, _minicap, _settings, device);
-        view.OrientationChanged += (_, _) => { if (_compact && !_isFullscreen && ReferenceEquals(SessionTabs.SelectedItem, _sessions.GetValueOrDefault(view.Serial).Tab)) ResizeCompact(view); };
+        view.OrientationChanged += (_, _) =>
+        {
+            if (_fitWindow && !_isFullscreen && ReferenceEquals(SessionTabs.SelectedItem, _sessions.GetValueOrDefault(view.Serial).Tab))
+                ResizeFitWindow(view);
+        };
         var tab = new TabItem
         {
             Header = device.DisplayName,
@@ -316,7 +327,7 @@ public partial class MainWindow : Window
             SessionToolsHost.Content = view.DetachToolsForSidebar();
             view.FocusKeyboardWhenReady();
             if (_isFullscreen || _sidebarHidden) view.FitToWindow();
-            if (_compact && !_isFullscreen) ResizeCompact(view);
+            if (_fitWindow && !_isFullscreen) ResizeFitWindow(view);
         }
         _syncingSessionList = true;
         try
@@ -343,45 +354,30 @@ public partial class MainWindow : Window
         SidebarSplitter.Visibility = hidden ? Visibility.Collapsed : Visibility.Visible;
         SidebarColumn.Width = new GridLength(hidden ? 44 : _sidebarWidth);
         SidebarSplitterColumn.Width = new GridLength(hidden ? 0 : 5);
-        SidebarToggleButton.Content = hidden ? "Show tools" : "Hide tools";
+        SidebarToggleButton.ToolTip = hidden ? "Show tools" : "Hide tools";
         ExitFullscreenButton.Visibility = _isFullscreen ? Visibility.Visible : Visibility.Collapsed;
         if (hidden && SessionTabs.SelectedItem is TabItem { Content: MirrorSessionControl view }) view.FitToWindow();
+        _ = Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
+        {
+            if (_fitWindow && !_isFullscreen && SessionTabs.SelectedItem is TabItem { Content: MirrorSessionControl active })
+                ResizeFitWindow(active);
+        }));
     }
 
     private void SidebarToggle_Click(object sender, RoutedEventArgs e) => SetSidebarHidden(!_sidebarHidden);
     private void Fullscreen_Click(object sender, RoutedEventArgs e) => ToggleFullscreen();
     private void Minimize_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
-
-    private void Compact_Click(object sender, RoutedEventArgs e)
-    {
-        if (_isFullscreen) ToggleFullscreen();
-        if (!_compact)
-        {
-            _normalBounds = WindowState == WindowState.Normal ? new Rect(Left, Top, Width, Height) : RestoreBounds;
-            _sidebarHiddenBeforeCompact = _sidebarHidden;
-            WindowState = WindowState.Normal;
-            _compact = true;
-            SetSidebarHidden(true);
-            if (SessionTabs.SelectedItem is TabItem { Content: MirrorSessionControl view }) ResizeCompact(view);
-        }
-        else
-        {
-            _compact = false;
-            SetSidebarHidden(_sidebarHiddenBeforeCompact);
-            Left = _normalBounds.Left; Top = _normalBounds.Top;
-            Width = _normalBounds.Width; Height = _normalBounds.Height;
-        }
-        CompactButton.Content = _compact ? "Restore window" : "Compact window";
-        CompactExitButton.Visibility = _compact ? Visibility.Visible : Visibility.Collapsed;
-    }
-
-    private void ResizeCompact(MirrorSessionControl view)
+    private void ResizeFitWindow(MirrorSessionControl view)
     {
         if (WindowState != WindowState.Normal) return;
         var work = SystemParameters.WorkArea;
-        var landscape = view.RotationDegrees is 90 or 270;
-        Width = Math.Min(work.Width, landscape ? 800 : 480);
-        Height = Math.Min(work.Height, landscape ? 500 : 800);
+        var ratio = view.DisplayAspectRatio;
+        var chromeHeight = view.ActualHeight > 0 ? Math.Max(40, ActualHeight - view.ActualHeight) : 65;
+        var sideWidth = (_sidebarHidden ? 44 : SidebarColumn.ActualWidth) + SidebarSplitterColumn.ActualWidth + 18;
+        var availableHeight = Math.Min(800, work.Height);
+        var pictureHeight = Math.Min(availableHeight - chromeHeight, (work.Width - sideWidth) / ratio);
+        Height = Math.Clamp(pictureHeight + chromeHeight, MinHeight, work.Height);
+        Width = Math.Clamp(sideWidth + pictureHeight * ratio, MinWidth, work.Width);
         Left = Math.Clamp(Left, work.Left, Math.Max(work.Left, work.Right - Width));
         Top = Math.Clamp(Top, work.Top, Math.Max(work.Top, work.Bottom - Height));
     }
@@ -404,12 +400,12 @@ public partial class MainWindow : Window
             _isFullscreen = false;
             WindowState = WindowState.Normal;
             WindowStyle = WindowStyle.SingleBorderWindow;
+            DarkWindowChrome.Apply(this);
             ResizeMode = ResizeMode.CanResize;
             SetSidebarHidden(_sidebarHiddenBeforeFullscreen);
             WindowState = _restoreWindowState;
-            if (_compact && SessionTabs.SelectedItem is TabItem { Content: MirrorSessionControl view }) ResizeCompact(view);
+            if (_fitWindow && SessionTabs.SelectedItem is TabItem { Content: MirrorSessionControl view }) ResizeFitWindow(view);
         }
-        FullscreenButton.Content = _isFullscreen ? "Exit full" : "Full screen";
     }
 
     private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
@@ -655,17 +651,17 @@ public partial class MainWindow : Window
             {
                 if (_recordingStopBusy || generation != _recordingGeneration) return;
                 RecordButton.Content = "Recording ended · check file";
-                CaptureStatusText.Text = $"Recorder exited. Use Stop recordings to verify/finalize: {path}";
+                CaptureStatusText.Text = $"Recorder exited unexpectedly. Close extra mirrors and use Stop recordings to verify: {path}";
             });
             RecordButton.Content = "● Recording";
-            RecordButton.Background = System.Windows.Media.Brushes.Firebrick;
+            RecordButton.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(118, 81, 74));
             CaptureStatusText.Text = $"Recording {device.DisplayName} → {path}";
             StopRecordingsButton.IsEnabled = true;
             StatusText.Text = $"Recording started: {path}. Use Stop recordings to finalize the MP4.";
             if (process.HasExited)
             {
                 RecordButton.Content = "Recording ended · check file";
-                CaptureStatusText.Text = $"Recorder exited during startup. Use Stop recordings to verify: {path}";
+                CaptureStatusText.Text = $"Recorder exited during startup. Close extra mirrors and use Stop recordings to verify: {path}";
             }
         }
         catch (Exception ex)
@@ -699,7 +695,9 @@ public partial class MainWindow : Window
             StopRecordingsButton.IsEnabled = _scrcpy.HasRecordings;
             StopRecordingsButton.Content = "Stop recordings";
             RecordButton.Content = _scrcpy.HasRecordings ? "● Recording" : "Record MP4";
-            RecordButton.Background = _scrcpy.HasRecordings ? System.Windows.Media.Brushes.Firebrick : System.Windows.Media.Brushes.SlateGray;
+            RecordButton.ClearValue(BackgroundProperty);
+            if (_scrcpy.HasRecordings)
+                RecordButton.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(118, 81, 74));
         }
     }
 

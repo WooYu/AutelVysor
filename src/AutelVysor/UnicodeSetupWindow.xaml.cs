@@ -18,6 +18,7 @@ public partial class UnicodeSetupWindow : Window
     public UnicodeSetupWindow(AdbKeyboardService keyboard, string serial, string text, bool clipboardSupported)
     {
         InitializeComponent();
+        AutelVysor.Services.DarkWindowChrome.Attach(this);
         _keyboard = keyboard;
         _serial = serial;
         _clipboardSupported = clipboardSupported;

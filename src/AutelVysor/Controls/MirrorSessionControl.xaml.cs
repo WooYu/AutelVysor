@@ -38,6 +38,7 @@ public partial class MirrorSessionControl : UserControl, IDisposable
     private bool _disposed;
     private bool _forceLegacyFallback;
     private bool _orientationBusy;
+    private bool _updatingPhoneKeyboard;
     private DateTime _nextModernRetryUtc;
     private DateTime _lastRotationCheckUtc;
     private int _offlineChecks;
@@ -76,6 +77,7 @@ public partial class MirrorSessionControl : UserControl, IDisposable
                 if (owner is not null) owner.Activated += FocusWindow_Activated;
             }
             await EnsureRunningAsync();
+            await RefreshPhoneKeyboardSettingAsync();
             if (!_disposed && IsLoaded && _scrcpySession is { HasExited: false } session && !ScrcpyHost.HasChild)
                 ScrcpyHost.AttachExternalWindow(session.WindowHandle);
             FocusKeyboardWhenReady();
@@ -99,7 +101,48 @@ public partial class MirrorSessionControl : UserControl, IDisposable
 
     public string Serial => _device.Serial;
     public int RotationDegrees { get; private set; }
+    public double DisplayAspectRatio { get; private set; } = 9d / 19d;
     public event EventHandler? OrientationChanged;
+
+    private async Task RefreshPhoneKeyboardSettingAsync()
+    {
+        if (_disposed || !_device.IsOnline || _updatingPhoneKeyboard) return;
+        _updatingPhoneKeyboard = true;
+        PhoneKeyboardToggle.IsEnabled = false;
+        try
+        {
+            PhoneKeyboardToggle.IsChecked = !await _bridge.GetShowSoftKeyboardWithHardwareAsync(_device.Serial, _lifetime.Token);
+            PhoneKeyboardToggle.ToolTip = "Controls Android's setting for showing the on-screen keyboard while a hardware keyboard is connected.";
+            PhoneKeyboardToggle.IsEnabled = true;
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
+        catch (Exception ex) { PhoneKeyboardToggle.IsChecked = null; PhoneKeyboardToggle.ToolTip = "Phone keyboard setting unavailable: " + ex.Message; }
+        finally { _updatingPhoneKeyboard = false; }
+    }
+
+    private async void PhoneKeyboardToggle_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_disposed || _updatingPhoneKeyboard || !IsLoaded || !PhoneKeyboardToggle.IsEnabled) return;
+        var hide = PhoneKeyboardToggle.IsChecked == true;
+        _updatingPhoneKeyboard = true;
+        PhoneKeyboardToggle.IsEnabled = false;
+        try
+        {
+            await _bridge.SetShowSoftKeyboardWithHardwareAsync(_device.Serial, !hide, _lifetime.Token);
+            StatusText.Text = hide ? "Phone keyboard hidden while a hardware keyboard is connected." : "Phone keyboard may appear with a hardware keyboard.";
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
+        catch (Exception ex)
+        {
+            PhoneKeyboardToggle.IsChecked = null;
+            StatusText.Text = "Phone keyboard setting failed: " + ex.Message;
+        }
+        finally
+        {
+            _updatingPhoneKeyboard = false;
+            if (!_disposed) await RefreshPhoneKeyboardSettingAsync();
+        }
+    }
 
     private void FocusWindow_Activated(object? sender, EventArgs e) => FocusKeyboardWhenReady();
 
@@ -139,7 +182,7 @@ public partial class MirrorSessionControl : UserControl, IDisposable
                     if (!IsVisible || Window.GetWindow(this)?.IsActive != true) return;
                     if (!(UsesLegacyBackend ? IsKeyboardFocusWithin : ScrcpyHost.HasKeyboardFocus)) continue;
                     FocusKeyboardButton.Content = "Keyboard ready ✓";
-                    FocusKeyboardButton.Background = Brushes.DarkSlateBlue;
+                    FocusKeyboardButton.Background = new SolidColorBrush(Color.FromRgb(70, 96, 82));
                     if (explicitRequest) StatusText.Text = "Keyboard ready. Select a phone text field to type; PC-composed Chinese uses Paste text.";
                     return;
                 }
@@ -178,6 +221,7 @@ public partial class MirrorSessionControl : UserControl, IDisposable
         {
             _nextModernRetryUtc = DateTime.MinValue;
             _restartFailures = 0;
+            _ = RefreshPhoneKeyboardSettingAsync();
         }
         _offlineChecks = 0;
         _device = current;
@@ -547,13 +591,6 @@ public partial class MirrorSessionControl : UserControl, IDisposable
         catch (Exception ex) { StatusText.Text = ex.Message; }
     }
 
-    private void FitView_Click(object sender, RoutedEventArgs e)
-    {
-        ApplyZoom(1);
-        ScrcpyHost.SetFitMode();
-        StatusText.Text = "View mode: Fit.";
-    }
-
     private void ApplyZoom(double zoom)
     {
         ++_viewChangeVersion;
@@ -699,14 +736,22 @@ public partial class MirrorSessionControl : UserControl, IDisposable
     private async Task RefreshRotationStateAsync()
     {
         var (rotation, automatic) = await _advanced.GetRotationStateAsync(_device.Serial, _lifetime.Token);
-        if (RotationDegrees != rotation)
+        var ratio = DisplayAspectRatio;
+        try
+        {
+            var (width, height) = await _bridge.GetDisplaySizeAsync(_device.Serial, _lifetime.Token);
+            ratio = rotation is 90 or 270 ? (double)height / width : (double)width / height;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException) { }
+        if (RotationDegrees != rotation || Math.Abs(DisplayAspectRatio - ratio) > 0.001)
         {
             RotationDegrees = rotation;
+            DisplayAspectRatio = ratio;
             OrientationChanged?.Invoke(this, EventArgs.Empty);
         }
         RotateStateText.Text = $"Rotation: {rotation}° · {(automatic ? "Auto" : "Locked")}";
         AutoRotateButton.Content = automatic ? "Auto rotate · On" : "Auto rotate · Off";
-        AutoRotateButton.Background = automatic ? Brushes.DarkSlateBlue : new SolidColorBrush(Color.FromRgb(31, 41, 55));
+        AutoRotateButton.Background = automatic ? new SolidColorBrush(Color.FromRgb(70, 96, 82)) : new SolidColorBrush(Color.FromRgb(48, 54, 51));
         AutoRotateButton.ToolTip = automatic ? "Sensor rotation enabled; actual orientation depends on the device and foreground app." : "Orientation is locked. Click to enable sensor rotation.";
     }
 
@@ -717,7 +762,16 @@ public partial class MirrorSessionControl : UserControl, IDisposable
         RequestKeyboardFocus(true);
     }
 
-    private async void SendText_Click(object sender, RoutedEventArgs e)
+    private async void SendText_Click(object sender, RoutedEventArgs e) => await SendTextAsync(false);
+
+    private async void AndroidTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter || Keyboard.Modifiers != ModifierKeys.None) return;
+        e.Handled = true;
+        await SendTextAsync(true);
+    }
+
+    private async Task SendTextAsync(bool returnToEditor)
     {
         if (_textSendBusy || _disposed) return;
         var text = AndroidTextBox.Text;
@@ -749,6 +803,8 @@ public partial class MirrorSessionControl : UserControl, IDisposable
                 StatusText.Text = requested
                     ? "Paste requested through scrcpy. Confirm the text in the focused phone field; no ADBKeyBoard is required."
                     : "Paste not sent. Activate this window, release modifier keys, tap a phone input field and retry.";
+                if (requested && returnToEditor)
+                    await Task.Delay(250, _lifetime.Token);
                 return;
             }
             if (text.Any(ch => ch > 127))
@@ -774,6 +830,11 @@ public partial class MirrorSessionControl : UserControl, IDisposable
         {
             _textSendBusy = false;
             if (!_disposed) SendTextButton.IsEnabled = true;
+            if (returnToEditor && !_disposed && IsVisible && Window.GetWindow(this)?.IsActive == true)
+            {
+                AndroidTextBox.Focus();
+                if (AndroidTextBox.Text == text) AndroidTextBox.SelectAll();
+            }
         }
     }
 

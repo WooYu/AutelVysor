@@ -485,6 +485,14 @@ internal static partial class Program
             while (!File.Exists(State("native-paste")) && DateTime.UtcNow < until) await Task.Delay(25);
             Check(File.Exists(State("native-paste")) && File.ReadAllText(State("native-paste")) == expected,
                 "Chinese toolbar text did not reach native clipboard paste without ADBKeyBoard");
+            File.Delete(State("native-paste"));
+            editor.Focus();
+            await (Task)typeof(MirrorSessionControl).GetMethod("SendTextAsync", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(view, [true])!;
+            until = DateTime.UtcNow.AddSeconds(3);
+            while (!File.Exists(State("native-paste")) && DateTime.UtcNow < until) await Task.Delay(25);
+            Check(File.Exists(State("native-paste")) && File.ReadAllText(State("native-paste")) == expected,
+                "Enter submission did not deliver the clipboard to the native mirror");
+            Check(editor.Text == expected && editor.IsKeyboardFocusWithin, "Enter submission lost the unverified text or editor focus");
         }
         finally { view.Dispose(); window.Close(); }
     }
@@ -847,15 +855,9 @@ internal static partial class Program
             Check(ReferenceEquals(tools!.Content, second.FindName("SessionTools")), "Switching tabs retained the previous device's controls");
             tabs.SelectedItem = tab1; window.UpdateLayout();
             Check(((TextBox)first.FindName("AndroidTextBox")).Text == "first phone", "Switching tabs lost device input state");
-            var originalWidth = window.Width;
-            DebugCallMain(window, "Compact_Click", window, new RoutedEventArgs()); window.UpdateLayout();
-            Check(window.Width < originalWidth && ((FrameworkElement)window.FindName("CompactExitButton")).IsVisible,
-                "Compact mode did not shrink the window or expose its restore control");
-            typeof(MirrorSessionControl).GetProperty("RotationDegrees")!.SetValue(first, 90);
-            DebugCallMain(window, "ResizeCompact", first);
-            Check(window.Width > window.Height, "Compact window did not adapt to landscape orientation");
-            DebugCallMain(window, "Compact_Click", window, new RoutedEventArgs()); window.UpdateLayout();
-            Check(Math.Abs(window.Width - originalWidth) < 1, "Compact mode did not restore the original width");
+            typeof(MirrorSessionControl).GetProperty("DisplayAspectRatio")!.SetValue(first, 19d / 9d);
+            DebugCallMain(window, "ResizeFitWindow", first);
+            Check(window.Width > window.Height, "Window did not adapt to landscape orientation");
             typeof(MirrorSessionControl).GetMethod("ApplyZoom", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(first, [2d]);
             DebugCallMain(window, "ToggleFullscreen"); await Task.Delay(100); window.UpdateLayout();
             Check(((ComboBox)first.FindName("ZoomBox")).SelectedIndex == 0, "Fullscreen retained a cropped zoom instead of Fit");
@@ -900,8 +902,8 @@ internal static partial class Program
             var sessionList = (ListBox)window.FindName("SessionList");
             var sessionItem = (ListBoxItem)sessionList.ItemContainerGenerator.ContainerFromIndex(0);
             var tabSurface = (Border)sessionItem.Template.FindName("Surface", sessionItem);
-            Check(((SolidColorBrush)rowSurface.Background).Color == (Color)ColorConverter.ConvertFromString("#173454"), "Inactive device selection lost dark background");
-            Check(((SolidColorBrush)tabSurface.Background).Color == (Color)ColorConverter.ConvertFromString("#173454"), "Selected tab uses a system light background");
+            Check(((SolidColorBrush)rowSurface.Background).Color == (Color)ColorConverter.ConvertFromString("#364C42"), "Inactive device selection lost dark background");
+            Check(((SolidColorBrush)tabSurface.Background).Color == (Color)ColorConverter.ConvertFromString("#364C42"), "Selected tab uses a system light background");
             var output = Path.GetFullPath("test-results");
             Directory.CreateDirectory(output);
             var bitmap = new RenderTargetBitmap((int)window.ActualWidth, (int)window.ActualHeight, 96, 96, PixelFormats.Pbgra32);

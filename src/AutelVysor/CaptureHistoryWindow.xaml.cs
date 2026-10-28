@@ -25,6 +25,7 @@ public partial class CaptureHistoryWindow : Window
     public CaptureHistoryWindow()
     {
         InitializeComponent();
+        AutelVysor.Services.DarkWindowChrome.Attach(this);
         Loaded += (_, _) => Refresh();
         Closed += (_, _) => { ResetPreview(); _playbackTimer.Tick -= PlaybackTick; };
         _playbackTimer.Tick += PlaybackTick;

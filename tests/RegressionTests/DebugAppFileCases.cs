@@ -181,7 +181,7 @@ internal static partial class Program
             var row = (ListViewItem)list.ItemContainerGenerator.ContainerFromIndex(0);
             Check(row is not null, "Remote file row was not generated");
             Check(!row!.IsKeyboardFocusWithin, "Fixture unexpectedly focused the row");
-            Check(((SolidColorBrush)row.Background).Color == (Color)ColorConverter.ConvertFromString("#1D4ED8"), "Inactive file selection lost its dark-theme blue background");
+            Check(((SolidColorBrush)row.Background).Color == (Color)ColorConverter.ConvertFromString("#465F52"), "Inactive file selection lost its dark-theme blue background");
             Check(((SolidColorBrush)row.Foreground).Color == Colors.White, "Selected filename has insufficient contrast");
             Check(row.Template is not null, "Selection template was not applied");
         }

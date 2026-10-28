@@ -3,22 +3,29 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Icon="pack://application:,,,/AutelVysor;component/Assets/AutelVysor.ico"
         Title="Autel Vysor" Width="1100" Height="800" MinWidth="400" MinHeight="360"
-        Background="#0B1120" Foreground="#F1F5F9"
+        Background="#1B1E1C" Foreground="#F1F5F9"
         PreviewKeyDown="MainWindow_PreviewKeyDown">
   <Window.Resources>
+    <Style x:Key="ToolbarIconButton" TargetType="Button" BasedOn="{StaticResource DarkButtonStyle}">
+      <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
+      <Setter Property="FontSize" Value="15"/>
+      <Setter Property="Height" Value="36"/>
+      <Setter Property="Margin" Value="2"/>
+      <Setter Property="Padding" Value="2"/>
+    </Style>
     <Style TargetType="Button" BasedOn="{StaticResource DarkButtonStyle}">
       <Setter Property="Padding" Value="11,7"/>
       <Setter Property="Margin" Value="0,0,7,7"/>
-      <Setter Property="Background" Value="#2563EB"/>
+      <Setter Property="Background" Value="#526F62"/>
       <Setter Property="Foreground" Value="White"/>
       <Setter Property="BorderThickness" Value="0"/>
       <Setter Property="Cursor" Value="Hand"/>
     </Style>
     <Style TargetType="TextBox">
       <Setter Property="Padding" Value="8"/>
-      <Setter Property="Background" Value="#111827"/>
+      <Setter Property="Background" Value="#242826"/>
       <Setter Property="Foreground" Value="White"/>
-      <Setter Property="BorderBrush" Value="#334155"/>
+      <Setter Property="BorderBrush" Value="#404A45"/>
       <Setter Property="Margin" Value="0,0,7,7"/>
     </Style>
     <Style TargetType="CheckBox">
@@ -26,18 +33,18 @@
       <Setter Property="VerticalContentAlignment" Value="Center"/>
     </Style>
     <Style TargetType="Expander">
-      <Setter Property="Foreground" Value="#F8FAFC"/>
+      <Setter Property="Foreground" Value="#E4E9E5"/>
       <Setter Property="Margin" Value="0,5,0,0"/>
     </Style>
     <Style TargetType="ComboBoxItem" BasedOn="{StaticResource DarkComboItemStyle}">
-      <Setter Property="Foreground" Value="#F8FAFC"/>
-      <Setter Property="Background" Value="#111827"/>
+      <Setter Property="Foreground" Value="#E4E9E5"/>
+      <Setter Property="Background" Value="#242826"/>
       <Setter Property="Padding" Value="8,6"/>
     </Style>
     <Style x:Key="DarkComboBoxStyle" TargetType="ComboBox">
-      <Setter Property="Foreground" Value="#F8FAFC"/>
-      <Setter Property="Background" Value="#111827"/>
-      <Setter Property="BorderBrush" Value="#334155"/>
+      <Setter Property="Foreground" Value="#E4E9E5"/>
+      <Setter Property="Background" Value="#242826"/>
+      <Setter Property="BorderBrush" Value="#404A45"/>
       <Setter Property="BorderThickness" Value="1"/>
       <Setter Property="Padding" Value="8,6"/>
       <Setter Property="Template">
@@ -59,7 +66,7 @@
                                     Content="{TemplateBinding SelectionBoxItem}"
                                     ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
                                     ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"/>
-                  <TextBlock Text="▼" Margin="0,0,9,0" HorizontalAlignment="Right" VerticalAlignment="Center" Foreground="#CBD5E1" FontSize="10"/>
+                  <TextBlock Text="▼" Margin="0,0,9,0" HorizontalAlignment="Right" VerticalAlignment="Center" Foreground="#C9D1CC" FontSize="10"/>
                 </Grid>
               </ToggleButton>
               <Popup x:Name="Popup"
@@ -67,7 +74,7 @@
                      IsOpen="{TemplateBinding IsDropDownOpen}"
                      AllowsTransparency="True"
                      Focusable="False">
-                <Border Background="#111827" BorderBrush="#334155" BorderThickness="1" MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}">
+                <Border Background="#242826" BorderBrush="#404A45" BorderThickness="1" MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}">
                   <ScrollViewer CanContentScroll="True" MaxHeight="260">
                     <ItemsPresenter/>
                   </ScrollViewer>
@@ -86,50 +93,63 @@
       <ColumnDefinition x:Name="SidebarSplitterColumn" Width="5"/>
       <ColumnDefinition Width="*"/>
     </Grid.ColumnDefinitions>
-    <Border x:Name="SidebarPanel" Grid.Column="0" Background="#0F172A" BorderBrush="#1E293B" BorderThickness="0,0,1,0">
+    <Border x:Name="SidebarPanel" Grid.Column="0" Background="#202322" BorderBrush="#303633" BorderThickness="0,0,1,0">
       <DockPanel>
         <Border x:Name="TopBar" DockPanel.Dock="Top" Padding="12,10,12,4">
           <StackPanel>
-            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-              <Image Source="pack://application:,,,/AutelVysor;component/Assets/AutelVysor.ico" Width="28" Height="28" Margin="0,0,8,0"/>
-              <TextBlock Text="Autel Vysor" FontSize="20" FontWeight="Bold" VerticalAlignment="Center"/>
+            <StackPanel Orientation="Horizontal" Margin="2,0,0,10">
+              <Image Source="pack://application:,,,/AutelVysor;component/Assets/AutelVysor.ico" Width="20" Height="20" Margin="0,0,8,0"/>
+              <TextBlock Text="Autel Vysor" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center"/>
             </StackPanel>
-            <UniformGrid Columns="3">
-              <Button x:Name="FullscreenButton" Click="Fullscreen_Click" Content="Full screen" Padding="5,7"/>
-              <Button x:Name="SidebarToggleButton" Click="SidebarToggle_Click" Content="Hide tools" Padding="5,7" Background="#475569"/>
-              <Button Click="Refresh_Click" Content="Refresh" Padding="5,7"/>
-            </UniformGrid>
-            <UniformGrid Columns="2">
-              <Button x:Name="CompactButton" Click="Compact_Click" Content="Compact window" Padding="5,7" Background="#475569"/>
-              <Button Click="Minimize_Click" Content="Minimize" Padding="5,7" Background="#475569"/>
+            <UniformGrid Columns="3" Margin="0,0,0,4" HorizontalAlignment="Left" Width="156">
+              <Button Style="{StaticResource ToolbarIconButton}" x:Name="SidebarToggleButton" Click="SidebarToggle_Click" Content="&#xE76B;" ToolTip="Hide tools" AutomationProperties.Name="Hide tools"/>
+              <Button Style="{StaticResource ToolbarIconButton}" Click="Refresh_Click" Content="&#xE72C;" ToolTip="Refresh devices" AutomationProperties.Name="Refresh devices"/>
+              <Button Style="{StaticResource ToolbarIconButton}" Click="Minimize_Click" Content="&#xE921;" ToolTip="Minimize" AutomationProperties.Name="Minimize"/>
             </UniformGrid>
           </StackPanel>
         </Border>
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" CanContentScroll="False" Padding="12,0,12,12">
           <StackPanel>
-            <TextBlock Text="Open sessions" FontWeight="SemiBold" Margin="0,5,0,5"/>
-            <ListBox x:Name="SessionList" DisplayMemberPath="Title" MaxHeight="135" Background="#111827" Foreground="White"
-                     BorderBrush="#334155" SelectionChanged="SessionList_SelectionChanged" Margin="0,0,0,10"
-                     ItemContainerStyle="{StaticResource DarkListItemStyle}"/>
             <ContentControl x:Name="SessionToolsHost" HorizontalContentAlignment="Stretch"/>
+            <Expander Header="Files / utilities">
+              <StackPanel Margin="0,8,0,0">
+                <WrapPanel>
+                  <Button x:Name="ScreenshotButton" Click="Screenshot_Click" Content="Screenshot"/>
+                  <Button x:Name="RecordButton" Click="Record_Click" Content="Record MP4"/>
+                  <Button x:Name="StopRecordingsButton" Click="StopRecordings_Click" Content="Stop recordings" IsEnabled="False"/>
+                  <Button Click="Install_Click" Content="Install APK"/>
+                  <Button Click="Push_Click" Content="Send file"/>
+                </WrapPanel>
+                <TextBlock x:Name="CaptureStatusText" Text="Ready to capture. Saved files appear in Captures." Foreground="#A1BDAA" TextWrapping="Wrap" Margin="0,4,0,8"/>
+                <TextBox x:Name="RemotePathBox" Text="/sdcard/Download/example.txt"/>
+                <WrapPanel>
+                  <Button Click="Pull_Click" Content="Pull file" Background="#48534D"/>
+                  <Button Click="OpenFolder_Click" Content="Open videos" Background="#48534D"/>
+                </WrapPanel>
+              </StackPanel>
+            </Expander>
             <Expander x:Name="DeviceSection" Header="Devices / connect" IsExpanded="True">
               <StackPanel Margin="0,8,0,0">
-                <TextBlock Foreground="#94A3B8" Text="Select devices, then open a mirror." Margin="0,0,0,8"/>
+                <TextBlock Text="Open sessions" FontWeight="SemiBold" Margin="0,2,0,5"/>
+                <ListBox x:Name="SessionList" DisplayMemberPath="Title" MaxHeight="135" Background="#242826" Foreground="White"
+                         BorderBrush="#404A45" SelectionChanged="SessionList_SelectionChanged" Margin="0,0,0,10"
+                         ItemContainerStyle="{StaticResource DarkListItemStyle}"/>
+                <TextBlock Foreground="#A2ADA6" Text="Select devices, then open a mirror." Margin="0,0,0,8"/>
                 <WrapPanel>
                   <Button Click="Mirror_Click" Content="Open selected"/>
-                  <Button Click="OpenAll_Click" Content="Open all" Background="#334155"/>
-                  <Button Click="CloseSession_Click" Content="Close current" Background="#334155"/>
-                  <Button Click="DeviceDebug_Click" Content="Device debug" Background="#475569"/>
-                  <Button Click="BatchOperations_Click" Content="Batch operations" Background="#475569"/>
-                  <Button Click="Captures_Click" Content="Captures" Background="#475569"/>
+                  <Button Click="OpenAll_Click" Content="Open all" Background="#404A45"/>
+                  <Button Click="CloseSession_Click" Content="Close current" Background="#404A45"/>
+                  <Button Click="DeviceDebug_Click" Content="Device debug" Background="#48534D"/>
+                  <Button Click="BatchOperations_Click" Content="Batch operations" Background="#48534D"/>
+                  <Button Click="Captures_Click" Content="Captures" Background="#48534D"/>
                 </WrapPanel>
           <ListBox MaxHeight="210" x:Name="DeviceList"
                    Margin="0,10,0,8"
                    SelectionMode="Extended"
                    MouseDoubleClick="DeviceList_MouseDoubleClick"
-                   Background="#111827"
+                   Background="#242826"
                    Foreground="White"
-                   BorderBrush="#334155"
+                   BorderBrush="#404A45"
                    FontSize="13"
                    ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                    HorizontalContentAlignment="Stretch">
@@ -154,10 +174,10 @@
                       <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
                     <DockPanel Grid.Row="0">
-                      <TextBlock DockPanel.Dock="Right" Text="{Binding Status}" Foreground="#86EFAC" FontSize="11"/>
+                      <TextBlock DockPanel.Dock="Right" Text="{Binding Status}" Foreground="#A8C9B0" FontSize="11"/>
                       <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="14" TextTrimming="CharacterEllipsis"/>
                     </DockPanel>
-                    <TextBlock Grid.Row="1" Margin="0,3,0,0" Text="{Binding Meta}" Foreground="#CBD5E1" FontSize="11" TextTrimming="CharacterEllipsis"/>
+                    <TextBlock Grid.Row="1" Margin="0,3,0,0" Text="{Binding Meta}" Foreground="#C9D1CC" FontSize="11" TextTrimming="CharacterEllipsis"/>
                     <TextBlock Grid.Row="2" Margin="0,2,0,0" Text="{Binding Serial}" Foreground="#A8B8CC" FontSize="11" TextTrimming="CharacterEllipsis"/>
                   </Grid>
                 </Border>
@@ -174,15 +194,15 @@
                 <WrapPanel>
                   <Button Click="Pair_Click" Content="Pair"/>
                   <Button Click="Connect_Click" Content="Connect"/>
-                  <Button Click="Disconnect_Click" Content="Disconnect" Background="#475569"/>
-                  <Button Click="TcpIp_Click" Content="USB → TCP/IP" Background="#475569"/>
+                  <Button Click="Disconnect_Click" Content="Disconnect" Background="#48534D"/>
+                  <Button Click="TcpIp_Click" Content="USB → TCP/IP" Background="#48534D"/>
                 </WrapPanel>
               </StackPanel>
             </Expander>
 
             <Expander Header="Mirror settings">
               <StackPanel Margin="0,8,0,0">
-                <TextBlock Foreground="#94A3B8" Margin="0,0,0,5" Text="Quality preset"/>
+                <TextBlock Foreground="#A2ADA6" Margin="0,0,0,5" Text="Quality preset"/>
                 <ComboBox x:Name="MirrorQualityBox" Style="{StaticResource DarkComboBoxStyle}" Margin="0,0,7,7">
                   <ComboBoxItem Content="Smooth · 1280 / 4 Mbps / 30 FPS"/>
                   <ComboBoxItem Content="Standard · 1920 / 8 Mbps / 60 FPS"/>
@@ -190,68 +210,50 @@
                 </ComboBox>
                 <CheckBox x:Name="AudioBox" Margin="0,3,0,7" Content="Enable mirror audio"/>
                 <CheckBox x:Name="KeepDeviceAudioBox" IsChecked="True" Margin="0,3,0,4" Content="Keep phone / Bluetooth audio (recommended)"/>
-                <TextBlock Margin="22,0,4,7" Foreground="#64748B" FontSize="11" TextWrapping="Wrap"
+                <TextBlock Margin="22,0,4,7" Foreground="#829088" FontSize="11" TextWrapping="Wrap"
                            Text="Android 13+: audio is duplicated to PC and device. Android 11/12: device/Bluetooth audio takes priority."/>
                 <CheckBox x:Name="ClipboardBox" Margin="0,3,0,7" Content="Synchronize clipboard"/>
                 <CheckBox x:Name="ScreenOffBox" IsChecked="True" Margin="0,3,0,7" Content="Turn Android screen off while mirroring (default)"/>
                 <CheckBox x:Name="LegacyAccelerationBox" Margin="0,3,0,7" Content="Prefer Android 4.4 accelerated capture when available"/>
                 <CheckBox x:Name="AutoUpdateCheckBox" Margin="0,3,0,7"
                           Content="Check GitHub Releases for updates on startup"/>
-                <Button Click="ApplyMirrorSettings_Click" Content="Apply &amp; restart mirrors" Background="#475569"/>
+                <Button Click="ApplyMirrorSettings_Click" Content="Apply &amp; restart mirrors" Background="#48534D"/>
               </StackPanel>
             </Expander>
 
-            <Expander Header="Files / utilities">
-              <StackPanel Margin="0,8,0,0">
-                <WrapPanel>
-                  <Button x:Name="ScreenshotButton" Click="Screenshot_Click" Content="Screenshot"/>
-                  <Button x:Name="RecordButton" Click="Record_Click" Content="Record MP4"/>
-                  <Button x:Name="StopRecordingsButton" Click="StopRecordings_Click" Content="Stop recordings" IsEnabled="False"/>
-                  <Button Click="Install_Click" Content="Install APK"/>
-                  <Button Click="Push_Click" Content="Send file"/>
-                </WrapPanel>
-                <TextBlock x:Name="CaptureStatusText" Text="Ready to capture. Saved files appear in Captures." Foreground="#93C5FD" TextWrapping="Wrap" Margin="0,4,0,8"/>
-                <TextBox x:Name="RemotePathBox" Text="/sdcard/Download/example.txt"/>
-                <WrapPanel>
-                  <Button Click="Pull_Click" Content="Pull file" Background="#475569"/>
-                  <Button Click="OpenFolder_Click" Content="Open videos" Background="#475569"/>
-                </WrapPanel>
-              </StackPanel>
-            </Expander>
 
             <Expander Header="App tools">
               <WrapPanel Margin="0,8,0,0">
-                <Button Click="CheckUpdates_Click" Content="Check updates" Background="#475569"/>
-                <Button Click="Diagnostics_Click" Content="Copy diagnostics" Background="#475569"/>
+                <Button Click="CheckUpdates_Click" Content="Check updates" Background="#48534D"/>
+                <Button Click="Diagnostics_Click" Content="Copy diagnostics" Background="#48534D"/>
               </WrapPanel>
             </Expander>
-            <Border x:Name="StatusBar" BorderBrush="#1E293B" BorderThickness="0,1,0,0" Padding="0,8" Margin="0,10,0,0">
+            <Border x:Name="StatusBar" BorderBrush="#303633" BorderThickness="0,1,0,0" Padding="0,8" Margin="0,10,0,0">
               <StackPanel>
-                <TextBlock x:Name="StatusText" Text="Ready" Foreground="#94A3B8" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" MaxHeight="20"
+                <TextBlock x:Name="StatusText" Text="Ready" Foreground="#A2ADA6" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" MaxHeight="20"
                            ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
-                <TextBlock x:Name="MonitorText" Text="Monitor: idle" Foreground="#64748B" TextWrapping="Wrap" FontSize="11" Margin="0,4,0,0"/>
+                <TextBlock x:Name="MonitorText" Text="Monitor: idle" Foreground="#829088" TextWrapping="Wrap" FontSize="11" Margin="0,4,0,0"/>
               </StackPanel>
             </Border>
           </StackPanel>
         </ScrollViewer>
       </DockPanel>
     </Border>
-    <Border x:Name="SidebarRecoveryRail" Grid.Column="0" Background="#0F172A" Visibility="Collapsed">
+    <Border x:Name="SidebarRecoveryRail" Grid.Column="0" Background="#202322" Visibility="Collapsed">
       <StackPanel VerticalAlignment="Top" Margin="0,6,0,0">
         <Button Click="SidebarToggle_Click" Content="Tools" Padding="2,8" Margin="2" ToolTip="Show left-side tools"/>
-        <Button x:Name="CompactExitButton" Click="Compact_Click" Content="□" Padding="2,8" Margin="2" Visibility="Collapsed" ToolTip="Restore window size"/>
         <Button Click="Minimize_Click" Content="_" Padding="2,8" Margin="2" ToolTip="Minimize window"/>
         <Button x:Name="ExitFullscreenButton" Click="Fullscreen_Click" Content="Exit" Padding="2,8" Margin="2" Visibility="Collapsed" ToolTip="Exit fullscreen"/>
       </StackPanel>
     </Border>
-    <GridSplitter x:Name="SidebarSplitter" Grid.Column="1" Width="5" HorizontalAlignment="Stretch" Background="#1E293B"/>
-    <Grid Grid.Column="2" Background="#070B12">
-      <TabControl x:Name="SessionTabs" SelectionChanged="SessionTabs_SelectionChanged" Background="#070B12" BorderThickness="0" Padding="0">
+    <GridSplitter x:Name="SidebarSplitter" Grid.Column="1" Width="5" HorizontalAlignment="Stretch" Background="#303633"/>
+    <Grid Grid.Column="2" Background="#171A19">
+      <TabControl x:Name="SessionTabs" SelectionChanged="SessionTabs_SelectionChanged" Background="#171A19" BorderThickness="0" Padding="0">
         <TabControl.Template>
           <ControlTemplate TargetType="TabControl">
             <Grid>
               <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-              <TabPanel IsItemsHost="True" Background="#17212F"/>
+              <TabPanel IsItemsHost="True" Background="#202624"/>
               <ContentPresenter Grid.Row="1" ContentSource="SelectedContent"/>
             </Grid>
           </ControlTemplate>
@@ -259,7 +261,7 @@
       </TabControl>
       <StackPanel x:Name="EmptyWorkspace" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="440" Margin="30">
         <TextBlock FontSize="24" FontWeight="SemiBold" Text="No mirror session open" HorizontalAlignment="Center"/>
-        <TextBlock Margin="0,10,0,0" Foreground="#94A3B8" TextAlignment="Center" TextWrapping="Wrap"
+        <TextBlock Margin="0,10,0,0" Foreground="#A2ADA6" TextAlignment="Center" TextWrapping="Wrap"
                    Text="Open a device from the left. Fit keeps the complete phone frame visible. F11 toggles fullscreen; use the left Tools / Exit rail when the phone owns keyboard focus."/>
       </StackPanel>
     </Grid>

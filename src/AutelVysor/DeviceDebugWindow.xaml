@@ -4,21 +4,21 @@
         Icon="pack://application:,,,/AutelVysor;component/Assets/AutelVysor.ico"
         Title="Autel Vysor · Device Debug"
         Width="1180" Height="780" MinWidth="980" MinHeight="680"
-        Background="#0B1120" Foreground="#F1F5F9">
+        Background="#1B1E1C" Foreground="#F1F5F9">
   <Window.Resources>
     <Style TargetType="Button" BasedOn="{StaticResource DarkButtonStyle}">
       <Setter Property="Padding" Value="11,7"/>
       <Setter Property="Margin" Value="0,0,7,7"/>
-      <Setter Property="Background" Value="#2563EB"/>
+      <Setter Property="Background" Value="#526F62"/>
       <Setter Property="Foreground" Value="White"/>
       <Setter Property="BorderThickness" Value="0"/>
       <Setter Property="Cursor" Value="Hand"/>
     </Style>
     <Style TargetType="TextBox">
       <Setter Property="Padding" Value="8"/>
-      <Setter Property="Background" Value="#111827"/>
+      <Setter Property="Background" Value="#242826"/>
       <Setter Property="Foreground" Value="#E5E7EB"/>
-      <Setter Property="BorderBrush" Value="#334155"/>
+      <Setter Property="BorderBrush" Value="#404A45"/>
       <Setter Property="CaretBrush" Value="White"/>
     </Style>
     <Style TargetType="CheckBox">
@@ -27,12 +27,12 @@
     </Style>
     <Style TargetType="ComboBox" BasedOn="{StaticResource DarkComboBoxStyle}">
       <Setter Property="Padding" Value="7"/>
-      <Setter Property="Background" Value="#111827"/>
+      <Setter Property="Background" Value="#242826"/>
       <Setter Property="Foreground" Value="White"/>
-      <Setter Property="BorderBrush" Value="#334155"/>
+      <Setter Property="BorderBrush" Value="#404A45"/>
     </Style>
     <Style TargetType="ComboBoxItem" BasedOn="{StaticResource DarkComboItemStyle}">
-      <Setter Property="Background" Value="#111827"/>
+      <Setter Property="Background" Value="#242826"/>
       <Setter Property="Foreground" Value="White"/>
       <Setter Property="Padding" Value="7,5"/>
     </Style>
@@ -48,7 +48,7 @@
       <RowDefinition Height="Auto"/>
     </Grid.RowDefinitions>
 
-    <Border Grid.Row="0" Background="#0F172A" BorderBrush="#1E293B" BorderThickness="0,0,0,1" Padding="18,14">
+    <Border Grid.Row="0" Background="#202322" BorderBrush="#303633" BorderThickness="0,0,0,1" Padding="18,14">
       <Grid>
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="*"/>
@@ -56,17 +56,17 @@
         </Grid.ColumnDefinitions>
         <StackPanel>
           <TextBlock x:Name="DeviceNameText" FontSize="22" FontWeight="Bold"/>
-          <TextBlock x:Name="DeviceMetaText" Margin="0,4,0,0" Foreground="#94A3B8"/>
-          <TextBlock x:Name="DebugBusyText" Text="Working… please wait" Visibility="Collapsed" Foreground="#93C5FD" Margin="0,4,0,0"/>
+          <TextBlock x:Name="DeviceMetaText" Margin="0,4,0,0" Foreground="#A2ADA6"/>
+          <TextBlock x:Name="DebugBusyText" Text="Working… please wait" Visibility="Collapsed" Foreground="#A1BDAA" Margin="0,4,0,0"/>
         </StackPanel>
         <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-          <Button Click="RefreshPackages_Click" Content="Refresh packages" Background="#475569"/>
+          <Button Click="RefreshPackages_Click" Content="Refresh packages" Background="#48534D"/>
           <Button Click="RefreshAppInfo_Click" Content="Refresh selected app"/>
         </StackPanel>
       </Grid>
     </Border>
 
-    <TabControl x:Name="DebugTabs" Grid.Row="1" Margin="12" Background="#0B1120" BorderBrush="#1E293B">
+    <TabControl x:Name="DebugTabs" Grid.Row="1" Margin="12" Background="#1B1E1C" BorderBrush="#303633">
       <TabItem Header="App">
         <Grid Margin="12">
           <Grid.RowDefinitions>
@@ -82,7 +82,7 @@
             </Grid.ColumnDefinitions>
             <StackPanel>
               <WrapPanel Margin="0,0,0,8">
-                <TextBlock Text="Apps" Foreground="#94A3B8" Margin="0,7,8,0"/>
+                <TextBlock Text="Apps" Foreground="#A2ADA6" Margin="0,7,8,0"/>
                 <ComboBox x:Name="AppCategoryBox" Width="120" SelectedIndex="0" SelectionChanged="AppFilterChanged">
                   <ComboBoxItem Content="All"/>
                   <ComboBoxItem Content="User"/>
@@ -91,14 +91,14 @@
                 <TextBox x:Name="PackageSearchBox" Width="255" Margin="8,0,0,0"
                          TextChanged="AppFilterChanged" ToolTip="Search by application name or package"/>
               </WrapPanel>
-              <TextBlock x:Name="SearchMatchText" Text="Search by app name or package" Foreground="#93C5FD"/>
+              <TextBlock x:Name="SearchMatchText" Text="Search by app name or package" Foreground="#A1BDAA"/>
               <ListBox x:Name="AppSearchResults" MaxHeight="115" Visibility="Collapsed" SelectionChanged="AppSearchResultSelected"
-                       Background="#0F172A" Foreground="#E5E7EB" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                       Background="#202322" Foreground="#E5E7EB" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                 <ListBox.ItemContainerStyle><Style TargetType="ListBoxItem" BasedOn="{StaticResource DarkListItemStyle}"><Setter Property="Padding" Value="8,6"/></Style></ListBox.ItemContainerStyle>
                 <ListBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Title}" TextWrapping="Wrap"/></DataTemplate></ListBox.ItemTemplate>
               </ListBox>
-              <TextBlock x:Name="PackageResultsText" Foreground="#94A3B8" TextWrapping="Wrap"/>
-              <TextBlock Foreground="#94A3B8" Margin="0,0,0,5" Text="Package name"/>
+              <TextBlock x:Name="PackageResultsText" Foreground="#A2ADA6" TextWrapping="Wrap"/>
+              <TextBlock Foreground="#A2ADA6" Margin="0,0,0,5" Text="Package name"/>
               <ComboBox x:Name="PackageBox"
                         IsEditable="True"
                         IsTextSearchEnabled="True"
@@ -106,16 +106,16 @@
                         MinWidth="520"/>
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Bottom" Margin="12,0,0,0">
-              <Button Click="InstallApk_Click" Content="Install APK" Background="#475569"/>
-              <Button Click="UninstallApp_Click" Content="Uninstall" Background="#B45309"/>
+              <Button Click="InstallApk_Click" Content="Install APK" Background="#48534D"/>
+              <Button Click="UninstallApp_Click" Content="Uninstall" Background="#76514A"/>
             </StackPanel>
           </Grid>
 
           <WrapPanel Grid.Row="1" Margin="0,12,0,10">
-            <Button Click="ForceStopApp_Click" Content="Stop app" Background="#475569"/>
+            <Button Click="ForceStopApp_Click" Content="Stop app" Background="#48534D"/>
             <Button Click="StartApp_Click" Content="Start app"/>
-            <Button Click="RestartApp_Click" Content="Restart app" Background="#475569"/>
-            <Button Click="ClearAppData_Click" Content="Clear data" Background="#B45309"/>
+            <Button Click="RestartApp_Click" Content="Restart app" Background="#48534D"/>
+            <Button Click="ClearAppData_Click" Content="Clear data" Background="#76514A"/>
             <CheckBox x:Name="KeepDataBox" Margin="8,8,0,0" Content="Keep data when uninstalling"/>
           </WrapPanel>
 
@@ -126,10 +126,10 @@
               <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <Border Grid.Column="0" Background="#0F172A" BorderBrush="#1E293B" BorderThickness="1" Padding="14">
+            <Border Grid.Column="0" Background="#202322" BorderBrush="#303633" BorderThickness="1" Padding="14">
               <StackPanel>
                 <TextBlock FontSize="15" FontWeight="SemiBold" Text="App summary"/>
-                <TextBlock x:Name="AppStatusText" TextWrapping="Wrap" Foreground="#93C5FD" Margin="0,8,0,0"/>
+                <TextBlock x:Name="AppStatusText" TextWrapping="Wrap" Foreground="#A1BDAA" Margin="0,8,0,0"/>
                 <Grid Margin="0,12,0,0">
                   <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="120"/>
@@ -145,29 +145,29 @@
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                   </Grid.RowDefinitions>
-                  <TextBlock Grid.Row="0" Text="Version" Foreground="#64748B"/>
+                  <TextBlock Grid.Row="0" Text="Version" Foreground="#829088"/>
                   <TextBlock Grid.Row="0" Grid.Column="1" x:Name="VersionText"/>
-                  <TextBlock Grid.Row="1" Text="Version code" Foreground="#64748B"/>
+                  <TextBlock Grid.Row="1" Text="Version code" Foreground="#829088"/>
                   <TextBlock Grid.Row="1" Grid.Column="1" x:Name="VersionCodeText"/>
-                  <TextBlock Grid.Row="2" Text="PID" Foreground="#64748B"/>
+                  <TextBlock Grid.Row="2" Text="PID" Foreground="#829088"/>
                   <TextBlock Grid.Row="2" Grid.Column="1" x:Name="PidText"/>
-                  <TextBlock Grid.Row="3" Text="Min SDK" Foreground="#64748B"/>
+                  <TextBlock Grid.Row="3" Text="Min SDK" Foreground="#829088"/>
                   <TextBlock Grid.Row="3" Grid.Column="1" x:Name="MinSdkText"/>
-                  <TextBlock Grid.Row="4" Text="Target SDK" Foreground="#64748B"/>
+                  <TextBlock Grid.Row="4" Text="Target SDK" Foreground="#829088"/>
                   <TextBlock Grid.Row="4" Grid.Column="1" x:Name="TargetSdkText"/>
-                  <TextBlock Grid.Row="5" Text="First install" Foreground="#64748B"/>
+                  <TextBlock Grid.Row="5" Text="First install" Foreground="#829088"/>
                   <TextBlock Grid.Row="5" Grid.Column="1" x:Name="FirstInstallText" TextWrapping="Wrap"/>
-                  <TextBlock Grid.Row="6" Text="Last update" Foreground="#64748B"/>
+                  <TextBlock Grid.Row="6" Text="Last update" Foreground="#829088"/>
                   <TextBlock Grid.Row="6" Grid.Column="1" x:Name="LastUpdateText" TextWrapping="Wrap"/>
-                  <TextBlock Grid.Row="7" Text="Data dir" Foreground="#64748B"/>
+                  <TextBlock Grid.Row="7" Text="Data dir" Foreground="#829088"/>
                   <TextBlock Grid.Row="7" Grid.Column="1" x:Name="DataDirText" TextWrapping="Wrap"/>
                 </Grid>
               </StackPanel>
             </Border>
 
-            <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch" Background="#1E293B"/>
+            <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch" Background="#303633"/>
 
-            <TabControl Grid.Column="2" Margin="10,0,0,0" Background="#0F172A">
+            <TabControl Grid.Column="2" Margin="10,0,0,0" Background="#202322">
               <TabItem Header="Permissions">
                 <TextBox x:Name="PermissionsTextBox"
                          IsReadOnly="True" AcceptsReturn="True"
@@ -183,13 +183,13 @@
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                   </Grid.RowDefinitions>
-                  <TextBlock Grid.Row="0" Text="Runtime permission (pm grant / revoke)" Foreground="#CBD5E1"/>
+                  <TextBlock Grid.Row="0" Text="Runtime permission (pm grant / revoke)" Foreground="#C9D1CC"/>
                   <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,6,0,9">
                     <TextBox x:Name="PermissionNameBox" Width="290" Text="android.permission.CAMERA"/>
                     <Button Click="GrantPermission_Click" Content="Grant" Margin="8,0,4,0"/>
-                    <Button Click="RevokePermission_Click" Content="Revoke" Background="#B45309"/>
+                    <Button Click="RevokePermission_Click" Content="Revoke" Background="#76514A"/>
                   </StackPanel>
-                  <TextBlock Grid.Row="2" Text="AppOps (Android enforces support / permissions)" Foreground="#CBD5E1"/>
+                  <TextBlock Grid.Row="2" Text="AppOps (Android enforces support / permissions)" Foreground="#C9D1CC"/>
                   <StackPanel Grid.Row="3" Margin="0,6,0,0">
                     <WrapPanel>
                       <TextBox x:Name="AppOpNameBox" Width="140" Text="CAMERA"/>
@@ -200,7 +200,7 @@
                         <ComboBoxItem Content="default"/>
                       </ComboBox>
                       <Button Click="SetAppOp_Click" Content="Set AppOp"/>
-                      <Button Click="RefreshAppOps_Click" Content="Read AppOps" Background="#475569"/>
+                      <Button Click="RefreshAppOps_Click" Content="Read AppOps" Background="#48534D"/>
                     </WrapPanel>
                     <TextBox x:Name="AppOpsTextBox" IsReadOnly="True" AcceptsReturn="True"
                              VerticalScrollBarVisibility="Auto" Margin="0,10,0,0"
@@ -228,7 +228,7 @@
           </Grid.RowDefinitions>
           <DockPanel Grid.Row="0" Margin="0,0,0,10">
             <Button DockPanel.Dock="Left" Click="RefreshProcesses_Click" Content="Refresh processes"/>
-            <TextBlock x:Name="ProcessHintText" VerticalAlignment="Center" Foreground="#94A3B8"/>
+            <TextBlock x:Name="ProcessHintText" VerticalAlignment="Center" Foreground="#A2ADA6"/>
           </DockPanel>
           <TextBox Grid.Row="1" x:Name="ProcessTextBox"
                    IsReadOnly="True" AcceptsReturn="True"
@@ -246,9 +246,9 @@
           </Grid.RowDefinitions>
           <StackPanel Grid.Row="0">
             <WrapPanel Margin="0,0,0,8">
-              <TextBlock Margin="0,7,6,0" Foreground="#94A3B8" Text="Filter"/>
+              <TextBlock Margin="0,7,6,0" Foreground="#A2ADA6" Text="Filter"/>
               <TextBox x:Name="LogFilterBox" Width="220" Margin="0,0,10,7" ToolTip="Case-insensitive text across the whole log record, including exception lines"/>
-              <TextBlock Margin="0,7,6,0" Foreground="#94A3B8" Text="Minimum level"/>
+              <TextBlock Margin="0,7,6,0" Foreground="#A2ADA6" Text="Minimum level"/>
               <ComboBox x:Name="LogLevelBox" Width="110" SelectedIndex="0" Margin="0,0,10,7">
                 <ComboBoxItem Content="All" Tag="*"/>
                 <ComboBoxItem Content="Verbose" Tag="V"/>
@@ -258,25 +258,25 @@
                 <ComboBoxItem Content="Error" Tag="E"/>
                 <ComboBoxItem Content="Fatal" Tag="F"/>
               </ComboBox>
-              <TextBlock Text="Tag" Foreground="#94A3B8" Margin="0,7,6,0"/>
+              <TextBlock Text="Tag" Foreground="#A2ADA6" Margin="0,7,6,0"/>
               <TextBox x:Name="LogTagBox" Width="110" Margin="0,0,8,7" ToolTip="Exact Tag, case-insensitive; combines with text, PID and minimum level"/>
-              <TextBlock Text="PID" Foreground="#94A3B8" Margin="0,7,6,0"/>
+              <TextBlock Text="PID" Foreground="#A2ADA6" Margin="0,7,6,0"/>
               <TextBox x:Name="LogPidBox" Width="76" Margin="0,0,8,7" ToolTip="Optional PID"/>
               <CheckBox x:Name="OnlySelectedAppLogBox" Margin="0,7,14,7" Content="Selected app PID only"/>
               <CheckBox x:Name="PauseLogBox" Margin="0,7,0,7" Content="Pause view"/>
             </WrapPanel>
             <WrapPanel Margin="0,0,0,10">
               <Button x:Name="StartLiveLogButton" Click="StartLiveLog_Click" Content="Start live"/>
-              <Button x:Name="StopLiveLogButton" IsEnabled="False" Click="StopLiveLog_Click" Content="Stop" Background="#475569"/>
-              <Button x:Name="SnapshotLogButton" Click="SnapshotLog_Click" Content="Snapshot" Background="#475569"/>
-              <Button Click="ImportLog_Click" Content="Import ADB log" Background="#475569"/>
-              <Button Click="ExportLog_Click" Content="Export all retained" Background="#475569"/>
-              <Button Click="ExportFilteredLog_Click" Content="Export filtered" Background="#475569"/>
-              <Button Click="ClearLogView_Click" Content="Clear view" Background="#475569"/>
+              <Button x:Name="StopLiveLogButton" IsEnabled="False" Click="StopLiveLog_Click" Content="Stop" Background="#48534D"/>
+              <Button x:Name="SnapshotLogButton" Click="SnapshotLog_Click" Content="Snapshot" Background="#48534D"/>
+              <Button Click="ImportLog_Click" Content="Import ADB log" Background="#48534D"/>
+              <Button Click="ExportLog_Click" Content="Export all retained" Background="#48534D"/>
+              <Button Click="ExportFilteredLog_Click" Content="Export filtered" Background="#48534D"/>
+              <Button Click="ClearLogView_Click" Content="Clear view" Background="#48534D"/>
             </WrapPanel>
-            <TextBlock x:Name="LogCountText" Text="No source loaded. Filter changes apply to retained records." Foreground="#94A3B8" Margin="0,0,0,8" TextWrapping="Wrap"/>
+            <TextBlock x:Name="LogCountText" Text="No source loaded. Filter changes apply to retained records." Foreground="#A2ADA6" Margin="0,0,0,8" TextWrapping="Wrap"/>
           </StackPanel>
-          <ListBox Grid.Row="1" x:Name="LogLines" Background="#111827" BorderBrush="#334155" Foreground="#E5E7EB"
+          <ListBox Grid.Row="1" x:Name="LogLines" Background="#242826" BorderBrush="#404A45" Foreground="#E5E7EB"
                    FontFamily="Consolas" FontSize="12" SelectionMode="Extended" HorizontalContentAlignment="Stretch"
                    ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Auto"
                    ScrollViewer.CanContentScroll="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
@@ -313,8 +313,8 @@
               <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <StackPanel Grid.Column="0" Orientation="Horizontal">
-              <Button x:Name="RemoteRootButton" Click="RemoteRoot_Click" Content="Root" Background="#475569"/>
-              <Button x:Name="RemoteUpButton" Click="RemoteUp_Click" Content="Up" Background="#475569"/>
+              <Button x:Name="RemoteRootButton" Click="RemoteRoot_Click" Content="Root" Background="#48534D"/>
+              <Button x:Name="RemoteUpButton" Click="RemoteUp_Click" Content="Up" Background="#48534D"/>
             </StackPanel>
             <TextBox Grid.Column="1" x:Name="RemoteFilePathBox" KeyDown="RemotePath_KeyDown" TextChanged="RemotePathChanged" Margin="0,0,7,7" Text="/sdcard/Download"/>
             <Button x:Name="RemoteRefreshButton" Grid.Column="2" Click="RefreshRemoteFiles_Click" Content="Refresh"/>
@@ -325,14 +325,14 @@
                     KeyDown="RemoteFiles_KeyDown" ContextMenuOpening="RemoteContextMenuOpening"
                     SelectionMode="Extended"
                     MouseDoubleClick="RemoteFileList_MouseDoubleClick"
-                    Background="#0F172A"
+                    Background="#202322"
                     Foreground="#E5E7EB"
-                    BorderBrush="#334155">
+                    BorderBrush="#404A45">
             <ListView.Resources>
               <Style TargetType="GridViewColumnHeader">
-                <Setter Property="Background" Value="#1E293B"/>
+                <Setter Property="Background" Value="#303633"/>
                 <Setter Property="Foreground" Value="#E5E7EB"/>
-                <Setter Property="BorderBrush" Value="#334155"/>
+                <Setter Property="BorderBrush" Value="#404A45"/>
                 <Setter Property="Padding" Value="8,6"/>
               </Style>
             </ListView.Resources>
@@ -355,11 +355,11 @@
                   </Setter.Value>
                 </Setter>
                 <Style.Triggers>
-                  <Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="#1E293B"/></Trigger>
+                  <Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="#303633"/></Trigger>
                   <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="#1D4ED8"/>
+                    <Setter Property="Background" Value="#465F52"/>
                     <Setter Property="Foreground" Value="White"/>
-                    <Setter Property="BorderBrush" Value="#93C5FD"/>
+                    <Setter Property="BorderBrush" Value="#A1BDAA"/>
                   </Trigger>
                 </Style.Triggers>
               </Style>
@@ -383,19 +383,19 @@
               <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
             <Button x:Name="RemoteUploadButton" Grid.Column="0" VerticalAlignment="Top" Click="UploadRemoteFile_Click" Content="Upload"/>
-            <Button x:Name="RemoteDownloadButton" Grid.Column="1" VerticalAlignment="Top" Click="DownloadRemoteFile_Click" Content="Download" Background="#475569"/>
-            <Button x:Name="RemoteDeleteButton" Grid.Column="2" VerticalAlignment="Top" Click="DeleteRemoteFile_Click" Content="Delete" Background="#B45309"/>
+            <Button x:Name="RemoteDownloadButton" Grid.Column="1" VerticalAlignment="Top" Click="DownloadRemoteFile_Click" Content="Download" Background="#48534D"/>
+            <Button x:Name="RemoteDeleteButton" Grid.Column="2" VerticalAlignment="Top" Click="DeleteRemoteFile_Click" Content="Delete" Background="#76514A"/>
             <StackPanel Grid.Column="3" Margin="6,0,7,7">
-              <TextBlock Text="New / renamed item name" Foreground="#94A3B8" Margin="0,0,0,5"/>
+              <TextBlock Text="New / renamed item name" Foreground="#A2ADA6" Margin="0,0,0,5"/>
               <TextBox x:Name="NewFolderNameBox" ToolTip="Name for New folder or Rename selected (F2)"/>
             </StackPanel>
             <StackPanel Grid.Column="4">
-              <Button x:Name="RemoteNewFolderButton" Click="CreateRemoteFolder_Click" Content="New folder" Background="#475569"/>
-              <Button x:Name="RemoteRenameButton" Click="RenameRemoteFile_Click" Content="Rename selected" Background="#475569" ToolTip="Use the name field to enter a new name"/>
+              <Button x:Name="RemoteNewFolderButton" Click="CreateRemoteFolder_Click" Content="New folder" Background="#48534D"/>
+              <Button x:Name="RemoteRenameButton" Click="RenameRemoteFile_Click" Content="Rename selected" Background="#48534D" ToolTip="Use the name field to enter a new name"/>
             </StackPanel>
             <StackPanel Grid.Column="5" Margin="10,0,0,0">
               <Button x:Name="RemoteOpenButton" Click="RemoteOpen_Click" Content="Open folder" HorizontalAlignment="Left"/>
-              <TextBlock x:Name="FileStatusText" TextWrapping="Wrap" Foreground="#93C5FD"/>
+              <TextBlock x:Name="FileStatusText" TextWrapping="Wrap" Foreground="#A1BDAA"/>
             </StackPanel>
           </Grid>
         </Grid>
@@ -410,8 +410,8 @@
           </Grid.RowDefinitions>
           <WrapPanel Grid.Row="1" Margin="0,9,0,3" HorizontalAlignment="Left">
             <ComboBox x:Name="SavedCommandsBox" Width="210" SelectionChanged="SavedCommandSelected" ToolTip="Favorite ADB shell commands"/>
-            <Button Click="SaveShellFavorite_Click" Content="★ Save" Background="#475569"/>
-            <Button Click="RemoveShellFavorite_Click" Content="Remove" Background="#475569"/>
+            <Button Click="SaveShellFavorite_Click" Content="★ Save" Background="#48534D"/>
+            <Button Click="RemoveShellFavorite_Click" Content="Remove" Background="#48534D"/>
           </WrapPanel>
           <TextBox Grid.Row="0" x:Name="ShellOutputBox"
                    IsReadOnly="True" AcceptsReturn="True"
@@ -429,7 +429,7 @@
                      FontFamily="Consolas"
                      ToolTip="Enter executes. Up/Down navigate command history."/>
             <Button x:Name="RunShellButton" Grid.Column="1" Click="RunShell_Click" Content="Run"/>
-            <Button Grid.Column="2" Click="ClearShell_Click" Content="Clear" Background="#475569"/>
+            <Button Grid.Column="2" Click="ClearShell_Click" Content="Clear" Background="#48534D"/>
           </Grid>
         </Grid>
       </TabItem>
@@ -443,7 +443,7 @@
           <WrapPanel Grid.Row="0" Margin="0,0,0,10">
             <Button Click="RefreshNetwork_Click" Content="Interfaces / DNS / routes / ports"/>
             <TextBox x:Name="PingHostBox" Width="200" Text="8.8.8.8" Margin="8,0,6,7"/>
-            <Button Click="PingHost_Click" Content="Ping" Background="#475569"/>
+            <Button Click="PingHost_Click" Content="Ping" Background="#48534D"/>
           </WrapPanel>
           <TextBox Grid.Row="1" x:Name="NetworkTextBox" IsReadOnly="True"
                    AcceptsReturn="True" FontFamily="Consolas" FontSize="12"
@@ -458,7 +458,7 @@
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
           </Grid.RowDefinitions>
-          <Border Grid.Row="0" Background="#0F172A" BorderBrush="#1E293B" BorderThickness="1" Padding="14" Margin="0,0,0,10">
+          <Border Grid.Row="0" Background="#202322" BorderBrush="#303633" BorderThickness="1" Padding="14" Margin="0,0,0,10">
             <Grid>
               <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
@@ -466,7 +466,7 @@
               </Grid.ColumnDefinitions>
               <StackPanel>
                 <TextBlock FontSize="15" FontWeight="SemiBold" Text="Device"/>
-                <TextBlock x:Name="DeviceDetailText" Margin="0,8,0,0" Foreground="#CBD5E1" TextWrapping="Wrap"/>
+                <TextBlock x:Name="DeviceDetailText" Margin="0,8,0,0" Foreground="#C9D1CC" TextWrapping="Wrap"/>
               </StackPanel>
               <Button Grid.Column="1" Click="RefreshDeviceDetails_Click" Content="Refresh details" VerticalAlignment="Top"/>
             </Grid>
@@ -477,18 +477,18 @@
                    HorizontalScrollBarVisibility="Auto"
                    FontFamily="Consolas" FontSize="12"/>
           <WrapPanel Grid.Row="2" Margin="0,12,0,0">
-            <Button Click="RebootDevice_Click" Content="Reboot device" Background="#B45309"/>
-            <Button Click="RestartAdb_Click" Content="Restart ADB server" Background="#B45309"/>
-            <Button Click="ExportBugreport_Click" Content="Export bugreport" Background="#475569"/>
-            <TextBlock Margin="10,7,0,0" Foreground="#64748B" TextWrapping="Wrap"
+            <Button Click="RebootDevice_Click" Content="Reboot device" Background="#76514A"/>
+            <Button Click="RestartAdb_Click" Content="Restart ADB server" Background="#76514A"/>
+            <Button Click="ExportBugreport_Click" Content="Export bugreport" Background="#48534D"/>
+            <TextBlock Margin="10,7,0,0" Foreground="#829088" TextWrapping="Wrap"
                        Text="Restarting ADB affects all connected devices and active mirror sessions."/>
           </WrapPanel>
         </Grid>
       </TabItem>
     </TabControl>
 
-    <Border Grid.Row="2" Background="#0F172A" BorderBrush="#1E293B" BorderThickness="0,1,0,0" Padding="12,8">
-      <TextBlock x:Name="StatusText" Foreground="#94A3B8" Text="Ready" TextWrapping="Wrap" MaxHeight="64" TextTrimming="CharacterEllipsis" ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
+    <Border Grid.Row="2" Background="#202322" BorderBrush="#303633" BorderThickness="0,1,0,0" Padding="12,8">
+      <TextBlock x:Name="StatusText" Foreground="#A2ADA6" Text="Ready" TextWrapping="Wrap" MaxHeight="64" TextTrimming="CharacterEllipsis" ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
     </Border>
   </Grid>
 </Window>

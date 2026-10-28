@@ -3,13 +3,13 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Icon="pack://application:,,,/AutelVysor;component/Assets/AutelVysor.ico"
         Title="Autel Vysor · Captures" Width="950" Height="650" MinWidth="720" MinHeight="480"
-        Background="#0B1120" Foreground="#F1F5F9">
+        Background="#1B1E1C" Foreground="#F1F5F9">
   <Window.Resources>
     <Style TargetType="Button" BasedOn="{StaticResource DarkButtonStyle}">
       <Setter Property="Padding" Value="12,7"/>
       <Setter Property="Margin" Value="0,0,8,7"/>
       <Setter Property="Foreground" Value="White"/>
-      <Setter Property="Background" Value="#334155"/>
+      <Setter Property="Background" Value="#404A45"/>
       <Setter Property="BorderThickness" Value="0"/>
     </Style>
   </Window.Resources>
@@ -23,7 +23,7 @@
       <Button Click="Refresh_Click" Content="Refresh captures"/>
       <Button x:Name="OpenButton" IsEnabled="False" Click="Open_Click" Content="Open selected"/>
       <Button x:Name="FolderButton" IsEnabled="False" Click="ShowFolder_Click" Content="Show in Explorer"/>
-      <Button x:Name="DeleteButton" IsEnabled="False" Click="Delete_Click" Content="Delete selected" Background="#B45309"/>
+      <Button x:Name="DeleteButton" IsEnabled="False" Click="Delete_Click" Content="Delete selected" Background="#76514A"/>
     </WrapPanel>
     <Grid Grid.Row="1">
       <Grid.ColumnDefinitions>
@@ -31,8 +31,8 @@
         <ColumnDefinition Width="5"/>
         <ColumnDefinition Width="*" MinWidth="260"/>
       </Grid.ColumnDefinitions>
-      <ListBox x:Name="CaptureList" SelectionChanged="CaptureSelected" Background="#111827"
-               Foreground="#E5E7EB" BorderBrush="#334155" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+      <ListBox x:Name="CaptureList" SelectionChanged="CaptureSelected" Background="#242826"
+               Foreground="#E5E7EB" BorderBrush="#404A45" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
         <ListBox.ItemContainerStyle>
           <Style TargetType="ListBoxItem" BasedOn="{StaticResource DarkListItemStyle}">
             <Setter Property="Padding" Value="10,9"/>
@@ -42,12 +42,12 @@
           <DataTemplate>
             <StackPanel ToolTip="{Binding Path}">
               <TextBlock Text="{Binding FileName}" TextWrapping="Wrap" FontWeight="SemiBold"/>
-              <TextBlock Text="{Binding Details}" Foreground="#CBD5E1" Margin="0,4,0,0" TextWrapping="Wrap"/>
+              <TextBlock Text="{Binding Details}" Foreground="#C9D1CC" Margin="0,4,0,0" TextWrapping="Wrap"/>
             </StackPanel>
           </DataTemplate>
         </ListBox.ItemTemplate>
       </ListBox>
-      <GridSplitter Grid.Column="1" Width="5" Background="#1E293B"/>
+      <GridSplitter Grid.Column="1" Width="5" Background="#303633"/>
       <Grid Grid.Column="2" Margin="8,0,0,0">
         <Grid.RowDefinitions>
           <RowDefinition Height="*"/>
@@ -61,7 +61,7 @@
             </ScrollViewer>
             <ContentControl x:Name="VideoHost" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"/>
             <TextBlock x:Name="PreviewHint" Text="Select a screenshot or recording to preview."
-                       Foreground="#CBD5E1" Margin="20" MaxWidth="520" VerticalAlignment="Center"
+                       Foreground="#C9D1CC" Margin="20" MaxWidth="520" VerticalAlignment="Center"
                        HorizontalAlignment="Center" TextWrapping="Wrap"/>
           </Grid>
         </Border>
@@ -71,16 +71,16 @@
           <Button x:Name="PlayButton" Content="Play" Click="Play_Click" IsEnabled="False"/>
           <Button x:Name="PauseButton" Content="Pause" Click="Pause_Click" IsEnabled="False"/>
           <Button x:Name="StopButton" Content="Stop" Click="Stop_Click" IsEnabled="False"/>
-          <TextBlock x:Name="PlaybackTime" Foreground="#CBD5E1" VerticalAlignment="Center" Margin="0,0,0,7" Text="00:00 / --:--"/>
+          <TextBlock x:Name="PlaybackTime" Foreground="#C9D1CC" VerticalAlignment="Center" Margin="0,0,0,7" Text="00:00 / --:--"/>
         </WrapPanel>
         <WrapPanel Grid.Row="2" x:Name="ImageControls" Visibility="Collapsed">
           <Button Content="Fit image" Click="FitImage_Click"/>
           <Button Content="Actual size" Click="ActualImage_Click"/>
-          <TextBlock x:Name="ImageDetails" Foreground="#CBD5E1" VerticalAlignment="Center"/>
+          <TextBlock x:Name="ImageDetails" Foreground="#C9D1CC" VerticalAlignment="Center"/>
         </WrapPanel>
       </Grid>
     </Grid>
     <TextBlock Grid.Row="2" x:Name="StatusText" Margin="0,10,0,0"
-               TextWrapping="Wrap" MaxHeight="65" TextTrimming="CharacterEllipsis" Foreground="#94A3B8" Text="Screenshots are saved in Pictures; recordings are saved in Videos."/>
+               TextWrapping="Wrap" MaxHeight="65" TextTrimming="CharacterEllipsis" Foreground="#A2ADA6" Text="Screenshots are saved in Pictures; recordings are saved in Videos."/>
   </Grid>
 </Window>

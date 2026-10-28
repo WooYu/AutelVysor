@@ -15,6 +15,7 @@ public partial class BatchOperationsWindow : Window
     public BatchOperationsWindow(AndroidBridge bridge, IReadOnlyList<AndroidDevice> devices)
     {
         InitializeComponent();
+        AutelVysor.Services.DarkWindowChrome.Attach(this);
         _bridge = bridge;
         _devices = devices;
         DevicesText.Text = $"{devices.Count} selected online device(s): " +

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.10.11
+
+- Unify application windows, native title bars, controls, scrollbars and diagnostics in a subdued dark palette.
+- Move file and capture utilities up the sidebar, simplify navigation controls and retain automatic aspect-aware window sizing.
+- Add a verified Android hardware-keyboard soft-keyboard visibility setting and Enter submission for PC-composed text.
+- Report unexpected recorder exits with guidance to close extra mirror sessions; preserve failure and finalization checks.
+- Real Samsung Android 12 testing covered ADB, screenshots, recording, temporary files and fixture app operations. Multi-device, audible audio and physical reconnection remain separate acceptance checks.
+
 ## 0.10.10
 
 - Show device tabs, preserve native mirror sessions across tab switches and open the sole supported device automatically on discovery.
