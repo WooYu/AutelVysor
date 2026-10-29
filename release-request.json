@@ -1,22 +1,22 @@
 {
-  "tag_name": "v0.10.13",
-  "name": "Autel Vysor v0.10.13",
-  "source_commit": "8a9b7e19f6ffed0b29608fa99e944b8cccc45dea",
-  "source_run_id": 40813944688,
-  "artifact_id": 12872215123,
-  "manifest_sha256": "64d10221c2152fdbf135358ef0a3b97d8500afc7a9589b54ea28c158bee85df5",
+  "tag_name": "v0.10.14",
+  "name": "Autel Vysor v0.10.14",
+  "source_commit": "407f2960ad5d0654e618b4f7f9649270a644e94d",
+  "source_run_id": 40833684537,
+  "artifact_id": 12880495143,
+  "manifest_sha256": "d1cc30fefb3e434a6dfd17a54f82b932a919d419e65f795961c91ef8664a8d79",
   "files": [
     {
-      "source": "AutelVysor-v0.10.13-windows-x64.zip",
-      "name": "AutelVysor-v0.10.13-windows-x64.zip",
-      "sha256": "d1411cb896febb0389f12577a2dbdf5f64d167931ba115beee6c8057f5f413d6"
+      "source": "AutelVysor-v0.10.14-windows-x64.zip",
+      "name": "AutelVysor-v0.10.14-windows-x64.zip",
+      "sha256": "eeab0a1d77cd2d576e90f90ff69da3919a8e331b8c3d406c4c0f0ab4c048cc0a"
     },
     {
       "source": "AutelVysor-Setup.exe",
-      "name": "AutelVysor-v0.10.13-Setup.exe",
-      "sha256": "4b01a651026ee72aeefa41bcf31785fa3bebdb065b0a1b5f7086e981ab1de3ce"
+      "name": "AutelVysor-v0.10.14-Setup.exe",
+      "sha256": "586b9d05fa852a315c0e4968da87048f39cb79e3d9ce9657c4fd1f9376cb1ef6"
     }
   ],
-  "notes": "## 本次更新\n\n- 调整左侧工具区顺序，默认展开各区，并将设备调试和截图记录移至文件与工具区。\n- 设备标签新增关闭按钮，整理当前设备的输入控件。\n- 默认在连接硬件键盘时隐藏手机软键盘，并按设备记住选择。设置通常立即生效，无需重启设备。\n\n## 验证与限制\n\n- Windows CI 回归、程序自检和安装包、便携包构建通过；发布过程校验来源及 SHA-256。\n- 软键盘表现取决于设备、输入法和连接模式，本次未进行实机验收；设备设置在程序关闭后保留。\n- 本版未使用可信数字签名。\n",
+  "notes": "## 本次更新\n\n- 优化左侧工具栏布局和分组，收起时使用图标恢复。\n- 改进设备标签关闭图标，支持关闭未选中的设备标签。\n- 新增可选的 Text (SDK) 键盘模式，供旧设备字符输入问题排查。\n\n## 验证与限制\n\n- Windows CI 回归、程序自检和安装包、便携包构建通过；发布过程校验来源及 SHA-256。\n- 键盘模式尚未进行实机验收，不能保证解决 Android 7 输入问题。电脑中文输入法仍需使用侧栏文本输入及粘贴功能。\n- 本版未使用可信数字签名。\n",
   "request_revision": 1
 }
