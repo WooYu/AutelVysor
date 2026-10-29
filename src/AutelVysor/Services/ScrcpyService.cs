@@ -131,11 +131,12 @@ public sealed class ScrcpyService(string scrcpyPath, AppSettings settings)
         {
             "uhid" => true,
             "sdk" => false,
+            "sdk-text" => false,
             "auto" => device.ApiLevel >= 28,
-            _ => throw new ArgumentException("Select Auto, Hardware or Compatible keyboard mode.", nameof(keyboardMode))
+            _ => throw new ArgumentException("Select Auto, Hardware, Compatible or Text keyboard mode.", nameof(keyboardMode))
         };
         args.Add(hardware ? "--keyboard=uhid" : "--keyboard=sdk");
-        if (!hardware) args.Add("--raw-key-events");
+        if (!hardware) args.Add(keyboardMode.Equals("sdk-text", StringComparison.OrdinalIgnoreCase) ? "--prefer-text" : "--raw-key-events");
         switch ((_settings.MirrorQuality ?? "Standard").Trim().ToLowerInvariant())
         {
             case "smooth":

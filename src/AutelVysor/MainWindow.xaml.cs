@@ -290,7 +290,7 @@ public partial class MainWindow : Window
                 ResizeFitWindow(view);
         };
         var header = new DockPanel();
-        var close = new Button { Content = "\uE8BB", FontFamily = new System.Windows.Media.FontFamily("Segoe MDL2 Assets"), FontSize = 10, Padding = new Thickness(4), Margin = new Thickness(8, 0, 0, 0), ToolTip = "Close session", Focusable = false };
+        var close = new Button { Content = "\uE711", FontFamily = new System.Windows.Media.FontFamily("Segoe MDL2 Assets"), FontSize = 10, Width = 24, Height = 24, Padding = new Thickness(0), Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center, ToolTip = "Close session", Focusable = false };
         System.Windows.Automation.AutomationProperties.SetName(close, $"Close {device.DisplayName}");
         DockPanel.SetDock(close, Dock.Right);
         header.Children.Add(close);

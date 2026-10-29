@@ -2,7 +2,7 @@
 
 Windows Android mirror/control client for **Android 4.4 (API 19) and newer**.
 
-Current source version: **0.10.13**
+Current source version: **0.10.14**
 
 ## Desktop interaction improvements
 
@@ -44,7 +44,7 @@ Uses left-side controls and full-height Fit/fullscreen, right-side capture playb
 ## v0.10.5 input / readability candidate
 
 - Android 7+: **Paste text** explicitly sends PC-composed Chinese/Unicode through scrcpy clipboard into the focused phone field. ADBKeyBoard remains an optional advanced channel. A submitted paste is not an assertion of Android insertion.
-- **Keyboard: Auto** selects UHID on Android 9+; **Compatible** retains SDK raw key events. Hardware typing uses the phone's input method/layout; use Paste text for text composed by the PC IME.
+- **Keyboard: Auto** selects UHID on Android 9+; **Compatible (raw keys)** retains SDK raw key events. **Text (SDK)** is an alternative for older devices when letters or digits do not work with raw keys; it depends on the embedded window receiving text events and needs verification on the target PC. Hardware typing uses the phone's input method/layout; use Paste text for text composed by the PC IME.
 - New **125% / 150% / 200% / 300%** viewing magnification and edge scrollbars; **Fit** resets magnification/pan. Zoom enlarges the view, rather than changing Android density or fonts. Select High mirror quality and restart if a larger picture needs more source detail.
 - Native viewport size is reconciled after WPF layout changes, fixing a reproduced bottom-cropping case. Multiline diagnostics stay in a compact status line with a full tooltip.
 - See [input and zoom guide](docs/INPUT_AND_ZOOM.md). Real device text insertion and visual acceptance still require a connected phone.

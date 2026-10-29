@@ -21,6 +21,7 @@ internal static partial class Program
             main.Show(); await Task.Delay(60);
             ((ColumnDefinition)main.FindName("SidebarColumn")).Width = new GridLength(260);
             ((Expander)main.FindName("MirrorSettingsSection")).IsExpanded = true;
+            ((Expander)mirror.FindName("KeyboardSettingsSection")).IsExpanded = true;
             var focus = (Button)mirror.FindName("FocusKeyboardButton");
             focus.Content = "Ready ✓";
             var overlayTitle = (TextBlock)mirror.FindName("OverlayTitle");

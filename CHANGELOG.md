@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.14
+
+- Clarify sidebar hierarchy, keep common device and text controls accessible, and replace the collapsed Tools label with an icon.
+- Make session close buttons more recognizable and cover closing inactive and final tabs.
+- Add an optional SDK text keyboard mode for troubleshooting older devices. Physical device acceptance is pending; PC IME composition still uses the text input and paste workflow.
+
 ## 0.10.13
 
 - Reorder and expand the sidebar sections, group device debugging and captures with file utilities, and organize the active device input controls.

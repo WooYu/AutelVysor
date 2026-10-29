@@ -34,8 +34,7 @@
     </Style>
     <Style TargetType="Expander">
       <Setter Property="Foreground" Value="#E4E9E5"/>
-      <Setter Property="Margin" Value="0,5,0,0"/>
-      <Setter Property="IsExpanded" Value="True"/>
+      <Setter Property="Margin" Value="0,8,0,0"/>
     </Style>
     <Style TargetType="ComboBoxItem" BasedOn="{StaticResource DarkComboItemStyle}">
       <Setter Property="Foreground" Value="#E4E9E5"/>
@@ -96,39 +95,33 @@
     </Grid.ColumnDefinitions>
     <Border x:Name="SidebarPanel" Grid.Column="0" Background="#202322" BorderBrush="#303633" BorderThickness="0,0,1,0">
       <DockPanel>
-        <Border x:Name="TopBar" DockPanel.Dock="Top" Padding="12,10,12,4">
-          <StackPanel>
-            <StackPanel Orientation="Horizontal" Margin="2,0,0,10">
-              <Image Source="pack://application:,,,/AutelVysor;component/Assets/AutelVysor.ico" Width="20" Height="20" Margin="0,0,8,0"/>
-              <TextBlock Text="Autel Vysor" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center"/>
-            </StackPanel>
-            <UniformGrid Columns="3" Margin="0,0,0,4" HorizontalAlignment="Left" Width="156">
+        <Border x:Name="TopBar" DockPanel.Dock="Top" Padding="12,10" BorderBrush="#404A45" BorderThickness="0,0,0,1">
+          <DockPanel LastChildFill="True">
+            <UniformGrid DockPanel.Dock="Right" Columns="3" Width="120">
               <Button Style="{StaticResource ToolbarIconButton}" x:Name="SidebarToggleButton" Click="SidebarToggle_Click" Content="&#xE76B;" ToolTip="Hide tools" AutomationProperties.Name="Hide tools"/>
               <Button Style="{StaticResource ToolbarIconButton}" Click="Refresh_Click" Content="&#xE72C;" ToolTip="Refresh devices" AutomationProperties.Name="Refresh devices"/>
               <Button Style="{StaticResource ToolbarIconButton}" Click="Minimize_Click" Content="&#xE921;" ToolTip="Minimize" AutomationProperties.Name="Minimize"/>
             </UniformGrid>
-          </StackPanel>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+              <Image Source="pack://application:,,,/AutelVysor;component/Assets/AutelVysor.ico" Width="20" Height="20" Margin="0,0,8,0"/>
+              <TextBlock Text="Autel Vysor" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+            </StackPanel>
+          </DockPanel>
         </Border>
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" CanContentScroll="False" Padding="12,0,12,12">
           <StackPanel>
-            <Expander Header="Current device / input">
+            <Expander Header="Current device" IsExpanded="True">
               <ContentControl x:Name="SessionToolsHost" HorizontalContentAlignment="Stretch"/>
             </Expander>
-            <Expander x:Name="DeviceSection" Header="Devices / connect" IsExpanded="True">
+            <Expander x:Name="DeviceSection" Header="Devices" IsExpanded="True">
               <StackPanel Margin="0,8,0,0">
                 <TextBlock Text="Open sessions" FontWeight="SemiBold" Margin="0,2,0,5"/>
                 <ListBox x:Name="SessionList" DisplayMemberPath="Title" MaxHeight="135" Background="#242826" Foreground="White"
                          BorderBrush="#404A45" SelectionChanged="SessionList_SelectionChanged" Margin="0,0,0,10"
                          ItemContainerStyle="{StaticResource DarkListItemStyle}"/>
-                <TextBlock Foreground="#A2ADA6" Text="Select devices, then open a mirror." Margin="0,0,0,8"/>
-                <WrapPanel>
-                  <Button Click="Mirror_Click" Content="Open selected"/>
-                  <Button Click="OpenAll_Click" Content="Open all" Background="#404A45"/>
-                  <Button Click="CloseSession_Click" Content="Close current" Background="#404A45"/>
-                  <Button Click="BatchOperations_Click" Content="Batch operations" Background="#48534D"/>
-                </WrapPanel>
+                <TextBlock Text="Available devices" FontWeight="SemiBold" Margin="0,0,0,5"/>
           <ListBox MaxHeight="210" x:Name="DeviceList"
-                   Margin="0,10,0,8"
+                   Margin="0,0,0,8"
                    SelectionMode="Extended"
                    MouseDoubleClick="DeviceList_MouseDoubleClick"
                    Background="#242826"
@@ -168,9 +161,15 @@
               </DataTemplate>
             </ListBox.ItemTemplate>
           </ListBox>
+                <WrapPanel>
+                  <Button Click="Mirror_Click" Content="Open selected"/>
+                  <Button Click="OpenAll_Click" Content="Open all" Background="#404A45"/>
+                  <Button Click="CloseSession_Click" Content="Close current" Background="#404A45"/>
+                  <Button Click="BatchOperations_Click" Content="Batch operations" Background="#48534D"/>
+                </WrapPanel>
               </StackPanel>
             </Expander>
-            <Expander Header="Files / utilities">
+            <Expander Header="Capture and files">
               <StackPanel Margin="0,8,0,0">
                 <WrapPanel>
                   <Button Click="DeviceDebug_Click" Content="Device debug" Background="#48534D"/>
@@ -209,7 +208,7 @@
               </StackPanel>
             </Expander>
 
-            <Expander Header="Wi-Fi debugging">
+            <Expander Header="Wi-Fi connection">
               <StackPanel Margin="0,8,0,0">
                 <CheckBox x:Name="AutoReconnectBox" IsChecked="True" Margin="0,0,0,8" Content="Auto reconnect Wi-Fi"/>
                 <TextBox x:Name="AddressBox" Text="192.168.1.10:5555" ToolTip="host:port"/>
@@ -243,7 +242,7 @@
     </Border>
     <Border x:Name="SidebarRecoveryRail" Grid.Column="0" Background="#202322" Visibility="Collapsed">
       <StackPanel VerticalAlignment="Top" Margin="0,6,0,0">
-        <Button Click="SidebarToggle_Click" Content="Tools" Padding="2,8" Margin="2" ToolTip="Show left-side tools"/>
+        <Button Style="{StaticResource ToolbarIconButton}" Click="SidebarToggle_Click" Content="&#xE76B;" ToolTip="Show left-side tools" AutomationProperties.Name="Show left-side tools"/>
         <Button Click="Minimize_Click" Content="_" Padding="2,8" Margin="2" ToolTip="Minimize window"/>
         <Button x:Name="ExitFullscreenButton" Click="Fullscreen_Click" Content="Exit" Padding="2,8" Margin="2" Visibility="Collapsed" ToolTip="Exit fullscreen"/>
       </StackPanel>

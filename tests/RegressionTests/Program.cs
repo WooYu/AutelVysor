@@ -56,6 +56,7 @@ internal static partial class Program
                 ("Rotation resets zoom and supersedes a pending 1:1 view", RotationResetsZoom),
                 ("Rotation reads default display instead of stale user setting", ActualDisplayRotation),
                 ("Embedded keyboard avoids SDL text-event dependency", EmbeddedKeyboard),
+                ("SDK text keyboard mode enables text events", SdkTextKeyboard),
                 ("Recording rejects duplicates and finalizes on stop", RecordingLifecycle),
                 ("Failed recorder cleanup retains ownership for retry", RecordingCleanupFailure),
                 ("ASCII text is injected via the actual ADB process boundary", AsciiText),
@@ -75,6 +76,7 @@ internal static partial class Program
                 ("Capture images preview on the right and release files", CapturePreviewLifecycle),
                 ("Capture video controls handle selection and codec failure", CaptureVideoLifecycle),
                 ("Left tools preserve full-height Fit and fullscreen recovery", LeftToolsLayout),
+                ("Each device tab closes its own session", SessionTabCloseButtons),
                 ("Dark selections remain readable without keyboard focus", DarkSelection),
                 ("Minimum window layouts keep controls aligned", MinimumWindowLayouts),
                 ("Test directory cleanup retries transient Windows locks", TestDirectoryCleanupRetries)
@@ -517,6 +519,16 @@ internal static partial class Program
             "Embedded numeric/letter keys still require SDL_TEXTINPUT instead of key events");
     }
 
+    private static async Task SdkTextKeyboard()
+    {
+        File.Delete(State("native-hwnd"));
+        var service = new ScrcpyService(Environment.ProcessPath!, new AppSettings());
+        using var session = await service.StartEmbeddedAsync(TestDevice() with { ApiLevel = 24 }, keyboardMode: "sdk-text");
+        var arguments = File.ReadAllLines(State("scrcpy-args"));
+        Check(arguments.Contains("--keyboard=sdk") && arguments.Contains("--prefer-text") && !arguments.Contains("--raw-key-events"),
+            "SDK text mode does not enable text events");
+    }
+
     private static async Task RecordingLifecycle()
     {
         var service = new ScrcpyService(Environment.ProcessPath!, new AppSettings());
@@ -880,6 +892,30 @@ internal static partial class Program
 
     private static object? DebugCallMain(AutelVysor.MainWindow window, string method, params object[] args)
         => typeof(AutelVysor.MainWindow).GetMethod(method, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(window, args);
+
+    private static Task SessionTabCloseButtons()
+    {
+        var window = new AutelVysor.MainWindow();
+        try
+        {
+            var first = TestDevice() with { ApiLevel = 19 };
+            var second = first with { Serial = "other-device" };
+            DebugCallMain(window, "OpenSession", first);
+            DebugCallMain(window, "OpenSession", second);
+            var tabs = (TabControl)window.FindName("SessionTabs");
+            var firstTab = (TabItem)tabs.Items[0];
+            var secondTab = (TabItem)tabs.Items[1];
+            var firstClose = (Button)((DockPanel)firstTab.Header).Children[0];
+            var secondClose = (Button)((DockPanel)secondTab.Header).Children[0];
+            Check(firstClose.Visibility == Visibility.Visible && secondClose.Visibility == Visibility.Visible, "Every device tab should have a visible close button");
+            firstClose.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Check(tabs.Items.Count == 1 && ReferenceEquals(tabs.Items[0], secondTab), "Closing an inactive tab removed the wrong session");
+            secondClose.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Check(tabs.Items.Count == 0 && ((FrameworkElement)window.FindName("EmptyWorkspace")).Visibility == Visibility.Visible, "Closing the last tab did not restore the empty workspace");
+        }
+        finally { window.Close(); }
+        return Task.CompletedTask;
+    }
 
     private static async Task DarkSelection()
     {

@@ -26,7 +26,7 @@
 
   <Grid x:Name="SessionLayout">
     <Grid.ColumnDefinitions><ColumnDefinition x:Name="InlineToolsColumn" Width="280"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-    <Border x:Name="SessionTools" Grid.Column="0" Background="#242826" BorderBrush="#404A45" BorderThickness="0,0,0,1" Padding="10" TextElement.FontSize="13" TextElement.Foreground="#E5E7EB">
+    <Border x:Name="SessionTools" Grid.Column="0" Background="#242826" BorderBrush="#404A45" BorderThickness="0,0,0,1" Padding="10" TextElement.FontSize="13" TextElement.FontWeight="Normal" TextElement.Foreground="#E5E7EB">
       <Border.Resources>
         <Style TargetType="Button" BasedOn="{StaticResource DarkButtonStyle}">
           <Setter Property="Padding" Value="7,7"/><Setter Property="Margin" Value="2,3"/>
@@ -44,15 +44,7 @@
             <Button Style="{StaticResource SessionIconButton}" Click="VolumeUp_Click" Content="&#xE995;" ToolTip="Volume up" AutomationProperties.Name="Volume up"/>
             <Button Style="{StaticResource SessionIconButton}" Click="Power_Click" Content="&#xE7E8;" ToolTip="Power" AutomationProperties.Name="Power"/>
           </UniformGrid>
-          <TextBlock Text="输入 / Input" FontWeight="SemiBold" Margin="2,8,0,5"/>
-          <ComboBox x:Name="KeyboardModeBox" SelectedIndex="0" Margin="2,4" Style="{StaticResource DarkComboBoxStyle}" SelectionChanged="KeyboardModeChanged"
-                    ToolTip="Auto uses hardware keyboard on Android 9+. Compatible uses SDK events; changing mode restarts this mirror.">
-            <ComboBoxItem Content="Keyboard: Auto" Tag="auto"/><ComboBoxItem Content="Hardware" Tag="uhid"/><ComboBoxItem Content="Compatible" Tag="sdk"/>
-          </ComboBox>
-          <CheckBox x:Name="PhoneKeyboardToggle" IsEnabled="False" Checked="PhoneKeyboardToggle_Changed" Unchecked="PhoneKeyboardToggle_Changed" Margin="2,8,2,8" Foreground="#D4DAD6">
-            <TextBlock Text="连接电脑键盘时隐藏手机软键盘" TextWrapping="Wrap"/>
-          </CheckBox>
-          <TextBlock Text="电脑输入法 / PC text" Margin="2,3,0,5"/>
+          <TextBlock Text="电脑输入法 / PC text" FontWeight="SemiBold" Margin="2,8,0,5"/>
           <TextBox x:Name="AndroidTextBox" Background="#1C201E" Foreground="#E5E7EB" BorderBrush="#404A45" CaretBrush="White"
                    MinHeight="32" Padding="6,5" PreviewKeyDown="AndroidTextBox_PreviewKeyDown" ToolTip="Use the computer input method here. Press Enter to send to the selected phone field."/>
           <UniformGrid Columns="2">
@@ -61,8 +53,15 @@
           </UniformGrid>
           <TextBlock x:Name="ImeRecoveryText" Visibility="Collapsed" Margin="0,6,0,0" Foreground="#FBBF24" TextWrapping="Wrap"
                      Text="Saved IME recovery exists. Open Input options → ADB IME setup and choose Restore original keyboard."/>
-          <Expander Header="更多输入与显示" Margin="2,8,2,4" Foreground="#B8C0BB">
+          <Expander x:Name="KeyboardSettingsSection" Header="Keyboard settings" Margin="2,8,2,4" Foreground="#B8C0BB">
             <StackPanel>
+          <ComboBox x:Name="KeyboardModeBox" SelectedIndex="0" Margin="2,4" Style="{StaticResource DarkComboBoxStyle}" SelectionChanged="KeyboardModeChanged"
+                    ToolTip="Auto uses hardware keyboard on Android 9+. Text mode may help older devices with letters and numbers. Changing mode restarts this mirror.">
+            <ComboBoxItem Content="Keyboard: Auto" Tag="auto"/><ComboBoxItem Content="Hardware" Tag="uhid"/><ComboBoxItem Content="Compatible (raw keys)" Tag="sdk"/><ComboBoxItem Content="Text (SDK)" Tag="sdk-text"/>
+          </ComboBox>
+          <CheckBox x:Name="PhoneKeyboardToggle" IsEnabled="False" Checked="PhoneKeyboardToggle_Changed" Unchecked="PhoneKeyboardToggle_Changed" Margin="2,8,2,8" Foreground="#D4DAD6">
+            <TextBlock Text="连接电脑键盘时隐藏手机软键盘" TextWrapping="Wrap"/>
+          </CheckBox>
         <Button Click="InputOptions_Click" Content="Input options">
           <Button.ContextMenu>
             <ContextMenu>
@@ -77,6 +76,10 @@
 
           <TextBlock x:Name="InputHint" Margin="2,5,2,8" FontSize="11" Foreground="#A2ADA6" TextWrapping="Wrap"
                      Text="先点手机输入框，再在这里输入；按 Enter 发送。"/>
+            </StackPanel>
+          </Expander>
+          <Expander Header="Display and audio" Margin="2,4,2,4" Foreground="#B8C0BB">
+            <StackPanel>
           <StackPanel>
             <Button x:Name="RotateButton" Click="Rotate_Click" Content="Switch orientation" ToolTip="Switch the real Android display between its two main orientations"/>
             <Button x:Name="AutoRotateButton" Click="AutoRotate_Click" Content="Auto rotate"/>
