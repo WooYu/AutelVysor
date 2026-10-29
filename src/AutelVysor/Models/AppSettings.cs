@@ -11,4 +11,5 @@ public sealed class AppSettings
     public bool TurnScreenOffOnMirror { get; set; } = true;
     public bool PreferLegacyAcceleration { get; set; } = true;
     public bool CheckUpdatesOnStart { get; set; } = true;
+    public Dictionary<string, bool> HidePhoneKeyboardByDevice { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }

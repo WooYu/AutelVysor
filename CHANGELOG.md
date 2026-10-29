@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.13
+
+- Reorder and expand the sidebar sections, group device debugging and captures with file utilities, and organize the active device input controls.
+- Close individual mirror sessions from their tabs.
+- Default to hiding the phone keyboard with a hardware keyboard and remember the choice per device. The setting normally takes effect immediately without a device restart; behavior varies by keyboard and connection mode.
+
 ## 0.10.12
 
 - Align device file actions, package and shell inputs, capture details, log filters and Unicode setup controls.

@@ -52,7 +52,7 @@ public partial class MainWindow : Window
     private bool _autoOpenPending = true;
     private bool _syncingSessionList;
     private double _sidebarWidth = 340;
-    private sealed record SessionChoice(TabItem Tab) { public string Title => Tab.Header?.ToString() ?? "Device"; }
+    private sealed record SessionChoice(TabItem Tab) { public string Title => Tab.Tag as string ?? Tab.Header?.ToString() ?? "Device"; }
     private bool _sidebarHiddenBeforeFullscreen;
     private WindowState _restoreWindowState = WindowState.Normal;
 
@@ -289,16 +289,23 @@ public partial class MainWindow : Window
             if (_fitWindow && !_isFullscreen && ReferenceEquals(SessionTabs.SelectedItem, _sessions.GetValueOrDefault(view.Serial).Tab))
                 ResizeFitWindow(view);
         };
+        var header = new DockPanel();
+        var close = new Button { Content = "\uE8BB", FontFamily = new System.Windows.Media.FontFamily("Segoe MDL2 Assets"), FontSize = 10, Padding = new Thickness(4), Margin = new Thickness(8, 0, 0, 0), ToolTip = "Close session", Focusable = false };
+        System.Windows.Automation.AutomationProperties.SetName(close, $"Close {device.DisplayName}");
+        DockPanel.SetDock(close, Dock.Right);
+        header.Children.Add(close);
+        header.Children.Add(new TextBlock { Text = device.DisplayName, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 180 });
         var tab = new TabItem
         {
-            Header = device.DisplayName,
+            Header = header,
+            Tag = device.DisplayName,
             Content = view
         };
+        close.Click += (_, e) => { e.Handled = true; CloseSession(tab); };
         _sessions[device.Serial] = (tab, view);
         SessionTabs.Items.Add(tab);
         SessionTabs.SelectedItem = tab;
         EmptyWorkspace.Visibility = Visibility.Collapsed;
-        DeviceSection.IsExpanded = false;
         StatusText.Text = $"Opened embedded mirror session for {device.DisplayName}.";
     }
 
@@ -307,6 +314,11 @@ public partial class MainWindow : Window
         if (SessionTabs.SelectedItem is not TabItem selected)
             return;
 
+        CloseSession(selected);
+    }
+
+    private void CloseSession(TabItem selected)
+    {
         var match = _sessions.FirstOrDefault(x => ReferenceEquals(x.Value.Tab, selected));
         if (string.IsNullOrEmpty(match.Key))
             return;
@@ -314,6 +326,14 @@ public partial class MainWindow : Window
         match.Value.View.Dispose();
         SessionTabs.Items.Remove(match.Value.Tab);
         _sessions.Remove(match.Key);
+        _syncingSessionList = true;
+        try
+        {
+            var choices = SessionTabs.Items.Cast<TabItem>().Select(tab => new SessionChoice(tab)).ToArray();
+            SessionList.ItemsSource = choices;
+            SessionList.SelectedItem = choices.FirstOrDefault(choice => ReferenceEquals(choice.Tab, SessionTabs.SelectedItem));
+        }
+        finally { _syncingSessionList = false; }
         EmptyWorkspace.Visibility = _sessions.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         StatusText.Text = $"Closed mirror session for {match.Key}.";
     }

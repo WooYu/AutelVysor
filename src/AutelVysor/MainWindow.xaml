@@ -35,6 +35,7 @@
     <Style TargetType="Expander">
       <Setter Property="Foreground" Value="#E4E9E5"/>
       <Setter Property="Margin" Value="0,5,0,0"/>
+      <Setter Property="IsExpanded" Value="True"/>
     </Style>
     <Style TargetType="ComboBoxItem" BasedOn="{StaticResource DarkComboItemStyle}">
       <Setter Property="Foreground" Value="#E4E9E5"/>
@@ -110,23 +111,8 @@
         </Border>
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" CanContentScroll="False" Padding="12,0,12,12">
           <StackPanel>
-            <ContentControl x:Name="SessionToolsHost" HorizontalContentAlignment="Stretch"/>
-            <Expander Header="Files / utilities">
-              <StackPanel Margin="0,8,0,0">
-                <WrapPanel>
-                  <Button x:Name="ScreenshotButton" Click="Screenshot_Click" Content="Screenshot"/>
-                  <Button x:Name="RecordButton" Click="Record_Click" Content="Record MP4"/>
-                  <Button x:Name="StopRecordingsButton" Click="StopRecordings_Click" Content="Stop recordings" IsEnabled="False"/>
-                  <Button Click="Install_Click" Content="Install APK"/>
-                  <Button Click="Push_Click" Content="Send file"/>
-                </WrapPanel>
-                <TextBlock x:Name="CaptureStatusText" Text="Ready to capture. Saved files appear in Captures." Foreground="#A1BDAA" TextWrapping="Wrap" Margin="0,4,0,8"/>
-                <TextBox x:Name="RemotePathBox" Text="/sdcard/Download/example.txt"/>
-                <WrapPanel>
-                  <Button Click="Pull_Click" Content="Pull file" Background="#48534D"/>
-                  <Button Click="OpenFolder_Click" Content="Open videos" Background="#48534D"/>
-                </WrapPanel>
-              </StackPanel>
+            <Expander Header="Current device / input">
+              <ContentControl x:Name="SessionToolsHost" HorizontalContentAlignment="Stretch"/>
             </Expander>
             <Expander x:Name="DeviceSection" Header="Devices / connect" IsExpanded="True">
               <StackPanel Margin="0,8,0,0">
@@ -139,9 +125,7 @@
                   <Button Click="Mirror_Click" Content="Open selected"/>
                   <Button Click="OpenAll_Click" Content="Open all" Background="#404A45"/>
                   <Button Click="CloseSession_Click" Content="Close current" Background="#404A45"/>
-                  <Button Click="DeviceDebug_Click" Content="Device debug" Background="#48534D"/>
                   <Button Click="BatchOperations_Click" Content="Batch operations" Background="#48534D"/>
-                  <Button Click="Captures_Click" Content="Captures" Background="#48534D"/>
                 </WrapPanel>
           <ListBox MaxHeight="210" x:Name="DeviceList"
                    Margin="0,10,0,8"
@@ -186,20 +170,25 @@
           </ListBox>
               </StackPanel>
             </Expander>
-            <Expander Header="Wi-Fi debugging">
+            <Expander Header="Files / utilities">
               <StackPanel Margin="0,8,0,0">
-                <CheckBox x:Name="AutoReconnectBox" IsChecked="True" Margin="0,0,0,8" Content="Auto reconnect Wi-Fi"/>
-                <TextBox x:Name="AddressBox" Text="192.168.1.10:5555" ToolTip="host:port"/>
-                <TextBox x:Name="PairCodeBox" ToolTip="Android 11+ six-digit pairing code"/>
                 <WrapPanel>
-                  <Button Click="Pair_Click" Content="Pair"/>
-                  <Button Click="Connect_Click" Content="Connect"/>
-                  <Button Click="Disconnect_Click" Content="Disconnect" Background="#48534D"/>
-                  <Button Click="TcpIp_Click" Content="USB → TCP/IP" Background="#48534D"/>
+                  <Button Click="DeviceDebug_Click" Content="Device debug" Background="#48534D"/>
+                  <Button Click="Captures_Click" Content="Captures" Background="#48534D"/>
+                  <Button x:Name="ScreenshotButton" Click="Screenshot_Click" Content="Screenshot"/>
+                  <Button x:Name="RecordButton" Click="Record_Click" Content="Record MP4"/>
+                  <Button x:Name="StopRecordingsButton" Click="StopRecordings_Click" Content="Stop recordings" IsEnabled="False"/>
+                  <Button Click="Install_Click" Content="Install APK"/>
+                  <Button Click="Push_Click" Content="Send file"/>
+                </WrapPanel>
+                <TextBlock x:Name="CaptureStatusText" Text="Ready to capture. Saved files appear in Captures." Foreground="#A1BDAA" TextWrapping="Wrap" Margin="0,4,0,8"/>
+                <TextBox x:Name="RemotePathBox" Text="/sdcard/Download/example.txt"/>
+                <WrapPanel>
+                  <Button Click="Pull_Click" Content="Pull file" Background="#48534D"/>
+                  <Button Click="OpenFolder_Click" Content="Open videos" Background="#48534D"/>
                 </WrapPanel>
               </StackPanel>
             </Expander>
-
             <Expander x:Name="MirrorSettingsSection" Header="Mirror settings">
               <StackPanel Margin="0,8,0,0">
                 <TextBlock Foreground="#A2ADA6" Margin="0,0,0,5" Text="Quality preset"/>
@@ -217,6 +206,20 @@
                 <CheckBox x:Name="LegacyAccelerationBox" Margin="0,3,0,7"><TextBlock Text="Prefer Android 4.4 accelerated capture when available" TextWrapping="Wrap"/></CheckBox>
                 <CheckBox x:Name="AutoUpdateCheckBox" Margin="0,3,0,7"><TextBlock Text="Check GitHub Releases for updates on startup" TextWrapping="Wrap"/></CheckBox>
                 <Button Click="ApplyMirrorSettings_Click" Content="Apply &amp; restart mirrors" Background="#48534D"/>
+              </StackPanel>
+            </Expander>
+
+            <Expander Header="Wi-Fi debugging">
+              <StackPanel Margin="0,8,0,0">
+                <CheckBox x:Name="AutoReconnectBox" IsChecked="True" Margin="0,0,0,8" Content="Auto reconnect Wi-Fi"/>
+                <TextBox x:Name="AddressBox" Text="192.168.1.10:5555" ToolTip="host:port"/>
+                <TextBox x:Name="PairCodeBox" ToolTip="Android 11+ six-digit pairing code"/>
+                <WrapPanel>
+                  <Button Click="Pair_Click" Content="Pair"/>
+                  <Button Click="Connect_Click" Content="Connect"/>
+                  <Button Click="Disconnect_Click" Content="Disconnect" Background="#48534D"/>
+                  <Button Click="TcpIp_Click" Content="USB → TCP/IP" Background="#48534D"/>
+                </WrapPanel>
               </StackPanel>
             </Expander>
 

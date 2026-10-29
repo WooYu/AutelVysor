@@ -44,24 +44,25 @@
             <Button Style="{StaticResource SessionIconButton}" Click="VolumeUp_Click" Content="&#xE995;" ToolTip="Volume up" AutomationProperties.Name="Volume up"/>
             <Button Style="{StaticResource SessionIconButton}" Click="Power_Click" Content="&#xE7E8;" ToolTip="Power" AutomationProperties.Name="Power"/>
           </UniformGrid>
-          <TextBlock Text="电脑输入法 / PC text" FontWeight="SemiBold" Margin="2,8,0,5"/>
+          <TextBlock Text="输入 / Input" FontWeight="SemiBold" Margin="2,8,0,5"/>
+          <ComboBox x:Name="KeyboardModeBox" SelectedIndex="0" Margin="2,4" Style="{StaticResource DarkComboBoxStyle}" SelectionChanged="KeyboardModeChanged"
+                    ToolTip="Auto uses hardware keyboard on Android 9+. Compatible uses SDK events; changing mode restarts this mirror.">
+            <ComboBoxItem Content="Keyboard: Auto" Tag="auto"/><ComboBoxItem Content="Hardware" Tag="uhid"/><ComboBoxItem Content="Compatible" Tag="sdk"/>
+          </ComboBox>
+          <CheckBox x:Name="PhoneKeyboardToggle" IsEnabled="False" Checked="PhoneKeyboardToggle_Changed" Unchecked="PhoneKeyboardToggle_Changed" Margin="2,8,2,8" Foreground="#D4DAD6">
+            <TextBlock Text="连接电脑键盘时隐藏手机软键盘" TextWrapping="Wrap"/>
+          </CheckBox>
+          <TextBlock Text="电脑输入法 / PC text" Margin="2,3,0,5"/>
           <TextBox x:Name="AndroidTextBox" Background="#1C201E" Foreground="#E5E7EB" BorderBrush="#404A45" CaretBrush="White"
                    MinHeight="32" Padding="6,5" PreviewKeyDown="AndroidTextBox_PreviewKeyDown" ToolTip="Use the computer input method here. Press Enter to send to the selected phone field."/>
           <UniformGrid Columns="2">
             <Button x:Name="SendTextButton" Click="SendText_Click" Content="Paste text" ToolTip="Paste into the focused Android field; updates the PC clipboard."/>
             <Button x:Name="FocusKeyboardButton" Focusable="False" Click="FocusMirror_Click" Content="Focus" AutomationProperties.Name="Focus keyboard" ToolTip="Keyboard focus is automatic when the mirror opens. Click to restore it after using PC tools."/>
           </UniformGrid>
-          <CheckBox x:Name="PhoneKeyboardToggle" IsEnabled="False" Checked="PhoneKeyboardToggle_Changed" Unchecked="PhoneKeyboardToggle_Changed" Margin="2,8,2,5" Foreground="#D4DAD6">
-            <TextBlock Text="连接电脑键盘时隐藏手机软键盘" TextWrapping="Wrap"/>
-          </CheckBox>
           <TextBlock x:Name="ImeRecoveryText" Visibility="Collapsed" Margin="0,6,0,0" Foreground="#FBBF24" TextWrapping="Wrap"
                      Text="Saved IME recovery exists. Open Input options → ADB IME setup and choose Restore original keyboard."/>
-          <Expander Header="输入与显示设置" Margin="2,8,2,4" Foreground="#B8C0BB">
+          <Expander Header="更多输入与显示" Margin="2,8,2,4" Foreground="#B8C0BB">
             <StackPanel>
-          <ComboBox x:Name="KeyboardModeBox" SelectedIndex="0" Margin="2,4" Style="{StaticResource DarkComboBoxStyle}" SelectionChanged="KeyboardModeChanged"
-                    ToolTip="Auto uses hardware keyboard on Android 9+. Compatible uses SDK events; changing mode restarts this mirror.">
-            <ComboBoxItem Content="Keyboard: Auto" Tag="auto"/><ComboBoxItem Content="Hardware" Tag="uhid"/><ComboBoxItem Content="Compatible" Tag="sdk"/>
-          </ComboBox>
         <Button Click="InputOptions_Click" Content="Input options">
           <Button.ContextMenu>
             <ContextMenu>

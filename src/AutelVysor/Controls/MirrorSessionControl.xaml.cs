@@ -39,6 +39,7 @@ public partial class MirrorSessionControl : UserControl, IDisposable
     private bool _forceLegacyFallback;
     private bool _orientationBusy;
     private bool _updatingPhoneKeyboard;
+    private bool _phoneKeyboardInitialized;
     private DateTime _nextModernRetryUtc;
     private DateTime _lastRotationCheckUtc;
     private int _offlineChecks;
@@ -77,7 +78,7 @@ public partial class MirrorSessionControl : UserControl, IDisposable
                 if (owner is not null) owner.Activated += FocusWindow_Activated;
             }
             await EnsureRunningAsync();
-            await RefreshPhoneKeyboardSettingAsync();
+            await InitializePhoneKeyboardSettingAsync();
             if (!_disposed && IsLoaded && _scrcpySession is { HasExited: false } session && !ScrcpyHost.HasChild)
                 ScrcpyHost.AttachExternalWindow(session.WindowHandle);
             FocusKeyboardWhenReady();
@@ -104,6 +105,20 @@ public partial class MirrorSessionControl : UserControl, IDisposable
     public double DisplayAspectRatio { get; private set; } = 9d / 19d;
     public event EventHandler? OrientationChanged;
 
+    private async Task InitializePhoneKeyboardSettingAsync()
+    {
+        if (_phoneKeyboardInitialized || _disposed || !_device.IsOnline) return;
+        _phoneKeyboardInitialized = true;
+        try
+        {
+            var hide = !_settings.HidePhoneKeyboardByDevice.TryGetValue(_device.Serial, out var saved) || saved;
+            await _bridge.SetShowSoftKeyboardWithHardwareAsync(_device.Serial, !hide, _lifetime.Token);
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { return; }
+        catch (Exception ex) { StatusText.Text = "Phone keyboard setting failed: " + ex.Message; }
+        await RefreshPhoneKeyboardSettingAsync();
+    }
+
     private async Task RefreshPhoneKeyboardSettingAsync()
     {
         if (_disposed || !_device.IsOnline || _updatingPhoneKeyboard) return;
@@ -112,7 +127,7 @@ public partial class MirrorSessionControl : UserControl, IDisposable
         try
         {
             PhoneKeyboardToggle.IsChecked = !await _bridge.GetShowSoftKeyboardWithHardwareAsync(_device.Serial, _lifetime.Token);
-            PhoneKeyboardToggle.ToolTip = "Controls Android's setting for showing the on-screen keyboard while a hardware keyboard is connected.";
+            PhoneKeyboardToggle.ToolTip = "Applied immediately; no device restart required. Behavior depends on the phone keyboard and connection mode.";
             PhoneKeyboardToggle.IsEnabled = true;
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
@@ -129,7 +144,9 @@ public partial class MirrorSessionControl : UserControl, IDisposable
         try
         {
             await _bridge.SetShowSoftKeyboardWithHardwareAsync(_device.Serial, !hide, _lifetime.Token);
-            StatusText.Text = hide ? "Phone keyboard hidden while a hardware keyboard is connected." : "Phone keyboard may appear with a hardware keyboard.";
+            _settings.HidePhoneKeyboardByDevice[_device.Serial] = hide;
+            try { new AppSettingsService().Save(_settings); } catch { }
+            StatusText.Text = hide ? "Phone keyboard hidden with a hardware keyboard; no restart required." : "Phone keyboard may appear with a hardware keyboard; no restart required.";
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
         catch (Exception ex)
